@@ -88,7 +88,8 @@ body{margin:0;background:radial-gradient(100% 50% at 50% 0%,#2b1d4f 0%,var(--voi
 .beamfx .ufo{position:relative;width:96px;height:30px;margin:0 auto}
 .beamfx .ufo::before{content:"";position:absolute;left:30%;right:30%;top:-12px;height:20px;border-radius:50% 50% 30% 30%;background:radial-gradient(circle at 40% 35%,#d7fff0,#55e0a6 55%,#1a6b52);box-shadow:0 0 14px #7dff7a88}
 .beamfx .ufo::after{content:"";position:absolute;inset:6px 0 0;border-radius:50%;background:linear-gradient(#e9eef8,#8c97ad 55%,#4c5468);box-shadow:inset 0 -4px 6px #0006,0 4px 12px #0009}
-.beamfx .ray{margin:0 auto;width:var(--rw,160px);height:var(--rh,300px);background:linear-gradient(#b9ffcf88,#7dff7a33 60%,#7dff7a11);clip-path:polygon(38% 0,62% 0,100% 100%,0 100%);animation:beamFlick .18s steps(2) infinite}
+.beamfx .ray{margin:0 auto;width:var(--rw,160px);height:var(--rh,300px);background:linear-gradient(#b9ffcf88,#7dff7a33 60%,#7dff7a11);clip-path:polygon(47% 0,53% 0,100% 100%,0 100%);
+  -webkit-mask:linear-gradient(transparent,#000 46px,#000 calc(100% - 50px),transparent);mask:linear-gradient(transparent,#000 46px,#000 calc(100% - 50px),transparent);animation:beamFlick .18s steps(2) infinite}
 @keyframes beamFlick{50%{opacity:.7}}
 .beamtag{color:#7dff7a!important;text-shadow:0 0 8px #7dff7a}
 .pocket{position:fixed;z-index:95;pointer-events:none;font:700 1.2rem var(--f-tech);color:#fff2b0;text-shadow:0 0 8px #ffb84a,0 1px 2px #000}
@@ -499,7 +500,7 @@ const Mascot = (()=>{
   function unperch(){ if(perched){ perched=false; if(!beaming) home(); } }
   // beam: hover over the stack's centre; the ray starts at the hands
   function beamTop(cx){ if(!el) return -6; const B=boardBox(); const y=Math.max(-H()*.15, B.y - H()*.62);
-    if(beaming) moveTo(B.x+cx, y); return y + H()*.62 - B.y; }
+    if(beaming) moveTo(B.x+cx, y); return y + H()*.7 - B.y; }
   function beam(on){ if(!el || beaming===on) return; beaming=on; el.classList.toggle("beaming",on); perched=false;
     if(on) set("beam",{look:16}); else { set("idle"); home(); } }
   function talk(t, p){ if(!el) return; bub.textContent=t; fitBubble(); bub.classList.add("show"); clearTimeout(tBub);
