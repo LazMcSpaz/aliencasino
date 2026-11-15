@@ -9,7 +9,7 @@ function buildGravityTable(THREE, opts = {}) {
     shell: std("Shell", 0x2c2b34, .55, .38), shellDark: std("ShellDark", 0x1c1b22, .45, .45), metal: std("Metal", 0x8d8aa0, .85, .3),
     trim: std("GoldTrim", 0xffc845, .85, .28), purple: std("Purple", 0x7a2fd0, .4, .4), dark: std("Dark", 0x0e0d13, .3, .55),
     wheel: std("Wheel", 0x2a2833, .3, .5), hub: std("Hub", 0xc9d2e0, .9, .22),
-    hole: new THREE.MeshStandardMaterial({ name: "BlackHole", color: 0x000000, emissive: 0x14042a, emissiveIntensity: 1, roughness: 1, side: THREE.DoubleSide }),
+    hole: new THREE.MeshStandardMaterial({ name: "BlackHole", color: 0x000000, emissive: 0x050010, emissiveIntensity: 1, roughness: 1, side: THREE.DoubleSide }),
     glow: new THREE.MeshStandardMaterial({ name: "HorizonGlow", color: 0x000000, emissive: 0xff8a3a, emissiveIntensity: 1.6 }),
     comet: new THREE.MeshStandardMaterial({ name: "Comet", color: 0x000000, emissive: 0xbdf4ff, emissiveIntensity: 2.4 }),
     led: new THREE.MeshStandardMaterial({ name: "Led", color: 0x000000, emissive: 0xb45cff, emissiveIntensity: 1.4 }),
@@ -28,8 +28,10 @@ function buildGravityTable(THREE, opts = {}) {
   // the slot face is wide; the dealer screen is tall: fit it by width, centred, on the face's own dark background
   function fitTall(img){ const c = document.createElement("canvas"); c.width = 400; c.height = 560; const g = c.getContext("2d");
     const t = document.createElement("canvas"); t.width = img.width; t.height = img.height; const tg = t.getContext("2d"); tg.drawImage(img, 0, 0);
-    const [r, gg, b] = tg.getImageData(4, 4, 1, 1).data; g.fillStyle = `rgb(${r},${gg},${b})`; g.fillRect(0, 0, 400, 560);
-    const h = 400 * img.height / img.width; g.drawImage(img, 0, (560 - h) / 2, 400, h); return c; }
+    const d = tg.getImageData(0, 0, t.width, t.height), px = d.data;                       // the face's dark backdrop → pure black, so it blends into the screen
+    for (let i = 0; i < px.length; i += 4) { const L = Math.max(px[i], px[i + 1], px[i + 2]); if (L < 70) { const k = Math.max(0, (L - 45) / 25); px[i] *= k; px[i + 1] *= k; px[i + 2] *= k; } }
+    tg.putImageData(d, 0, 0); g.fillStyle = "#000"; g.fillRect(0, 0, 400, 560);
+    const h = 400 * img.height / img.width; g.drawImage(t, 0, (560 - h) / 2, 400, h); return c; }
   mat.face = new THREE.MeshStandardMaterial({ name: "DealerFace", color: 0x000000, emissive: 0xffffff, emissiveMap: T.face ? tex(fitTall(T.face)) : faceTex });   // the same face as the slot machines
 
   function chamferBox(w, h, d, c) {
@@ -51,7 +53,7 @@ function buildGravityTable(THREE, opts = {}) {
   // the table's outline: the round top grows a rounded tongue at the back that the dealer console stands on (one piece)
   const RT = 1.06, HW = .88, BACK = 1.84, CR = .24, zJoin = Math.sqrt(RT * RT - HW * HW);
   // plan coordinates: x to the right, y = −z (toward the dealer). One loop: round front → up the left side of the tongue → across the back → down the right.
-  const outline = []; { const a0 = Math.atan2(zJoin, HW), sweep = Math.PI * 2 - 2 * a0;
+  const outline = []; { const a0 = Math.atan2(zJoin, HW), sweep = Math.PI + 2 * a0;            // round edge runs the long way from the right join to the left join
     for (let i = 0; i <= 96; i++) { const a = a0 - sweep * (i / 96); outline.push([Math.cos(a) * RT, Math.sin(a) * RT]); }          // ends at (−HW, zJoin)
     const corner = (cx, cy, from, to) => { for (let i = 0; i <= 8; i++) { const a = from + (to - from) * i / 8; outline.push([cx + Math.cos(a) * CR, cy + Math.sin(a) * CR]); } };
     corner(-HW + CR, BACK - CR, Math.PI, Math.PI / 2); corner(HW - CR, BACK - CR, Math.PI / 2, 0); }
@@ -68,7 +70,20 @@ function buildGravityTable(THREE, opts = {}) {
   const bowlPts = [[K[0], TOP], [K[0], TOP - .04], [K[1], TOP - .07], [K[1], TOP - .105], [K[2], TOP - .135], [K[2], TOP - .17], [K[3], TOP - .2], [K[3] * .96, TOP - .36]];
   { const g = planarUV(lathe(bowlPts, 128), TR); const m = add(table, g, mat.bowl, "Bowl"); m.castShadow = false; }
   add(table, new THREE.CircleGeometry(K[3] * .96, 48), mat.hole, "BlackHole", [0, TOP - .36, 0], [-Math.PI / 2, 0, 0]);
-  add(table, new THREE.TorusGeometry(K[3] * .55, .008, 6, 48), mat.glow, "EventHorizon", [0, TOP - .34, 0], [Math.PI / 2, 0, 0]);
+  // the swirling black hole: accretion-disc spirals (violet and orange) turning around a pitch-black core, layered so they drift at different speeds
+  const swirls = []; { const mk = (cols, arms, twist) => { const c = document.createElement("canvas"); c.width = c.height = 512; const g = c.getContext("2d"), C = 256;
+      for (let a = 0; a < arms; a++) for (let k = 0; k < 220; k++) { const t = k / 220, r = 30 + t * 220, ang = a / arms * Math.PI * 2 + t * twist;
+        const x = C + Math.cos(ang) * r, y = C + Math.sin(ang) * r, al = Math.sin(t * Math.PI) * .38;
+        g.fillStyle = cols[a % cols.length].replace("A", al.toFixed(3)); g.beginPath(); g.arc(x, y, 6 + t * 26, 0, Math.PI * 2); g.fill(); }
+      const fade = g.createRadialGradient(C, C, 0, C, C, C); fade.addColorStop(0, "rgba(0,0,0,1)"); fade.addColorStop(.16, "rgba(0,0,0,1)"); fade.addColorStop(.3, "rgba(0,0,0,0)");
+      g.fillStyle = fade; g.fillRect(0, 0, 512, 512);
+      const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; return t; };
+    const layers = [[["rgba(180,92,255,A)", "rgba(255,138,58,A)"], 2, 5.5, .55, TOP - .335], [["rgba(255,170,90,A)", "rgba(120,60,255,A)", "rgba(255,95,174,A)"], 3, 3.8, -.32, TOP - .325]];
+    for (const [cols, arms, twist, speed, y] of layers) { const tx = mk(cols, arms, twist);
+      const m = new THREE.MeshBasicMaterial({ map: tx, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+      const d = add(table, new THREE.CircleGeometry(K[3] * .95, 48), m, "Swirl", [0, y, 0], [-Math.PI / 2, 0, 0]); d.castShadow = false; d.receiveShadow = false; d.userData.speed = speed; swirls.push(d); }
+    const core = add(table, new THREE.CircleGeometry(K[3] * .22, 32), new THREE.MeshBasicMaterial({ color: 0x000000 }), "Singularity", [0, TOP - .32, 0], [-Math.PI / 2, 0, 0]); core.castShadow = false; }
+  add(table, new THREE.TorusGeometry(K[3] * .3, .006, 6, 48), mat.glow, "EventHorizon", [0, TOP - .318, 0], [Math.PI / 2, 0, 0]);
 
   // ---- the dealer: a console on the far side, face on its tilted screen, LED strips down its sides ----
   const CZ = -1.42, CXc = -.34, cons = grp(root, "Console", [CXc, 0, CZ]);
@@ -190,5 +205,7 @@ function buildGravityTable(THREE, opts = {}) {
     ct.push(5.9, 6.2, 7); cp.push([0, TOP - .34, 0], [0, -1, 0], [0, -1, 0]);
     clips.push(new THREE.AnimationClip("Launch", 7, [qT("Turret", key, P.map(p => p.t)), qT("Shoulder", key, P.map(p => p.s)), qT("Elbow", key, P.map(p => p.e)), qT("Wrist", key, P.map(p => p.w)),
       qT("Wheel_L", wt, spin(wt, turns)), qT("Wheel_R", wt, spin(wt, turns.map(x => -x))), pT("Comet", ct, cp)])); }
-  return { root, clips, height: 2.6 };
+  // call every frame: the black hole swirls
+  const update = t => { for (const d of swirls) d.rotation.z = t * d.userData.speed; };
+  return { root, clips, height: 2.6, update };
 }

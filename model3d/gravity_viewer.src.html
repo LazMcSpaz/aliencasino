@@ -61,5 +61,5 @@ function size(){ const w=innerWidth,h=innerHeight; renderer.setSize(w,h,false); 
 addEventListener("resize",size); size();
 const clock=new THREE.Clock();
 renderer.setAnimationLoop(()=>{ const dt=Math.min(.05,clock.getDelta()); if(mixer) mixer.update(dt); ctl.update();
-  if(beacon) beacon.material.emissiveIntensity=1.1+.6*Math.sin(clock.elapsedTime*5); renderer.render(scene,cam); });
+  if(bot && bot.update) bot.update(clock.elapsedTime); if(beacon) beacon.material.emissiveIntensity=1.1+.6*Math.sin(clock.elapsedTime*5); renderer.render(scene,cam); });
 </script>
