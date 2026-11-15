@@ -59,6 +59,17 @@ body{margin:0;background:radial-gradient(100% 50% at 50% 0%,#2b1d4f 0%,var(--voi
 @keyframes land{35%{transform:translateY(2px) scaleY(.93)}}
 .stone.glow{filter:drop-shadow(0 0 9px #ffd36b) drop-shadow(0 3px 2px #000a)}
 .stone.dead{filter:grayscale(.6) brightness(.6) drop-shadow(0 3px 2px #000a)}
+/* skim: shimmering stones can be tapped; a skimmed stone shows a crack */
+.stone.skimmable{cursor:pointer}
+.stone.skimmable::before{content:"";position:absolute;inset:6% 4% 8%;border-radius:6px;pointer-events:none;background:linear-gradient(105deg,transparent 35%,#fff7d488 50%,transparent 65%) -150% 0/250% 100% no-repeat;animation:sheen 2.6s ease-in-out infinite;animation-delay:calc(var(--d,0) * .17s)}
+@keyframes sheen{0%,55%{background-position:-150% 0}85%,100%{background-position:150% 0}}
+.stone.cracked::after{content:"";position:absolute;inset:0;pointer-events:none;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 65'%3E%3Cg fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18 30 L30 38 L27 46 L41 52 L46 62 M30 38 L40 33 L52 40 L58 34 L70 41 L76 37 M41 52 L52 49 M58 34 L60 26' stroke='%23fff3d6' stroke-opacity='.35' stroke-width='3.2'/%3E%3Cpath d='M18 30 L30 38 L27 46 L41 52 L46 62 M30 38 L40 33 L52 40 L58 34 L70 41 L76 37 M41 52 L52 49 M58 34 L60 26' stroke='%232a1406' stroke-width='1.8'/%3E%3C/g%3E%3C/svg%3E") center/100% 100% no-repeat}
+.stone.cracked b{color:#5a2a10}
+.stone.wobble{animation:wobble .5s ease-in-out}
+@keyframes wobble{25%{transform:rotate(-2.5deg)}60%{transform:rotate(2deg)}}
+.stone.redcrack::after{filter:drop-shadow(0 0 3px #ff4a2a) drop-shadow(0 0 6px #ff4a2a)}
+.pocket{position:fixed;z-index:95;pointer-events:none;font:700 1.2rem var(--f-tech);color:#fff2b0;text-shadow:0 0 8px #ffb84a,0 1px 2px #000}
+.risk{color:#ff8a6a!important}
 /* the active row: a sideways reel window */
 .lane{position:absolute;left:0;pointer-events:none;box-sizing:border-box;border-top:1px solid color-mix(in srgb,var(--alien) 65%,transparent);border-bottom:1px solid color-mix(in srgb,var(--alien) 65%,transparent);
   background:linear-gradient(90deg,#7dff7a10,#7dff7a22 50%,#7dff7a10);box-shadow:0 0 18px -4px var(--alien) inset}
@@ -156,6 +167,7 @@ body{margin:0;background:radial-gradient(100% 50% at 50% 0%,#2b1d4f 0%,var(--voi
 <div class="sheet" id="sheet" hidden><div class="card chrome" role="dialog" aria-label="How to play">
   <h2>How to play</h2>
   <p>Pay your bet to start a climb. Each <b>DROP</b> spins the next row sideways like a reel. Stones that stop over thin air crumble.</p>
+  <p><b>Skim:</b> between drops, tap a stone worth 2 or more to pocket half its value right away. It cracks, and every crack adds to the chance the tower falls on each drop.</p>
   <p>Reach a band to <b>cash out</b> (band × everything stacked) or <b>keep climbing</b>. Keep climbing and collapse, and you get nothing.</p>
   <table id="paytable"></table>
   <div class="dbg"><button class="chrome" id="fperfect">Debug: perfect drops</button><button class="chrome" id="fcollapse">Debug: collapse next</button><button class="chrome" id="close">Close</button></div>
@@ -168,6 +180,9 @@ const ART = {"sandstone": "data:image/webp;base64,UklGRkpJAABXRUJQVlA4WAoAAAAQAA
 // where it lands is chance. Stones with nothing beneath them crumble away, so the stack can only stay as wide or narrow.
 // Reaching a band offers: cash out (band multiplier × value of every stone stacked) or keep climbing.
 // Keep climbing and collapse = nothing. Reaching the top pays the capstone multiplier automatically.
+// SKIM: between drops the player may skim any uncracked stone worth 2 or more: half its value (rounded down) goes straight to their
+// gold and is kept even if the tower falls. The stone stays, cracked, keeping the other half for the bands. Every crack adds
+// CRACK_RISK to the chance that the next drop — and every drop after — brings the whole tower down.
 const COLS = 5, ROWS = 10;
 const BANDS = { 4:{ mult:1.5, name:"MINOR" }, 7:{ mult:5, name:"MAJOR" }, 10:{ mult:35, name:"CAPSTONE" } };
 const BETS = [20, 40, 100, 200, 400];                       // stone values scale with the bet (see UNIT_DIV)
@@ -175,6 +190,7 @@ const STONE_VALUES = [[1, 56], [2, 30], [3, 10], [5, 4]];  // [value in units, h
 // Landing odds per row: hit = chance the row lands perfectly on top; otherwise it lands 1, 2, 3… columns off,
 // each extra column `spread` times as likely as the last. Landing a full width off (or more) = collapse.
 const DROP = { hit:r => Math.max(.2, .37 - .006*r), spread:.66 };   // tuned with tools/tune.js: every cash-out strategy pays ~87%
+const CRACK_RISK = .015;                                   // added collapse chance per cracked stone, on every drop
 const START = 400;
 let credits = START, bet = 20, climb = null;
 
@@ -185,7 +201,7 @@ function startClimb(){
   if(climb || credits < bet) return null;
   credits -= bet;
   const row = [0,1,2,3,4].map(c=>({ col:c, val:rollValue()*unit() }));
-  climb = { row:1, a:0, w:COLS, rows:[row], total:row.reduce((s,x)=>s+x.val,0), bet };
+  climb = { row:1, a:0, w:COLS, rows:[row], total:row.reduce((s,x)=>s+x.val,0), bet, skimmed:0, cracks:0 };
   return climb;
 }
 const FORCE = { perfect:false, collapse:false };   // debug only: next drop lands perfectly / collapses
@@ -199,6 +215,8 @@ function pickShift(w, r){   // how many columns off the new row lands (w or more
 // One drop. Returns what happened so the screen can animate it.
 function drop(){
   if(!climb || climb.offer) return null;
+  if(climb.cracks && Math.random() < crackRisk()){   // the cracks give way under the new row
+    const res = { row:climb.row+1, start:climb.a, w:climb.w, kept:[], lost:[], stones:[], collapsed:true, cracked:true, paid:0 }; climb = null; return res; }
   const r = climb.row + 1, k = pickShift(climb.w, r), dir = Math.random()<.5 ? -1 : 1;
   const start = climb.a + dir*k;                                 // where the left edge of the falling row lands
   const cols = Array.from({length:climb.w}, (_,i)=>start+i);
@@ -217,6 +235,19 @@ function drop(){
     else { climb.offer = { row:r, mult:band.mult, amount, name:band.name }; res.offer = climb.offer; }
   }
   return res;
+}
+// Which stones can be skimmed right now: [{row, col, val}]
+function skimmable(){
+  if(!climb || climb.offer) return [];
+  const out = []; climb.rows.forEach((stones,i)=>stones.forEach(st=>{ if(!st.cracked && Math.floor(st.val/2) >= 1) out.push({ row:i+1, ...st }); }));
+  return out;
+}
+const crackRisk = () => climb ? Math.min(.95, climb.cracks * CRACK_RISK) : 0;
+function skim(row, col){
+  if(!skimmable().some(s=>s.row===row && s.col===col)) return null;
+  const st = climb.rows[row-1].find(s=>s.col===col), take = Math.floor(st.val/2);
+  st.val -= take; st.cracked = true; climb.cracks++; climb.total -= take; climb.skimmed += take; credits += take;
+  return { row, col, take, left:st.val, total:climb.total, risk:crackRisk() };
 }
 function cashOut(){ if(!climb?.offer) return 0; const a = climb.offer.amount; credits += a; climb = null; return a; }
 function keepClimbing(){ if(climb?.offer) climb.offer = null; }
@@ -401,14 +432,35 @@ async function collapseTower(){
   clearStones();
 }
 
+// ---- skim: tap a stone between drops to pocket half its value; it cracks and the tower gets shakier ----
+function paintSkimmable(){
+  const can = new Set(!busy && climb && !climb.offer ? skimmable().map(s=>s.row+":"+s.col) : []);
+  stoneEls.forEach((s,i)=>{ s.el.classList.toggle("skimmable", can.has(s.row+":"+s.col)); s.el.style.setProperty("--d", i%7); });
+}
+$("board").addEventListener("click", e=>{ const el=e.target.closest(".stone.skimmable"); if(!el) return; const s=stoneEls.find(x=>x.el===el); if(s) doSkim(s); });
+async function doSkim(s){
+  if(busy) return; const res=skim(s.row, s.col); if(!res) return;
+  s.val=res.left; s.el.classList.add("cracked","wobble"); s.el.innerHTML=`<b>${res.left}</b>`; setTimeout(()=>s.el.classList.remove("wobble"),520);
+  SFX.crack(); const r=s.el.getBoundingClientRect(), to=document.querySelector(".coins").getBoundingClientRect();
+  const f=document.createElement("div"); f.className="pocket"; f.textContent="+"+res.take; f.style.left=r.left+r.width/2-12+"px"; f.style.top=r.top+"px"; document.body.appendChild(f);
+  f.animate([{transform:"translate(0,0)",opacity:1},{transform:"translate(0,-24px)",opacity:1,offset:.3},{transform:`translate(${to.left+20-(r.left+r.width/2)}px,${to.top-r.top}px) scale(.7)`,opacity:.4}],{duration:750,easing:"cubic-bezier(.5,0,.4,1)"}).finished.then(()=>{ f.remove(); $("credits").textContent=credits; SFX.coin(); });
+  // the whole tower gives a little shudder
+  stoneEls.forEach(x=>{ if(x!==s) x.el.animate([{transform:"none"},{transform:`translateX(${(Math.random()-.5)*2}px)`},{transform:"none"}],{duration:260}); });
+  $("stacked").textContent=climb.total; paintRisk(); paintBandValues(); paintSkimmable();
+  if(climb.cracks===1) say("Cracked! Every crack makes the next drops riskier.");
+  else say(pick(["Easy, human…","*creeeak*","That one's gonna leave a mark.","Greedy, greedy."]));
+}
+function paintRisk(){ const n=document.querySelector("#stackwin .next"); if(!n||!climb) return;
+  if(climb.cracks){ n.classList.add("risk"); n.textContent=`${climb.cracks} crack${climb.cracks>1?"s":""} · ${Math.round(crackRisk()*100)}% fall risk`; } }
+
 // ---- controls ----
-let busy=false;
+let busy=false, firstClimb=true;
 function setControls(mode){
   const box=$("controls");
   if(mode==="choice"){ const o=climb.offer, next=Object.keys(BANDS).map(Number).find(r=>r>o.row);
     box.innerHTML=`<div class="choice"><button class="pick cash chrome" id="cash"><strong>CASH OUT</strong><small>take ${o.amount}</small></button>
       <button class="pick climb chrome" id="climb"><strong>KEEP CLIMBING</strong><small>next band ×${BANDS[next].mult} · risk it all</small></button></div>`;
-    $("cash").onclick=doCash; $("climb").onclick=doClimb; return; }
+    $("cash").onclick=doCash; $("climb").onclick=doClimb; paintSkimmable(); return; }
   const idle = mode==="play";
   box.innerHTML=`<div class="deck">
     <div class="readout chrome betbox"><span>Bet</span><b id="bet">${bet}</b>
@@ -416,6 +468,7 @@ function setControls(mode){
     <div class="center"><button class="go" id="go">${idle ? "PLAY" : "DROP"}<small>${idle || !climb ? bet+" a climb" : "row "+Math.min(ROWS,climb.row+1)+"/"+ROWS}</small></button></div>
     <div class="readout chrome" id="stackwin"><span>Stacked</span><b id="stacked">${climb?climb.total:0}</b><span class="next">${climb ? nextBandText() : "×1.5 · ×5 · ×35"}</span></div></div>`;
   $("go").onclick = idle ? play : doDrop; $("go").disabled = mode==="busy";
+  paintRisk(); setTimeout(paintSkimmable);
   $("betdown").disabled = !idle || bet===BETS[0]; $("betup").disabled = !idle || bet===BETS.at(-1);
   $("betdown").onclick=()=>changeBet(-1); $("betup").onclick=()=>changeBet(1);
 }
@@ -433,18 +486,21 @@ async function play(){
   busy=true; clearStones(); startClimb(); paint(); setControls("busy");
   await settleRow({ row:1, kept:[0,1,2,3,4], lost:[], stones:climb.rows[0] });       // row 1 always lands as a full base of five
   countTo($("stacked"), 0, climb.total, 450); paintBandValues();
-  say(pick(["Stack 'em high, human.","Careful now. Gravity works here too.","Build me a wonder."]));
-  busy=false; setControls("drop"); showLane();
+  say(firstClimb ? "Tip: tap a stone to skim half its value — but it cracks!" : pick(["Stack 'em high, human.","Careful now. Gravity works here too.","Build me a wonder."]));
+  firstClimb=false; busy=false; setControls("drop"); showLane();
 }
 async function doDrop(){
   if(busy || !climb || climb.offer) return; busy=true; setControls("busy");
   const prev=climb.total, r=climb.row+1;
+  paintSkimmable();
   const res=drop();                                    // the engine decides where it stops
-  await spinRow(res);
-  await settleRow(res);
+  if(res.cracked){                                     // the cracks gave way before the row could land
+    stoneEls.forEach(s=>{ if(s.el.classList.contains("cracked")) s.el.classList.add("redcrack","wobble"); }); SFX.crack(); SFX.crack();
+    say("Uh oh… those cracks…"); await wait(700);
+  } else { await spinRow(res); await settleRow(res); }
   if(res.collapsed){
     await wait(150); await collapseTower(); paint();
-    banner("COLLAPSE!", r>5 ? "You kept climbing… and lost it all." : "Nothing reached a band.", "var(--major)");
+    banner(res.cracked ? "CRACKED!" : "COLLAPSE!", res.cracked ? "The cracks gave way." : r>5 ? "You kept climbing… and lost it all." : "Nothing reached a band.", "var(--major)");
     say(pick(["Ooh. That's going to need a permit.","The desert reclaims all.","Gravity: 1, human: 0."]));
     await wait(1100); busy=false; setControls("play"); return;
   }
@@ -492,6 +548,7 @@ const SFX = {
   collapse(){ Sound.noise(1.1,{vol:.22,type:"lowpass",freq:500,sweep:.25}); Sound.tone(90,.9,{type:"sawtooth",vol:.06,slide:.4,lp:400}); },
   band(r){ const n=r===4?[0,4,7,12]:[0,4,7,12,16,19]; n.forEach((v,i)=>Sound.tone(Sound.note(v+5),.25,{type:"triangle",vol:.09,at:i*.07})); },
   cash(){ for(let i=0;i<10;i++) Sound.tone(1700+i*90,.05,{type:"triangle",vol:.05,at:i*.05}); Sound.tone(Sound.note(17),.4,{type:"sine",vol:.07,at:.5}); },
+  crack(){ Sound.noise(.12,{vol:.16,type:"highpass",freq:2500}); Sound.tone(420,.08,{type:"square",vol:.04,slide:.5}); Sound.thud(.2,300); },
   coin(){ Sound.tone(1600+Math.random()*600,.06,{type:"triangle",vol:.05}); },
   climb(){ Sound.tone(300,.3,{type:"sawtooth",vol:.04,slide:2.2,lp:1500}); },
   capstone(){ [0,4,7,12,16,19,24].forEach((v,i)=>Sound.tone(Sound.note(v+5),.4,{type:"square",vol:.05,lp:2400,at:i*.09})); [0,7,12].forEach(v=>Sound.tone(Sound.note(v+5),1.6,{type:"triangle",vol:.06,at:.7})); },
