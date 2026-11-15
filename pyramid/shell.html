@@ -18,7 +18,7 @@ body{margin:0;background:radial-gradient(100% 50% at 50% 0%,#2b1d4f 0%,var(--voi
 .desert::before,.desert::after{content:"";position:absolute;bottom:0;width:0;height:0;border-style:solid;border-color:transparent transparent #1a1230 transparent}
 .desert::before{left:-6%;border-width:0 130px 120px 130px}
 .desert::after{right:-4%;border-width:0 95px 88px 95px;border-bottom-color:#160f29}
-.app{position:relative;height:100dvh;max-width:480px;margin:0 auto;display:grid;grid-template-rows:auto auto 1fr auto;gap:8px;box-sizing:border-box;
+.app{position:relative;height:100dvh;max-width:480px;margin:0 auto;display:grid;grid-template-rows:auto 1fr auto;gap:8px;box-sizing:border-box;
   padding:calc(8px + env(safe-area-inset-top,0px)) max(12px,env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) max(12px,env(safe-area-inset-left,0px))}
 /* angled glass chrome (same construction as the slot): element paints the lit edge, ::before paints the glass inside */
 .chrome{--k:9px;--ehi:color-mix(in srgb,var(--ui) 70%,transparent);--elo:color-mix(in srgb,var(--ui) 14%,transparent);position:relative;isolation:isolate;
@@ -42,7 +42,7 @@ body{margin:0;background:radial-gradient(100% 50% at 50% 0%,#2b1d4f 0%,var(--voi
 .icon{--k:7px;width:38px;height:38px;display:grid;place-items:center;border:0;color:var(--dim);cursor:pointer;padding:0}
 .icon svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
 .icon[aria-pressed="false"] .on{display:none}.icon[aria-pressed="true"] .off{display:none}
-.say{margin:0;min-height:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;font:600 .82rem var(--f-tech);letter-spacing:.02em;color:#e3dbff}
+.say{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);margin:0;min-height:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;font:600 .82rem var(--f-tech);letter-spacing:.02em;color:#e3dbff}
 /* the machine: a glass panel holding the 5×10 stack, with band rails either side */
 .stage{position:relative;display:grid;place-items:center;min-height:0}
 .machine{--k:16px;--ehi:color-mix(in srgb,var(--gold) 75%,transparent);--elo:color-mix(in srgb,var(--ui) 16%,transparent);padding:12px 6px;display:grid;grid-template-columns:30px auto 46px;gap:4px}
@@ -88,7 +88,7 @@ body{margin:0;background:radial-gradient(100% 50% at 50% 0%,#2b1d4f 0%,var(--voi
 .beamfx .ufo{position:relative;width:96px;height:30px;margin:0 auto}
 .beamfx .ufo::before{content:"";position:absolute;left:30%;right:30%;top:-12px;height:20px;border-radius:50% 50% 30% 30%;background:radial-gradient(circle at 40% 35%,#d7fff0,#55e0a6 55%,#1a6b52);box-shadow:0 0 14px #7dff7a88}
 .beamfx .ufo::after{content:"";position:absolute;inset:6px 0 0;border-radius:50%;background:linear-gradient(#e9eef8,#8c97ad 55%,#4c5468);box-shadow:inset 0 -4px 6px #0006,0 4px 12px #0009}
-.beamfx .ray{margin:-4px auto 0;width:var(--rw,160px);height:var(--rh,300px);background:linear-gradient(#b9ffcf88,#7dff7a33 60%,#7dff7a11);clip-path:polygon(38% 0,62% 0,100% 100%,0 100%);animation:beamFlick .18s steps(2) infinite}
+.beamfx .ray{margin:0 auto;width:var(--rw,160px);height:var(--rh,300px);background:linear-gradient(#b9ffcf88,#7dff7a33 60%,#7dff7a11);clip-path:polygon(38% 0,62% 0,100% 100%,0 100%);animation:beamFlick .18s steps(2) infinite}
 @keyframes beamFlick{50%{opacity:.7}}
 .beamtag{color:#7dff7a!important;text-shadow:0 0 8px #7dff7a}
 .pocket{position:fixed;z-index:95;pointer-events:none;font:700 1.2rem var(--f-tech);color:#fff2b0;text-shadow:0 0 8px #ffb84a,0 1px 2px #000}
@@ -156,6 +156,33 @@ body{margin:0;background:radial-gradient(100% 50% at 50% 0%,#2b1d4f 0%,var(--voi
 .pick.climb::before{background:radial-gradient(90% 90% at 50% 100%,#7dff7a33,transparent 70%),linear-gradient(180deg,#1c2a2a,#0b1414)}
 .pick.climb strong{color:var(--alien);font-weight:400;text-shadow:0 0 12px var(--alien)}
 .pick:active{transform:translateY(2px)}
+/* band choice: a panel in the middle of the screen, well away from the DROP button */
+.offer{position:absolute;left:50%;top:38%;z-index:92;width:min(330px,92%);box-sizing:border-box;transform:translate(-50%,-50%) scale(.85);opacity:0;pointer-events:none;
+  transition:transform .3s cubic-bezier(.3,1.5,.5,1),opacity .2s;--k:14px;padding:14px 12px 12px;text-align:center;--ehi:var(--bc);--elo:color-mix(in srgb,var(--bc) 25%,transparent)}
+.offer::before{background:radial-gradient(90% 70% at 50% 0%,color-mix(in srgb,var(--bc) 22%,transparent),transparent 70%),linear-gradient(180deg,#1a1430f2,#0a0816f2)}
+.offer.show{opacity:1;transform:translate(-50%,-50%) scale(1);pointer-events:auto}
+.offer h3{margin:0;font:400 1.5rem/1 var(--f-sign);color:var(--bc);text-shadow:0 0 14px var(--bc)}
+.offer p{margin:5px 0 12px;font:600 .8rem var(--f-tech);color:#e8e2ff}
+.offer .choice{min-height:0}.offer .pick{min-height:80px;transition:opacity .2s}
+.offer:not(.armed) .pick{opacity:.5;pointer-events:none}
+/* the mascot: head and body are separate pieces on one rig, so any head goes on any pose */
+.mascot{position:absolute;left:0;top:0;z-index:70;pointer-events:none;width:calc(240px*var(--mk));height:calc(330px*var(--mk));transition:transform 1s cubic-bezier(.45,0,.3,1),opacity .3s}
+.mascot.snap{transition:opacity .3s}
+.mascot.dim{opacity:.4}
+.mascot .bob{position:absolute;inset:0;animation:mbob 2.8s ease-in-out infinite}
+@keyframes mbob{50%{transform:translateY(-6px)}}
+.mascot .bob::after{content:"";position:absolute;left:22%;right:22%;bottom:-2%;height:9%;border-radius:50%;background:radial-gradient(closest-side,#ff5fae55,transparent);animation:mglow 2.8s ease-in-out infinite}
+@keyframes mglow{50%{transform:scale(.8);opacity:.6}}
+.mascot .rig{position:absolute;left:50%;top:0;width:240px;height:330px;margin-left:-120px;transform-origin:50% 0;transform:scale(calc(var(--mk)*var(--fx,1)),var(--mk))}
+.mascot img{position:absolute;display:block;max-width:none;filter:drop-shadow(0 4px 4px #0008)}
+.mascot .head{transition:transform .25s}
+.mascot .pop{animation:mpop .28s cubic-bezier(.3,1.6,.5,1)}
+@keyframes mpop{0%{scale:.9}}
+.mascot.beaming .bob{animation-duration:1.4s}
+.bubble{position:absolute;bottom:72%;width:max-content;max-width:180px;padding:7px 10px;--k:8px;font:600 .78rem/1.25 var(--f-tech);color:#fff;text-align:left;opacity:0;transform:translateY(6px) scale(.9);
+  transition:opacity .2s,transform .25s cubic-bezier(.3,1.5,.5,1);--ehi:#ff8fd0;--elo:#ff5fae33}
+.bubble::before{background:linear-gradient(180deg,#2a1640f0,#140a22f0)}
+.bubble.show{opacity:1;transform:none}
 /* how-to sheet */
 .sheet{position:fixed;inset:0;z-index:100;display:grid;place-items:center;background:#000b;padding:16px}
 .card{--k:14px;max-width:360px;padding:18px;font:500 .9rem/1.45 var(--f-tech)}
@@ -183,6 +210,9 @@ body{margin:0;background:radial-gradient(100% 50% at 50% 0%,#2b1d4f 0%,var(--voi
       <div class="board" id="board"></div>
       <div class="rail" id="railR"></div>
     </div>
+    <div class="offer chrome" id="offer"><h3 id="offerBig"></h3><p id="offerSmall"></p><div class="choice">
+      <button class="pick cash chrome" id="cash"><strong>CASH OUT</strong><small id="cashAmt"></small></button>
+      <button class="pick climb chrome" id="climb"><strong>KEEP CLIMBING</strong><small id="climbNext"></small></button></div></div>
     <div class="banner chrome" id="banner"><strong id="bannerBig"></strong><em id="bannerSmall"></em></div>
   </section>
   <section id="controls"></section>
@@ -192,7 +222,7 @@ body{margin:0;background:radial-gradient(100% 50% at 50% 0%,#2b1d4f 0%,var(--voi
   <p>Pay your bet to start a climb. Each <b>DROP</b> spins the next row sideways like a reel. Stones that stop over thin air crumble.</p>
   <p><b>Skim:</b> between drops, tap a stone worth 2 or more to pocket half its value right away. It cracks, and every crack adds to the chance the tower falls on each drop — and a skim can shatter the tower on the spot.</p>
   <p><b>Anchor:</b> once per climb, tap the ghost stone beside the top row (it shows the cost, 20% of your bet) to set an anchor. It catches anything that lands on it, giving the next row a wider base. It can only be set beside a top row at least 3 stones wide.</p>
-  <p><b>Golden stone:</b> if one lands, the UFO beams in for 3 beam drops. They land perfectly, can't collapse, and every stone in them is worth double.</p>
+  <p><b>Golden stone:</b> if one lands, Zib beams in for 3 beam drops. They land perfectly, can't collapse, and every stone in them is worth double.</p>
   <p>Reach a band to <b>cash out</b> (band × everything stacked) or <b>keep climbing</b>. Keep climbing and collapse, and you get nothing.</p>
   <table id="paytable"></table>
   <div class="dbg"><button class="chrome" id="fperfect">Debug: perfect drops</button><button class="chrome" id="fcollapse">Debug: collapse next</button><button class="chrome" id="fgold">Debug: golden stone next</button><button class="chrome" id="close">Close</button></div>
@@ -200,11 +230,73 @@ body{margin:0;background:radial-gradient(100% 50% at 50% 0%,#2b1d4f 0%,var(--voi
 
 <script>
 const ART = /*{{ART}}*/;
+const MASCOT = /*{{MASCOT}}*/;
 /*{{ENGINE}}*/
 /*{{SOUND}}*/
 const $ = id => document.getElementById(id);
 const wait = ms => new Promise(r=>setTimeout(r,ms));
 const pick = a => a[Math.floor(Math.random()*a.length)];
+
+// ---- the mascot (Zib): floats above the stack, reacts, talks in a bubble, and holds the beam on golden drops ----
+// Poses pair a head with a body. Each piece carries its neck point (ax, ay) so any head sits on any body.
+const POSES = {
+  idle:["neutral","idle"], happy:["happy","bounce"], cheer:["laughing","celebrate"], excited:["excited","jump"], wink:["wink","bounce"],
+  worried:["concerned","thinking"], ouch:["surprised","hurt"], smug:["laughing","crossed"], greedy:["angry","crossed"], think:["confused","thinking"],
+  present:["excited","present"], wave:["happy","wave"], point:["wink","point"], watch:["neutral","crossed"], beam:["happy","present"],
+};
+const Mascot = (()=>{
+  const NX=120, NY=140, OV=10, K=.44;               // neck point on the 240×330 rig; head chin overlaps the neck by OV
+  let el, rig, head, body, bub, side=1, at={x:0,y:0}, pose="idle", tilt=0, tBack, tBub, beaming=false, perched=false;
+  const W=()=>240*K, H=()=>330*K;
+  function init(){
+    el=document.createElement("div"); el.className="mascot r snap"; el.style.setProperty("--mk",K);
+    el.innerHTML=`<div class="bob"><div class="rig"><img class="body" alt=""><img class="head" alt=""></div></div><div class="bubble chrome"></div>`;
+    $("stage").appendChild(el); rig=el.querySelector(".rig"); head=el.querySelector(".head"); body=el.querySelector(".body"); bub=el.querySelector(".bubble");
+    set("idle");
+  }
+  function place(img, key, isHead){ const m=MASCOT[key]; img.src=m.src;
+    Object.assign(img.style,{left:NX-m.ax+"px", top:(isHead ? NY+OV : NY)-m.ay+"px", width:m.w+"px", height:m.h+"px"});
+    if(isHead) img.style.transformOrigin=`${m.ax}px ${m.ay}px`; }
+  // faces toward the middle of the board; a pointing pose points toward the middle too
+  function face(){ const toRight = side<0;              // on the left → look and point right
+    rig.style.setProperty("--fx", POSES[pose][1]==="point" ? (toRight?1:-1) : (toRight?-1:1));
+    head.style.transform=`rotate(${tilt*(toRight?-1:1)}deg)`; }
+  function set(p, {hold=0, look=0}={}){ if(!POSES[p]) p="idle"; const [h,b]=POSES[p], changed=p!==pose;
+    pose=p; tilt=look; place(body,"body_"+b,false); place(head,"head_"+h,true); face();
+    if(changed){ rig.classList.remove("pop"); void rig.offsetWidth; rig.classList.add("pop"); }
+    clearTimeout(tBack); if(hold) tBack=setTimeout(()=>set(beaming?"beam":"idle",{look:beaming?16:0}), hold); }
+  function moveTo(x,y,snap){ at={x,y}; el.classList.toggle("snap",!!snap); el.style.transform=`translate(${x-W()/2}px,${y}px)`;
+    face(); fitBubble(); }
+  // the bubble opens beside the head, on the roomier side, and never past the screen edge
+  function fitBubble(){ const sw=$("stage").clientWidth, bw=bub.offsetWidth, x0=at.x-W()/2;
+    let rel = at.x < sw/2 ? W()*.8 : W()*.2 - bw;
+    rel = Math.max(4 - x0, Math.min(sw - 4 - bw - x0, rel)); bub.style.left = rel+"px"; }
+  function boardBox(){ const s=$("stage").getBoundingClientRect(), b=$("board").getBoundingClientRect(); return {x:b.left-s.left, y:b.top-s.top, w:b.width, sw:s.width}; }
+  // home: in the empty air just above the next row, on whichever side of the stack has more room
+  function home(snap){ if(!el || beaming || perched) return; const B=boardBox();
+    const row = climb ? climb.row : 1, a = climb ? climb.a : 0, w = climb ? climb.w : COLS;
+    const left=a, right=COLS-a-w; side = left>right ? -1 : right>left ? 1 : side;
+    let x = B.x + (side<0 ? CW*1.1 : B.w - CW*1.1);
+    x = Math.max(W()/2-6, Math.min(B.sw-W()/2+6, x));
+    let y = B.y + rowY(row+1) + (SH-STEP) - H() - 2;
+    const crowded = y < -H()*.15; y = Math.max(-H()*.15, y);
+    el.dataset.crowded = crowded ? 1 : "";
+    moveTo(x,y,snap); }
+  // perch on top of a panel (the band choice), presenting it
+  function perch(panel){ if(!el) return; const s=$("stage").getBoundingClientRect(), r=panel.getBoundingClientRect(); perched=true; side=1;
+    moveTo(r.left-s.left+30, r.top-s.top-H()+16); }
+  function unperch(){ if(perched){ perched=false; home(); } }
+  // beam: hover over the stack's centre; the ray starts at the hands
+  function beamTop(cx){ if(!el) return -6; const B=boardBox(); const y=Math.max(-H()*.15, B.y - H()*.62);
+    if(beaming) moveTo(B.x+cx, y); return y + H()*.62 - B.y; }
+  function beam(on){ if(!el || beaming===on) return; beaming=on; el.classList.toggle("beaming",on); perched=false;
+    if(on) set("beam",{look:16}); else { set("idle"); home(); } }
+  function talk(t, p){ if(!el) return; bub.textContent=t; fitBubble(); bub.classList.add("show"); clearTimeout(tBub);
+    tBub=setTimeout(()=>bub.classList.remove("show"), 1800 + t.length*45);
+    if(p) set(p,{hold:2600, look: beaming?16:0}); }
+  function dim(on){ el?.classList.toggle("dim", on && !!el.dataset.crowded); }
+  return { init, set, talk, home, perch, unperch, beam, beamTop, dim };
+})();
 document.documentElement.style.setProperty("--stone", `url(${ART.sandstone})`);
 document.documentElement.style.setProperty("--bar", `url(${ART.bar})`);
 
@@ -225,16 +317,17 @@ function layout(){
   b.querySelectorAll(".slot,.band,.lane").forEach(e=>e.remove());
   for(let r=1;r<=ROWS;r++) for(let c=0;c<COLS;c++){ const d=document.createElement("i"); d.className="slot";
     Object.assign(d.style,{left:colX(c)+2+"px", top:rowY(r)+(SH-STEP)+1+"px", width:CW-4+"px", height:STEP-2+"px"}); b.appendChild(d); }
-  drawBands(); redrawStones(); placeBeam(); if(!busy){ showLane(); paintSkimmable(); }
+  drawBands(); redrawStones(); Mascot.home(true); placeBeam(); if(!busy){ showLane(); paintSkimmable(); }
 }
 // ---- UFO beam (golden stone): hovers over the stack and shines down during beam drops ----
 function placeBeam(){
-  let f=$("beamfx"); if(!f){ f=document.createElement("div"); f.id="beamfx"; f.className="beamfx"; f.innerHTML=`<div class="ufo"></div><div class="ray"></div>`; $("board").appendChild(f); }
+  let f=$("beamfx"); if(!f){ f=document.createElement("div"); f.id="beamfx"; f.className="beamfx"; f.innerHTML=`<div class="ray"></div>`; $("board").appendChild(f); }
   const topRow = climb ? climb.row : 1, cx = climb ? colX(climb.a) + climb.w*CW/2 : CW*COLS/2;
-  f.style.left = cx+"px"; f.style.top = "-6px";
-  f.style.setProperty("--rw", Math.max(90, (climb ? climb.w : COLS)*CW + 30)+"px"); f.style.setProperty("--rh", (rowY(topRow+1) + SH - 20)+"px");
+  const top = Mascot.beamTop(cx);                    // the ray comes out of the mascot's hands
+  f.style.left = cx+"px"; f.style.top = top+"px";
+  f.style.setProperty("--rw", Math.max(90, (climb ? climb.w : COLS)*CW + 30)+"px"); f.style.setProperty("--rh", Math.max(30, rowY(topRow+1) + SH - 20 - top)+"px");
 }
-function setBeam(on){ $("app").classList.toggle("beam", on); placeBeam(); }
+function setBeam(on){ $("app").classList.toggle("beam", on); Mascot.beam(on); placeBeam(); }
 // ---- stones ----
 let stoneEls=[];                                      // [{el,row,col,val}]
 function makeStone(row,col,val){ const e=document.createElement("div"); e.className="stone";
@@ -323,14 +416,14 @@ async function doSkim(s){
   // the whole tower gives a little shudder
   stoneEls.forEach(x=>{ if(x!==s) x.el.animate([{transform:"none"},{transform:`translateX(${(Math.random()-.5)*2}px)`},{transform:"none"}],{duration:260}); });
   if(res.shattered){   // the crack spreads and the whole tower comes down (the skimmed gold is still kept)
-    busy=true; setControls("busy"); s.el.classList.add("redcrack"); SFX.crack(); say("The crack is spreading…!");
+    busy=true; setControls("busy"); s.el.classList.add("redcrack"); SFX.crack(); say("The crack is spreading…!","ouch");
     await wait(650); await collapseTower(); banner("SHATTERED!", "That skim was one too many.", "var(--major)");
-    say(pick(["Greed: the oldest building code violation.","Should've left that one alone.","Crumble crumble."]));
+    say(pick(["Greed: the oldest building code violation.","Should've left that one alone.","Crumble crumble."]),"smug");
     paint(); await wait(1100); busy=false; setControls("play"); return;
   }
   $("stacked").textContent=climb.total; paintRisk(); paintBandValues(); paintSkimmable();
-  if(climb.cracks===1) say("Cracked! Every crack makes the tower shakier.");
-  else say(pick(["Easy, human…","*creeeak*","That one's gonna leave a mark.","Greedy, greedy."]));
+  if(climb.cracks===1) say("Cracked! Every crack makes the tower shakier.","worried");
+  else say(pick(["Easy, human…","*creeeak*","That one's gonna leave a mark.","Greedy, greedy."]),"greedy");
 }
 function paintRisk(){ const n=document.querySelector("#stackwin .next"); if(!n||!climb) return; if(climb.beam>0) return;
   if(climb.cracks){ n.classList.add("risk"); n.textContent=`${climb.cracks} crack${climb.cracks>1?"s":""} · ${Math.round(crackRisk()*100)}% fall risk`; } }
@@ -348,44 +441,52 @@ async function placeAnchor(side){
   clearSpots(); const res=setAnchor(side); if(!res) return;
   const e=makeStone(res.row, res.col, null); e.classList.add("anchor"); $("board").appendChild(e); stoneEls.push({el:e,row:res.row,col:res.col,val:0,anchor:true});
   e.animate([{transform:"translateY(-40px) scale(1.2)",opacity:0},{transform:"none",opacity:1}],{duration:320,easing:"cubic-bezier(.3,1.5,.5,1)"});
-  SFX.anchor(); paint(); say("Anchored! A bigger base for the next row."); setControls("drop");
+  SFX.anchor(); paint(); say("Anchored! A bigger base for the next row.","point"); setControls("drop");
 }
 
 // ---- controls ----
-let busy=false, firstClimb=true;
+let busy=false, firstClimb=true, lastAct=Date.now();
+document.addEventListener("pointerdown",()=>lastAct=Date.now());
 function setControls(mode){
-  const box=$("controls");
-  if(mode==="choice"){ const o=climb.offer, next=Object.keys(BANDS).map(Number).find(r=>r>o.row);
-    box.innerHTML=`<div class="choice"><button class="pick cash chrome" id="cash"><strong>CASH OUT</strong><small>take ${o.amount}</small></button>
-      <button class="pick climb chrome" id="climb"><strong>KEEP CLIMBING</strong><small>next band ×${BANDS[next].mult} · risk it all</small></button></div>`;
-    $("cash").onclick=doCash; $("climb").onclick=doClimb; paintSkimmable(); return; }
+  const box=$("controls"); if(mode!=="choice") Mascot.unperch();
+  const choosing = mode==="choice"; if(choosing) mode="busy";
+  showOffer(choosing);
   const idle = mode==="play";
   box.innerHTML=`<div class="deck">
     <div class="readout chrome betbox"><span>Bet</span><b id="bet">${bet}</b>
       ${climb ? `` : `<div class="stepper"><button class="chrome" id="betdown" aria-label="Lower bet">−</button><button class="chrome" id="betup" aria-label="Raise bet">+</button></div>`}</div>
-    <div class="center"><button class="go" id="go">${idle ? "PLAY" : "DROP"}<small>${idle || !climb ? bet+" a climb" : "row "+Math.min(ROWS,climb.row+1)+"/"+ROWS}</small></button></div>
+    <div class="center"><button class="go" id="go">${idle ? "PLAY" : choosing ? "CHOOSE" : "DROP"}<small>${choosing ? "above ↑" : idle || !climb ? bet+" a climb" : "row "+Math.min(ROWS,climb.row+1)+"/"+ROWS}</small></button></div>
     <div class="readout chrome" id="stackwin"><span>Stacked</span><b id="stacked">${climb?climb.total:0}</b><span class="next">${climb ? nextBandText() : Object.values(BANDS).map(b=>"×"+b.mult).join(" · ")}</span></div></div>`;
   $("go").onclick = idle ? play : doDrop; $("go").disabled = mode==="busy";
   paintRisk(); setTimeout(paintSkimmable);
   if($("betdown")){ $("betdown").disabled = !idle || bet===BETS[0]; $("betup").disabled = !idle || bet===BETS.at(-1);
     $("betdown").onclick=()=>changeBet(-1); $("betup").onclick=()=>changeBet(1); }
 }
+// the band choice panel: buttons only respond after a short beat, so a fast double-tap on DROP can't pick for you
+function showOffer(on){ const p=$("offer"); clearTimeout(showOffer.t);
+  if(!on){ p.classList.remove("show","armed"); return; }
+  const o=climb.offer, next=Object.keys(BANDS).map(Number).find(r=>r>o.row);
+  p.style.setProperty("--bc", `var(--${BAND_CLASS[o.row]})`); $("offerBig").textContent=`${o.name} BAND`;
+  $("offerSmall").textContent="Take the gold, or climb for more?"; $("cashAmt").textContent=`take ${o.amount}`; $("climbNext").textContent=`next band ×${BANDS[next].mult} · risk it all`;
+  p.classList.add("show"); showOffer.t=setTimeout(()=>p.classList.add("armed"), 550);
+  requestAnimationFrame(()=>Mascot.perch(p)); }
+$("cash").onclick=()=>doCash(); $("climb").onclick=()=>doClimb();
 function nextBandText(){ if(climb.beam>0) return `<span class="beamtag">BEAM DROPS LEFT: ${climb.beam}</span>`; const r=Object.keys(BANDS).map(Number).find(x=>x>climb.row); return r ? `${r-climb.row} to ${BANDS[r].name.toLowerCase()}` : ""; }
 function changeBet(d){ if(climb) return; const i=BETS.indexOf(bet)+d; if(i<0||i>=BETS.length) return; bet=BETS[i]; Sound.unlock(); Sound.tap(); setControls("play"); }
 function paint(){ $("credits").textContent=credits; paintBandValues(); }
-function say(t){ $("say").textContent=t; }
+function say(t, pose){ $("say").textContent=t; Mascot.talk(t, pose); }
 function banner(big, small, color){ const b=$("banner"); $("bannerBig").textContent=big; $("bannerSmall").textContent=small||""; b.style.setProperty("--bc", color||"var(--gold)");
   b.classList.add("show"); clearTimeout(banner.t); banner.t=setTimeout(()=>b.classList.remove("show"), 1700); }
 function countTo(el, from, to, ms=600){ if(!el) return; const t0=performance.now(); const f=now=>{ const k=Math.min(1,(now-t0)/ms); el.textContent=Math.round(from+(to-from)*k); if(k<1) requestAnimationFrame(f); }; requestAnimationFrame(f); }
 
 async function play(){
   if(busy || climb) return; Sound.unlock(); Music.start();
-  if(credits < bet){ say("Not enough gold bars for that bet. Try a smaller one."); return; }
+  if(credits < bet){ say("Not enough gold bars for that bet. Try a smaller one.","worried"); return; }
   busy=true; clearStones(); startClimb(); paint(); setControls("busy");
   await settleRow({ row:1, kept:[0,1,2,3,4], lost:[], stones:climb.rows[0] });       // row 1 always lands as a full base of five
   countTo($("stacked"), 0, climb.total, 450); paintBandValues();
-  say(firstClimb ? "Tip: tap a stone to skim half its value — but it cracks!" : pick(["Stack 'em high, human.","Careful now. Gravity works here too.","Build me a wonder."]));
-  firstClimb=false; busy=false; setControls("drop"); showLane();
+  say(firstClimb ? "Tip: tap a stone to skim half its value — but it cracks!" : pick(["Stack 'em high, human.","Careful now. Gravity works here too.","Build me a wonder."]), firstClimb ? "point" : "happy");
+  firstClimb=false; busy=false; setControls("drop"); showLane(); Mascot.home();
 }
 async function doDrop(){
   if(busy || !climb || climb.offer) return; busy=true; setControls("busy");
@@ -394,40 +495,39 @@ async function doDrop(){
   const res=drop();                                    // the engine decides where it stops
   if(res.cracked){                                     // the cracks gave way before the row could land
     stoneEls.forEach(s=>{ if(s.el.classList.contains("cracked")) s.el.classList.add("redcrack","wobble"); }); SFX.crack(); SFX.crack();
-    say("Uh oh… those cracks…"); await wait(700);
-  } else { await spinRow(res); await settleRow(res); }
+    say("Uh oh… those cracks…","worried"); await wait(700);
+  } else { if(!climb?.beam) Mascot.set("watch",{look:14}); Mascot.dim(true); await spinRow(res); Mascot.dim(false); await settleRow(res); }
   if(res.collapsed){
-    await wait(150); await collapseTower(); paint();
+    Mascot.set("ouch"); await wait(150); await collapseTower(); paint();
     banner(res.cracked ? "CRACKED!" : "COLLAPSE!", res.cracked ? "The cracks gave way." : r>5 ? "You kept climbing… and lost it all." : "Nothing reached a band.", "var(--major)");
-    say(pick(["Ooh. That's going to need a permit.","The desert reclaims all.","Gravity: 1, human: 0."]));
-    await wait(1100); busy=false; setControls("play"); return;
+    say(pick(["Ooh. That's going to need a permit.","The desert reclaims all.","Gravity: 1, human: 0."]),"smug");
+    await wait(1100); busy=false; setControls("play"); Mascot.home(); return;
   }
   countTo($("stacked"), prev, res.total); paintBandValues();
   if(res.gold){   // golden stone: big moment, then the UFO beam locks on
     SFX.gold(); $("app").classList.add("shake"); setTimeout(()=>$("app").classList.remove("shake"),460);
-    banner("GOLDEN STONE!", `${GOLD.drops} BEAM DROPS · every stone ×${GOLD.mult}`, "var(--gold)"); say("The mothership approves! Beam drops can't fail.");
+    banner("GOLDEN STONE!", `${GOLD.drops} BEAM DROPS · every stone ×${GOLD.mult}`, "var(--gold)"); say("Golden! I'll hold them steady — beam drops can't fail.","excited");
     await wait(900); setBeam(true); SFX.beam(); await wait(900);
-  } else if(res.beamed){ placeBeam(); if(!res.beamLeft){ setBeam(false); say("The beam fades… you're on your own again."); } }
-  if(res.gold || res.beamed){} else if(res.lost.length) say(res.kept.length===1 ? "One stone left. Feeling lucky?" : pick(["Crumbly!","A little narrower now…","Mind the overhang."]));
-  else say(pick(["Perfect fit!","Like it was meant to be.","Clean drop."]));
+  } else if(res.beamed){ placeBeam(); if(!res.beamLeft){ setBeam(false); say("Phew, my arms… you're on your own again.","worried"); } }
+  if(res.gold || res.beamed){} else if(res.lost.length) say(res.kept.length===1 ? "One stone left. Feeling lucky?" : pick(["Crumbly!","A little narrower now…","Mind the overhang."]), res.kept.length===1 ? "worried" : "think");
+  else say(pick(["Perfect fit!","Like it was meant to be.","Clean drop."]),"happy");
   if(res.top){
     await wait(250); $("band10").classList.add("hit"); stoneEls.forEach(s=>s.el.classList.add("glow")); SFX.capstone();
     banner("CAPSTONE!", `×${BANDS[10].mult} → ${res.paid} gold bars`, "var(--cap)"); countTo($("credits"), credits-res.paid, credits, 1600);
-    say("You built a wonder of the galaxy!"); setBeam(false); await wait(2600); stoneEls.forEach(s=>s.el.classList.remove("glow")); $("band10").classList.remove("hit");
+    say("You built a wonder of the galaxy!","cheer"); setBeam(false); await wait(2600); stoneEls.forEach(s=>s.el.classList.remove("glow")); $("band10").classList.remove("hit");
     busy=false; paint(); setControls("play"); return;
   }
   if(res.offer){
     await wait(200); const o=res.offer, line=$("band"+o.row); line.classList.add("hit"); setTimeout(()=>line.classList.remove("hit"),2400); SFX.band(o.row);
-    banner(`${o.name} BAND`, `Cash out ${o.amount}, or keep climbing?`, `var(--${BAND_CLASS[o.row]})`);
-    say(o.row===4 ? "Take the gold… or reach for the stars?" : "Higher still? The capstone glitters…");
+    say(o.row===4 ? "Take the gold… or reach for the stars?" : "Higher still? The capstone glitters…", "present");
     busy=false; setControls("choice"); return;
   }
-  busy=false; setControls("drop"); showLane();
+  busy=false; setControls("drop"); showLane(); Mascot.home();
 }
 async function doCash(){
   if(busy || !climb?.offer) return; busy=true;
   const amt=cashOut(); setControls("busy"); SFX.cash(); stoneEls.forEach(s=>s.el.classList.add("glow"));
-  banner("CASHED OUT", `+${amt} gold bars`, "var(--alien)"); say(pick(["A sensible human. How boring.","Gold in hand. Smart.","Wise. The desert is fickle."]));
+  banner("CASHED OUT", `+${amt} gold bars`, "var(--alien)"); say(pick(["A sensible human. How boring.","Gold in hand. Smart.","Wise. The desert is fickle."]),"wave");
   await wait(500); await collectStones(); countTo($("credits"), credits-amt, credits, 700);
   await wait(700); paint(); busy=false; setControls("play");
 }
@@ -440,7 +540,7 @@ async function collectStones(){ setBeam(false);
     return s.el.animate([{transform:"none",opacity:1},{transform:`translate(${dx*.25}px,${dy*.25-30}px) scale(.8)`,opacity:1,offset:.35},{transform:`translate(${dx}px,${dy}px) scale(.25)`,opacity:.3}],{duration:620,easing:"cubic-bezier(.5,0,.4,1)",fill:"forwards"}).finished; })));
   clearStones(); document.querySelector(".coins").animate([{transform:"scale(1)"},{transform:"scale(1.12)"},{transform:"scale(1)"}],{duration:300});
 }
-function doClimb(){ if(busy) return; keepClimbing(); SFX.climb(); say(pick(["Bold! I like bold.","No turning back now.","Higher!"])); setControls("drop"); showLane(); }
+function doClimb(){ if(busy) return; keepClimbing(); SFX.climb(); say(pick(["Bold! I like bold.","No turning back now.","Higher!"]),"cheer"); setControls("drop"); showLane(); }
 
 // ---- sound effects (shared synth engine) ----
 const SFX = {
@@ -484,5 +584,10 @@ $("fcollapse").addEventListener("click",()=>{ FORCE.collapse=true; $("sheet").hi
 $("fgold").addEventListener("click",()=>{ FORCE.gold=true; $("sheet").hidden=true; });
 document.addEventListener("pointerdown",()=>Sound.unlock(),{once:true});
 addEventListener("resize",layout);
-setControls("play"); paintSound(); paint(); requestAnimationFrame(layout);
+Mascot.init(); setControls("play"); paintSound(); paint(); requestAnimationFrame(layout);
+// idle chatter when nothing's happening
+setInterval(()=>{ if(busy || document.hidden || Date.now()-lastAct<14000) return; lastAct=Date.now();
+  if(climb && climb.offer) say(pick(["No rush… but the gold won't wait forever.","Cash or climb? Choose, human."]),"think");
+  else if(climb) say(pick(["Another drop?","Go on. Stack it.","Skim one. I won't tell. Much."]),"wink");
+  else say(pick(["Step right up! Build me a pyramid.","Bigger bet, bigger stones.","The house always wi— I mean, good luck!"]),"wave"); }, 4000);
 </script>

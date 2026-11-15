@@ -19,6 +19,6 @@ const fonts=ff("Bungee","bungee/files/bungee-latin-400-normal.woff2")+ff("Monoto
  // perfect climb to the top
  await p.evaluate(()=>{ FORCE.perfect=true; });
  await p.waitForTimeout(300); await p.click('#go'); await p.waitForFunction(()=>!busy);
- for(let i=0;i<12;i++){ if(await p.$('#climb')) await p.click('#climb'); if(!(await p.evaluate(()=>!!climb))) break; await p.click('#go'); await p.waitForTimeout(150); await p.waitForFunction(()=>!busy || !climb,null,{timeout:10000}); await p.waitForTimeout(700); if(await p.evaluate(()=>!climb)) break; }
+ for(let i=0;i<12;i++){ if(await p.evaluate(()=>!!climb?.offer)){ await p.waitForTimeout(650); await p.click('#climb'); } if(!(await p.evaluate(()=>!!climb))) break; await p.click('#go'); await p.waitForTimeout(150); await p.waitForFunction(()=>!busy || !climb,null,{timeout:10000}); await p.waitForTimeout(700); if(await p.evaluate(()=>!climb)) break; }
  await shot('5_top');
  console.log('credits', await p.evaluate(()=>credits), 'errors', errs); await b.close(); })();

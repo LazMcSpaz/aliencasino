@@ -10,7 +10,7 @@ const fonts=ff("Bungee","bungee/files/bungee-latin-400-normal.woff2")+ff("Monoto
  await p.evaluate(()=>{ FORCE.gold=true; }); await p.click('#go'); await p.waitForTimeout(2350); await p.screenshot({path:OUT+'/gd_1.png'});
  await p.waitForFunction(()=>!busy,null,{timeout:10000}); await p.screenshot({path:OUT+'/gd_2.png'});
  const log=[];
- for(let i=0;i<3;i++){ if(await p.$('#climb')) await p.click('#climb'); if(!(await p.evaluate(()=>!!climb))) break;
+ for(let i=0;i<3;i++){ if(await p.evaluate(()=>!!climb?.offer)){ await p.waitForTimeout(650); await p.click('#climb'); } if(!(await p.evaluate(()=>!!climb))) break;
    const before=await p.evaluate(()=>({w:climb.w, beam:climb.beam})); await p.click('#go'); await p.waitForTimeout(100); await p.waitForFunction(()=>!busy,null,{timeout:10000});
    log.push(await p.evaluate(b=>climb ? `beam ${b.beam}→${climb.beam}, width ${b.w}→${climb.w}` : 'climb ended', before)); if(i===1) await p.screenshot({path:OUT+'/gd_3.png'}); }
  console.log(log.join(' | ')); console.log('beam visuals off at end:', await p.evaluate(()=>!document.getElementById('app').classList.contains('beam')));

@@ -12,7 +12,7 @@ const fonts=ff("Bungee","bungee/files/bungee-latin-400-normal.woff2")+ff("Monoto
    if(await p.evaluate(()=>!climb)){ await p.click('#go'); await p.waitForFunction(()=>!busy); }
    ready = await p.evaluate(()=>climb && !climb.offer && climb.w>=3 && climb.w<5);
    if(ready) break;
-   if(await p.$('#climb')) await p.click('#climb');
+   if(await p.evaluate(()=>!!climb?.offer)){ await p.waitForTimeout(650); await p.click('#climb'); }
    await p.click('#go'); await p.waitForTimeout(100); await p.waitForFunction(()=>!busy,null,{timeout:10000});
    ready = await p.evaluate(()=>climb && !climb.offer && climb.w>=3 && climb.w<5);
  }
