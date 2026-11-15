@@ -48,7 +48,7 @@ const ring=new THREE.Mesh(new THREE.RingGeometry(1.75,1.77,64),new THREE.MeshBas
 
 const loadImg=s=>new Promise(r=>{const i=new Image(); i.onload=()=>r(i); i.onerror=()=>r(null); i.src=s;});
 let bot, mixer, acts={}, cur=null, beacon=null, mode="Idle";
-(async()=>{ const tex={bowl:await loadImg(TEX_SRC.bowl)};
+(async()=>{ const tex={bowl:await loadImg(TEX_SRC.bowl), face:await loadImg(TEX_SRC.face), launcher:await loadImg(TEX_SRC.launcher)};
   bot=buildGravityTable(THREE,{tex}); scene.add(bot.root);
   mixer=new THREE.AnimationMixer(bot.root); bot.clips.forEach(c=>acts[c.name]=mixer.clipAction(c)); beacon=null; play(); })();
 const NOTES={Idle:"Arm parked over the dealer, launcher wheels ticking over",Launch:"Arm swings out over the rim, wheels spin up, fires the comet down the bowl",Stop:""};

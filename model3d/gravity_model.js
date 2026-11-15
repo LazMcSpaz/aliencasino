@@ -25,7 +25,7 @@ function buildGravityTable(THREE, opts = {}) {
       g.beginPath(); g.ellipse(0, 0, 62, 34, 0, 0, Math.PI * 2); g.fill(); g.shadowBlur = 0; g.fillStyle = "#3a2400"; g.beginPath(); g.ellipse(sx * 8, 4, 22, 22, 0, 0, Math.PI * 2); g.fill(); g.restore(); }
     g.strokeStyle = "#ffc845aa"; g.lineWidth = 6; g.lineCap = "round"; g.beginPath(); g.arc(256, 215, 40, .25, Math.PI - .25); g.stroke(); }
   const faceTex = new THREE.CanvasTexture(fc); faceTex.encoding = THREE.sRGBEncoding;
-  mat.face = new THREE.MeshStandardMaterial({ name: "DealerFace", color: 0x000000, emissive: 0xffffff, emissiveMap: faceTex });
+  mat.face = new THREE.MeshStandardMaterial({ name: "DealerFace", color: 0x000000, emissive: 0xffffff, emissiveMap: T.face ? tex(T.face) : faceTex });   // the same face as the slot machines
 
   function chamferBox(w, h, d, c) {
     const s = new THREE.Shape(), x = w / 2 - c, y = h / 2 - c; s.moveTo(-x, -y); s.lineTo(x, -y); s.lineTo(x, y); s.lineTo(-x, y); s.closePath();
@@ -44,7 +44,7 @@ function buildGravityTable(THREE, opts = {}) {
   const TR = 1.0, TOP = .8, K = [.835, .655, .48, .315].map(k => k * TR);        // seated table height
   add(table, lathe([[0, 0], [.78, 0], [.74, .07], [.36, .22], [.3, .36], [.34, .4], [0, .4]], 40), mat.shell, "Pedestal");   // stays below the black hole
   // the table's outline: the round top grows a rounded tongue at the back that the dealer console stands on (one piece)
-  const RT = 1.06, HW = .64, BACK = 1.82, CR = .22, zJoin = Math.sqrt(RT * RT - HW * HW);
+  const RT = 1.06, HW = .88, BACK = 1.84, CR = .24, zJoin = Math.sqrt(RT * RT - HW * HW);
   // plan coordinates: x to the right, y = −z (toward the dealer). One loop: round front → up the left side of the tongue → across the back → down the right.
   const outline = []; { const a0 = Math.atan2(zJoin, HW), sweep = Math.PI * 2 - 2 * a0;
     for (let i = 0; i <= 96; i++) { const a = a0 - sweep * (i / 96); outline.push([Math.cos(a) * RT, Math.sin(a) * RT]); }          // ends at (−HW, zJoin)
@@ -66,17 +66,17 @@ function buildGravityTable(THREE, opts = {}) {
   add(table, new THREE.TorusGeometry(K[3] * .55, .008, 6, 48), mat.glow, "EventHorizon", [0, TOP - .34, 0], [Math.PI / 2, 0, 0]);
 
   // ---- the dealer: a console on the far side, face on its tilted screen, LED strips down its sides ----
-  const CZ = -1.45, cons = grp(root, "Console", [0, 0, CZ]);
-  add(cons, chamferBox(.5, TOP - .2, .42, .04), mat.shell, "ConsoleColumn", [0, (TOP - .2) / 2, .02]);          // under the table, down to the floor
-  add(cons, chamferBox(.8, .05, .56, .02), mat.shellDark, "ConsoleFoot", [0, .025, .02]);
-  const BODY_H = .78; add(cons, chamferBox(.9, BODY_H, .5, .05), mat.shell, "ConsoleBody", [0, TOP + BODY_H / 2, 0]);
-  add(cons, chamferBox(.96, .05, .56, .02), mat.trim, "ConsoleBand", [0, TOP + .03, 0]);
-  const FACE_Y = 1.25;                                                                                            // about seated head height
-  const scr = grp(cons, "ScreenMount", [0, FACE_Y, .27]); scr.rotation.x = -.12;
-  add(scr, chamferBox(.72, .46, .06, .02), mat.dark, "ScreenBezel");
-  add(scr, new THREE.PlaneGeometry(.64, .4), mat.face, "DealerScreen", [0, 0, .032]);
-  for (const sx of [-1, 1]) add(cons, chamferBox(.025, BODY_H - .1, .025, .006), mat.led, "ConsoleLed_" + (sx < 0 ? "L" : "R"), [sx * .47, TOP + BODY_H / 2, .25]);
-  add(cons, chamferBox(.6, .08, .4, .02), mat.shellDark, "ConsoleCap", [0, TOP + BODY_H + .04, -.05]);
+  const CZ = -1.42, CXc = -.34, cons = grp(root, "Console", [CXc, 0, CZ]);
+  add(root, chamferBox(1.2, TOP - .2, .42, .04), mat.shell, "TongueColumn", [0, (TOP - .2) / 2, CZ + .02]);   // carries the back of the table to the floor
+  add(root, chamferBox(1.5, .05, .56, .02), mat.shellDark, "TongueFoot", [0, .025, CZ + .02]);
+  const BODY_H = 1.05; add(cons, chamferBox(.66, BODY_H, .46, .05), mat.shell, "ConsoleBody", [0, TOP + BODY_H / 2, 0]);
+  add(cons, chamferBox(.72, .05, .52, .02), mat.trim, "ConsoleBand", [0, TOP + .03, 0]);
+  const FACE_Y = 1.5;                                                                                             // a little above seated eye level
+  const scr = grp(cons, "ScreenMount", [0, FACE_Y, .25]); scr.rotation.x = -.14;
+  add(scr, chamferBox(.64, .4, .06, .02), mat.dark, "ScreenBezel");
+  add(scr, new THREE.PlaneGeometry(.58, .332), mat.face, "DealerScreen", [0, 0, .032]);
+  for (const sx of [-1, 1]) add(cons, chamferBox(.022, BODY_H - .12, .022, .006), mat.led, "ConsoleLed_" + (sx < 0 ? "L" : "R"), [sx * .345, TOP + BODY_H / 2, .23]);
+  add(cons, chamferBox(.5, .07, .36, .02), mat.shellDark, "ConsoleCap", [0, TOP + BODY_H + .035, -.04]);
   // a stool at the player's spot, for scale
   const stool = grp(root, "Stool", [0, 0, 1.55]);
   add(stool, new THREE.CylinderGeometry(.2, .2, .07, 20), mat.purple, "StoolSeat", [0, .62, 0]);
@@ -84,8 +84,10 @@ function buildGravityTable(THREE, opts = {}) {
   add(stool, new THREE.CylinderGeometry(.22, .25, .03, 20), mat.shellDark, "StoolFoot", [0, .015, 0]);
   add(stool, new THREE.TorusGeometry(.16, .012, 6, 20), mat.trim, "StoolRing", [0, .3, 0], [Math.PI / 2, 0, 0]);
 
-  // ---- the arm: turret on the console → shoulder → upper arm → elbow → forearm → wrist → launcher ----
-  const L1 = 1.0, L2 = .95, TURRET_Y = TOP + BODY_H + .08, SH = [0, TURRET_Y + .17, CZ - .05];
+  // ---- the arm: its own pedestal beside the console → turret → shoulder → upper arm → elbow → forearm → wrist → launcher ----
+  const AX = .4, AZ = -1.4, PED_H = .42, L1 = .95, L2 = .9, TURRET_Y = TOP + PED_H, SH = [AX, TURRET_Y + .17, AZ];
+  add(root, new THREE.CylinderGeometry(.16, .22, PED_H, 16), mat.shellDark, "ArmPedestal", [AX, TOP + PED_H / 2, AZ]);
+  add(root, new THREE.CylinderGeometry(.25, .27, .04, 16), mat.trim, "ArmPedestalRing", [AX, TOP + .02, AZ]);
   const turret = grp(root, "Turret", [SH[0], TURRET_Y, SH[2]]);
   add(turret, new THREE.CylinderGeometry(.2, .24, .14, 16), mat.shellDark, "TurretBase");
   add(turret, new THREE.CylinderGeometry(.23, .23, .03, 16), mat.trim, "TurretRing", [0, .08, 0]);
@@ -99,21 +101,31 @@ function buildGravityTable(THREE, opts = {}) {
   add(elbow, new THREE.CylinderGeometry(.02, .02, L2 * .8, 6), mat.trim, "Hydraulic", [.085, L2 / 2, 0]);
   const wrist = grp(elbow, "Wrist", [0, L2, 0]);
   add(wrist, new THREE.SphereGeometry(.07, 12, 8), mat.metal, "WristBall");
-  add(wrist, new THREE.TorusGeometry(.05, .016, 6, 16), mat.metal, "HangRing", [0, -.08, 0]);
-  // the launcher lies flat under the wrist, wheels up (so it reads like the game's top-down sprite), channel along its length
-  const launcher = grp(wrist, "Launcher", [0, -.16, 0]);
-  add(launcher, chamferBox(.4, .07, .46, .02), mat.metal, "LauncherBody");
-  add(launcher, chamferBox(.08, .05, .5, .01), mat.dark, "Channel", [0, .025, 0]);
-  for (const [s, sx] of [["L", -1], ["R", 1]]) {
-    const w = grp(launcher, "Wheel_" + s, [sx * .12, .05, -.03]);
-    add(w, new THREE.CylinderGeometry(.085, .085, .035, 20), mat.wheel, "WheelDisc_" + s);
-    add(w, new THREE.CylinderGeometry(.04, .04, .045, 12), mat.purple, "WheelRing_" + s);
-    add(w, new THREE.CylinderGeometry(.022, .022, .05, 10), mat.hub, "WheelHub_" + s);
-    add(w, chamferBox(.02, .012, .07, .004), mat.hub, "WheelMark_" + s, [0, .022, .05]);   // a mark so the spin shows
-    add(launcher, chamferBox(.05, .03, .08, .008), mat.purple, "Vent_" + s, [sx * .17, .03, .18]);
-  }
+  // the launcher is the game's sprite made solid: it lies flat, hanging from the wrist by the ring at its BACK end,
+  // channel pointing forward (the comet leaves the far end), with the real wheels (cut from the same art) spinning on top
+  const LH = .52, LW = LH * 358 / 420, RINGF = [.5, .052];
+  const WH = [[.21,.543,.13,"Wheel_L"],[.79,.543,.13,"Wheel_R"],[.346,.814,.045,"Wheel_SL"],[.648,.814,.045,"Wheel_SR"]];
+  const hang = grp(wrist, "Hang");
+  add(hang, new THREE.CylinderGeometry(.018, .018, .15, 8), mat.metal, "HangRod", [0, -.08, 0]);
+  const launcher = grp(hang, "Launcher", [0, -.16, 0]);                       // origin = the ring
+  const art = grp(launcher, "LauncherArt", [0, 0, (.5 - RINGF[1]) * LH]);      // the sprite's centre sits forward of the ring
+  if (T.launcher) {
+    const lt = tex(T.launcher);
+    const top = new THREE.MeshStandardMaterial({ name: "LauncherArt", map: lt, alphaTest: .5, emissive: 0xffffff, emissiveMap: lt, emissiveIntensity: .35, roughness: .5, metalness: .3, side: THREE.DoubleSide });
+    const under = new THREE.MeshStandardMaterial({ name: "LauncherUnder", color: 0x1c1b22, alphaMap: lt, alphaTest: .5, roughness: .6, metalness: .4 });
+    const pl = () => { const g = new THREE.PlaneGeometry(LW, LH); g.rotateX(-Math.PI / 2); return g; };
+    for (let k = 0; k < 6; k++) add(art, pl(), k ? under : top, k ? "LauncherLayer" + k : "LauncherTop", [0, .02 - k * .008, 0]);      // stacked cut-outs give it thickness
+    // wheels: discs cut from the art, so they spin exactly as drawn
+    const img = T.launcher;
+    for (const [fx, fy, fr, name] of WH) { const c = document.createElement("canvas"); c.width = c.height = 256; const g = c.getContext("2d");
+      const px = fx * img.width, py = fy * img.height, pr = fr * img.height * 1.04; g.beginPath(); g.arc(128, 128, 128, 0, Math.PI * 2); g.clip(); g.drawImage(img, px - pr, py - pr, pr * 2, pr * 2, 0, 0, 256, 256);
+      const wt = new THREE.CanvasTexture(c); wt.encoding = THREE.sRGBEncoding;
+      const w = grp(art, name, [(fx - .5) * LW, .024, (fy - .5) * LH]);
+      const d = new THREE.CircleGeometry(fr * LH * 1.04, 32); d.rotateX(-Math.PI / 2);
+      add(w, d, new THREE.MeshStandardMaterial({ name: "WheelArt", map: wt, emissive: 0xffffff, emissiveMap: wt, emissiveIntensity: .35, roughness: .5 }), name + "Disc"); }
+  } else add(art, chamferBox(LW * .9, .05, LH * .9, .02), mat.metal, "LauncherBody");
   const comet = add(root, new THREE.SphereGeometry(.028, 12, 8), mat.comet, "Comet", [0, -1, 0]); comet.castShadow = false;
-  root.traverse(o => { if (o.isMesh && !["Bowl", "TableTop", "DealerScreen"].includes(o.name)) { let g = o.geometry; if (g.index) g = g.toNonIndexed(); g.computeVertexNormals(); o.geometry = g; } });
+  root.traverse(o => { if (o.isMesh && !["Bowl", "TableTop", "DealerScreen"].includes(o.name) && !/^Launcher|Disc$/.test(o.name)) { let g = o.geometry; if (g.index) g = g.toNonIndexed(); g.computeVertexNormals(); o.geometry = g; } });
 
   // ---- poses: two-link reach so the wrist lands where we want, launcher kept level ----
   // returns turret yaw, shoulder and elbow pitch, wrist pitch for a wrist target (world x, y, z)
@@ -121,10 +133,12 @@ function buildGravityTable(THREE, opts = {}) {
     const yaw = Math.atan2(x - SH[0], z - SH[2]), h = Math.hypot(x - SH[0], z - SH[2]), v = y - SH[1], D = Math.min(L1 + L2 - .001, Math.hypot(h, v));
     const phi = Math.atan2(h, v), alpha = Math.acos((L1 * L1 + D * D - L2 * L2) / (2 * L1 * D)), inner = Math.acos((L1 * L1 + L2 * L2 - D * D) / (2 * L1 * L2));
     const A = phi - alpha, B = Math.PI - inner; return { yaw, A, B, W: -(A + B) }; }
-  const RIM_A = .125, rimPt = [Math.sin(RIM_A * Math.PI * 2) * K[0] * .95, TOP + .24, -Math.cos(RIM_A * Math.PI * 2) * K[0] * .95];
-  const PARK = reach([.25, SH[1] + .45, -.95]), FIRE = reach(rimPt);
+  const RIM_A = .125, ta = RIM_A * Math.PI * 2, tan = [Math.cos(ta), Math.sin(ta)], back = (1 - RINGF[1]) * LH;
+  const exitPt = [Math.sin(ta) * K[0] * .92, -Math.cos(ta) * K[0] * .92];
+  const wristFire = [exitPt[0] - tan[0] * back, TOP + .21, exitPt[1] - tan[1] * back];      // over the ring, launcher just above the table
+  const PARK = reach([AX - .1, SH[1] + .5, AZ + .5]), FIRE = reach(wristFire);
   const launcherYaw = Math.atan2(Math.cos(RIM_A * Math.PI * 2), Math.sin(RIM_A * Math.PI * 2));   // channel along the rim, clockwise as seen from above
-  launcher.rotation.y = launcherYaw - FIRE.yaw;
+  hang.rotation.y = launcherYaw - FIRE.yaw;
 
   // ---- animations ----
   const Q = (x, y, z) => new THREE.Quaternion().setFromEuler(new THREE.Euler(x, y, z)).toArray();
