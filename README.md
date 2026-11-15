@@ -37,6 +37,8 @@ model3d/     the walking slot-machine robot
   pyramid_model.js       the Pyramid Scheme robot: beefy cabinet, one continuous curved screen, squat legs, no arms
   pyramid_viewer.src.html / build_pyramid3d.py → pyramid_bot.html (its 3D viewer)
   capture_pyramid.js     screenshots the real Pyramid game for its curved screen → cap/pyr_screen.webp
+  gravity_model.js       Gravity Well table (concept): stepped bowl with the game's art, dealer console with a face, big arm holding the launcher
+  gravity_viewer.src.html / build_gravity3d.py → gravity_table.html · capture_gravity.js grabs the bowl art → cap/gw_bowl.webp
 ```
 
 ## How to rebuild
