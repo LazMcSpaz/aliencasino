@@ -57,8 +57,8 @@ canvas{display:block;touch-action:manipulation}
 .banner em{display:block;font:600 .85rem var(--f-tech);font-style:normal;color:#fff;margin-top:5px;white-space:nowrap}
 /* controls: chips + table buttons, then bet · SPIN · win */
 .tools{display:flex;gap:5px;align-items:center;justify-content:center;flex-wrap:nowrap}
-.chip{flex:none;width:38px;height:38px;border-radius:50%;border:0;cursor:pointer;font:700 .9rem var(--f-tech);color:#fff;position:relative;
-  background:radial-gradient(circle at 50% 50%,var(--c) 0 48%,#fff 49% 53%,var(--c) 54% 64%,transparent 65%),repeating-conic-gradient(var(--c) 0 20deg,#fff 20deg 30deg);box-shadow:0 3px 0 #0008;transition:transform .12s}
+.chip{flex:none;width:38px;height:38px;border-radius:50%;border:0;cursor:pointer;font:700 .9rem var(--f-tech);color:var(--ink2,#fff);position:relative;
+  background:radial-gradient(circle at 50% 50%,var(--c) 0 48%,#ffc845 49% 53%,var(--c) 54% 64%,transparent 65%),repeating-conic-gradient(var(--c) 0 20deg,#ffc845 20deg 30deg);box-shadow:0 3px 0 #0008;transition:transform .12s}
 .chip[aria-pressed="true"]{transform:translateY(-5px);box-shadow:0 8px 14px -4px var(--c),0 0 0 2px #fff}
 .tbtn{--k:7px;border:0;cursor:pointer;color:var(--ink);font:700 .64rem var(--f-tech);letter-spacing:.05em;padding:9px 6px;min-width:44px;flex:none}
 .pathro{cursor:default;text-align:center;line-height:1.1;font-size:.6rem;padding:6px 7px;min-width:0}.pathro.on{--ehi:var(--gold);color:var(--gold)}
@@ -108,10 +108,10 @@ canvas{display:block;touch-action:manipulation}
   </section>
   <section id="controls">
     <div class="tools">
-      <button class="chip" data-v="1" style="--c:#4fd8ff" aria-label="Chip 1">1</button>
-      <button class="chip" data-v="5" style="--c:#ff4d6d" aria-label="Chip 5" aria-pressed="true">5</button>
-      <button class="chip" data-v="25" style="--c:#2fae5f" aria-label="Chip 25">25</button>
-      <button class="chip" data-v="100" style="--c:#1d1b2a" aria-label="Chip 100">100</button>
+      <button class="chip" data-v="1" style="--c:#ffffff;--ink2:#1a1530" aria-label="Chip 1">1</button>
+      <button class="chip" data-v="5" style="--c:#d4cfe6;--ink2:#1a1530" aria-label="Chip 5" aria-pressed="true">5</button>
+      <button class="chip" data-v="25" style="--c:#9b96b2" aria-label="Chip 25">25</button>
+      <button class="chip" data-v="100" style="--c:#4e4a66" aria-label="Chip 100">100</button>
       <div class="tbtn chrome pathro" id="path" aria-live="polite">PATH —</div>
       <button class="tbtn chrome" id="undo">UNDO</button>
       <button class="tbtn chrome" id="clear">CLEAR</button>
@@ -403,7 +403,7 @@ function draw(){
   // chips on the table
   for(let t=0;t<3;t++) for(const [i,v] of Object.entries(bets.tiers[t])){ const [a0,a1]=sectionSpan(t,+i); drawChip(...P((R[t]+R[t+1])/2+(t===0?S*.03:0),(a0+a1)/2), v, t===2?.78:1); }
   for(const [q,v] of Object.entries(bets.colors)) drawChip(...P((RB[0]+RB[1])/2,(+q+.5)/4+.101), v, .78);
-  if(bets.voidBet) drawChip(CX,CY,bets.voidBet,1.1,"#b45cff");
+  if(bets.voidBet) drawChip(CX,CY,bets.voidBet,1.1);
   Others.drawChips(now);
   // ghosts: a faint comet left where the ball crossed each tier's edge
   for(const gh of ghosts){ const [x,y]=P(gh.r,gh.a), k=.7+.15*Math.sin(now*3+gh.r);
@@ -459,10 +459,14 @@ function drawArm(now){
 // ---- the other players: alien arms reach in from the edges of the table and bet too (their chips never touch your credits) ----
 const Others = (()=>{
   const WHO = [   // tip = where the chip is held (fraction of the sprite), base = the open end/cuff that stays off-screen
-    { img:"tentacle_purple", tip:[.70,.115], base:[.30,.975], holds:true,  ring:"#c46bff" },
-    { img:"tentacle_orange", tip:[.36,.93],  base:[.55,.02],  holds:true,  ring:"#ff8a3a" },
-    { img:"hand_pinch",      tip:[.86,.135], base:[.52,.985], holds:true,  ring:"#8dff6a" },
-    { img:"hand_closed",     tip:[.5,.2],    base:[.5,.985],  holds:false, ring:"#3fe6c8" } ];
+    { img:"tentacle_purple", tip:[.70,.115], base:[.30,.975], holds:true,  ring:"#c46bff", chips:"purple" },
+    { img:"tentacle_orange", tip:[.36,.93],  base:[.55,.02],  holds:true,  ring:"#ff8a3a", chips:"orange" },
+    { img:"hand_pinch",      tip:[.86,.135], base:[.52,.985], holds:true,  ring:"#8dff6a", chips:"lime" },
+    { img:"hand_closed",     tip:[.5,.2],    base:[.5,.985],  holds:false, ring:"#3fe6c8", chips:"teal" } ];
+  // seats round the table (screen directions from the bowl's centre, in degrees: 0 = right, 90 = down). The launcher owns the top-right.
+  // Each game shuffles who sits where; within a game every alien always reaches in from its own seat.
+  const SEATS=[180,135,90,40,225].sort(()=>Math.random()-.5);
+  WHO.forEach((w,i)=>{ const a=SEATS[i]*Math.PI/180; w.seat=[Math.cos(a),Math.sin(a)]; });
   WHO.forEach(w=>{ w.im=new Image(); w.im.src=ART.arms[w.img]; });
   let chips=[], visits=[], last=0;
   const AMTS=[1,5,5,5,25,25,100];
@@ -473,9 +477,8 @@ const Others = (()=>{
     const t=Math.floor(Math.random()*3), i=Math.floor(Math.random()*TIERS[t].n), [a0,a1]=sectionSpan(t,i), a=a0+(a1-a0)*(.25+Math.random()*.5);
     return { kind:"tier", t, i, amt:pick(AMTS), at:()=>P((R[t]+R[t+1])/2+(Math.random()-.5)*(R[t]-R[t+1])*.3,a) }; }
   function start(){ const busy=new Set(visits.map(v=>v.w)); const free=WHO.filter(w=>!busy.has(w)); if(!free.length) return;
-    const w=pick(free), spot=pickSpot(), [x,y]=spot.at(); let dx=x-CX, dy=y-CY, l=Math.hypot(dx,dy);
-    if(l<R[3]){ const ang=Math.random()*Math.PI*2; dx=Math.cos(ang); dy=Math.sin(ang); l=1; }
-    const d=[dx/l, dy/l]; if(d[1]<-.55 && d[0]>.2){ d[0]=-d[0]; }                   // keep clear of the launcher's corner
+    const w=pick(free), spot=pickSpot(), [x,y]=spot.at();
+    const sx=CX+w.seat[0]*S*1.4, sy=CY+w.seat[1]*S*1.4, l=Math.hypot(sx-x,sy-y), d=[(sx-x)/l,(sy-y)/l];   // the arm runs from its seat to the spot
     visits.push({ w, spot, x, y, d, t0:performance.now(), dropped:false }); last=performance.now(); }
   // how far from (x,y) to the edge of the play area along d, in bowl coordinates
   function toEdge(x,y,d){ const x0=-FXO[0], y0=-FXO[1], x1=FXS[0]-FXO[0], y1=FXS[1]-FXO[1]; let t=1e9;
@@ -490,19 +493,19 @@ const Others = (()=>{
       const vx=(w.base[0]-w.tip[0])*W, vy=(w.base[1]-w.tip[1])*H, rot=Math.atan2(v.d[1],v.d[0])-Math.atan2(vy,vx);
       g.save(); g.translate(tx,ty); g.rotate(rot); g.scale(k,k); g.shadowColor="#000b"; g.shadowBlur=14/k; g.shadowOffsetY=6/k;
       if(im.complete) g.drawImage(im,-w.tip[0]*W,-w.tip[1]*H,W,H); g.restore();
-      if(w.holds && !v.dropped) drawChip(tx,ty,v.spot.amt,.78,null,w.ring);           // the chip in the curl / between the fingers
+      if(w.holds && !v.dropped) drawChip(tx,ty,v.spot.amt,.78,w.chips);           // the chip in the curl / between the fingers
       return true; }); }
   function drawChips(now){ const T=performance.now();
     for(const c of chips){ let a=1; if(c.res==="lose") a=Math.max(0,1-(T-c.tr)/900); if(c.res==="clear") a=Math.max(0,1-(T-c.tr)/500);
       if(a<=0) continue; if(c.res==="win"){ g.save(); g.fillStyle=`rgba(255,240,170,${.35+.25*Math.sin(now*9)})`; g.beginPath(); g.arc(c.x,c.y,S*.045,0,7); g.fill(); g.restore(); }
-      drawChip(c.x,c.y,c.amt,.74,null,c.w.ring,a); }
+      drawChip(c.x,c.y,c.amt,.74,c.w.chips,a); }
     chips=chips.filter(c=>!(c.res==="lose"&&T-c.tr>900) && !(c.res==="clear"&&T-c.tr>500)); }
   // after a spin: their chips win or lose against the same comets as yours
   function settle(res){ const T=performance.now();
     for(const c of chips){ let won=0;
       for(const b of res.balls){ if(c.kind==="tier" && b.results[c.t]===c.i) won+=c.amt*TIERS[c.t].pay;
         if(c.kind==="color" && b.colorQ===c.q) won+=c.amt*COLOR_PAY; if(c.kind==="void" && b.voidCount) won+=c.amt*VOID_PAY[b.voidCount]; }
-      c.res = won ? "win" : "lose"; c.tr=T; if(won) popAt(c.x,c.y,`+${won}`, c.w.ring); }
+      c.res = won ? "win" : "lose"; c.tr=T; if(won) popAt(c.x,c.y,`+${won}`, CHIP_SHADES[c.w.chips][5]); }
     setTimeout(()=>{ const T2=performance.now(); chips.forEach(c=>{ if(c.res!=="lose"){ c.res="clear"; c.tr=T2; } }); }, 2600); }
   setInterval(()=>{ if(spinning || document.hidden || !R[0]) return; const T=performance.now();
     if(visits.length<2 && chips.length<9 && T-last>1100 && Math.random()<.4) start(); }, 450);
@@ -522,11 +525,20 @@ function arcText(str, r, centre, under, col, size, maxSpan=1){
     g.save(); g.translate(x,y); g.rotate(ac*Math.PI*2 + (under?Math.PI:0)); g.fillText(ch,0,0); g.restore();
     a += under ? -step : step; });
   g.restore(); }
-function drawChip(x,y,v,k=1,col,ring,alpha=1){ const r=S*.034*k; g.save(); g.globalAlpha=alpha; col=col||(v>=100?"#1d1b2a":v>=25?"#2fae5f":v>=5?"#ff4d6d":"#4fd8ff");
+// chips are coloured by player; each denomination is a shade of that player's colour (light = 1 … dark = 100)
+const CHIP_SHADES = {
+  you:    {1:"#ffffff", 5:"#d4cfe6", 25:"#9b96b2", 100:"#4e4a66"},
+  purple: {1:"#e2bcff", 5:"#b45cff", 25:"#7f2fd0", 100:"#4a1785"},
+  orange: {1:"#ffc79c", 5:"#ff8a3a", 25:"#d9561a", 100:"#8c3008"},
+  lime:   {1:"#d4ffbf", 5:"#8dff6a", 25:"#4cc72f", 100:"#26781a"},
+  teal:   {1:"#b8fff2", 5:"#3fe6c8", 25:"#16a890", 100:"#0a5e52"} };
+const denom = v => v>=100?100:v>=25?25:v>=5?5:1;
+const inkFor = hex => { const n=parseInt(hex.slice(1),16), L=.3*(n>>16)+.59*(n>>8&255)+.11*(n&255); return L>150?"#1a1530":"#fff"; };
+function drawChip(x,y,v,k=1,owner="you",alpha=1){ const r=S*.034*k, col=CHIP_SHADES[owner][denom(v)], ink=inkFor(col); g.save(); g.globalAlpha=alpha;
   g.save(); g.shadowColor="#000a"; g.shadowBlur=4; g.shadowOffsetY=2; g.fillStyle=col; g.beginPath(); g.arc(x,y,r,0,7); g.fill(); g.restore();
-  g.strokeStyle="#fff"; g.lineWidth=1.5; g.setLineDash([3,3]); g.beginPath(); g.arc(x,y,r*.78,0,7); g.stroke(); g.setLineDash([]);
-  g.fillStyle="#fff"; g.font=`700 ${Math.max(8,r*.9)}px "Chakra Petch",system-ui`; g.textAlign="center"; g.textBaseline="middle"; g.fillText(v>=1000?Math.round(v/100)/10+"k":v,x,y+.5);
-  if(ring){ g.strokeStyle=ring; g.lineWidth=2.5; g.beginPath(); g.arc(x,y,r+1.5,0,7); g.stroke(); }
+  g.strokeStyle=owner==="you"?"#ffc845":ink; g.globalAlpha=alpha*(owner==="you"?1:.7); g.lineWidth=1.5; g.setLineDash([3,3]); g.beginPath(); g.arc(x,y,r*.78,0,7); g.stroke(); g.setLineDash([]); g.globalAlpha=alpha;
+  g.strokeStyle="#0007"; g.lineWidth=1; g.beginPath(); g.arc(x,y,r,0,7); g.stroke();
+  g.fillStyle=ink; g.font=`700 ${Math.max(8,r*.9)}px "Chakra Petch",system-ui`; g.textAlign="center"; g.textBaseline="middle"; g.fillText(v>=1000?Math.round(v/100)/10+"k":v,x,y+.5);
   g.restore(); }
 
 // ---- betting: tap the bowl ----
