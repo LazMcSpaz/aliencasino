@@ -226,6 +226,7 @@ function draw(){
   for(let t=0;t<3;t++) for(const [i,v] of Object.entries(bets.tiers[t])){ const [a0,a1]=sectionSpan(t,+i); drawChip(...P((R[t]+R[t+1])/2+(t===0?S*.03:0),(a0+a1)/2), v, t===2?.78:1); }
   for(const [q,v] of Object.entries(bets.colors)) drawChip(...P((RB[0]+RB[1])/2,(+q+.5)/4+.101), v, .78);
   if(bets.voidBet) drawChip(CX,CY,bets.voidBet,1.1,"#b45cff");
+  Others.drawChips(now);
   // ghosts: a faint comet left where the ball crossed each tier's edge
   for(const gh of ghosts){ const [x,y]=P(gh.r,gh.a), k=.7+.15*Math.sin(now*3+gh.r);
     const gg=g.createRadialGradient(x,y,0,x,y,S*.045); gg.addColorStop(0,`rgba(255,255,255,${k})`); gg.addColorStop(.4,`rgba(${gh.c},${k*.6})`); gg.addColorStop(1,`rgba(${gh.c},0)`);
@@ -234,7 +235,7 @@ function draw(){
   for(let i=0;i<3;i++){ const gs=ghosts.filter(gh=>gh.ball===i); if(gs.length<2) continue;      // a dotted route per comet
     g.save(); g.strokeStyle=`rgba(${COMET_COL[i][1]},.35)`; g.lineWidth=1; g.setLineDash([3,4]); g.beginPath(); gs.forEach((gh,k)=>{ const [x,y]=P(gh.r,gh.a); k?g.lineTo(x,y):g.moveTo(x,y); }); g.stroke(); g.restore(); }
   fxg.clearRect(0,0,FXS[0],FXS[1]);
-  if(arm.ext>0){ const g0=g; g=fxg; g.save(); g.translate(FXO[0],FXO[1]); drawArm(now); g.restore(); g=g0; }   // drawn in bowl coordinates on the fx layer
+  { const g0=g; g=fxg; g.save(); g.translate(FXO[0],FXO[1]); if(arm.ext>0) drawArm(now); Others.drawArms(now); g.restore(); g=g0; }   // drawn in bowl coordinates on the fx layer
   // the comet and its trail
   for(const c of comets){ const [hex,rgb]=COMET_COL[c.i];
     for(let i=0;i<c.trail.length;i++){ const [x,y]=c.trail[i], k=i/c.trail.length; g.fillStyle=`rgba(${rgb},${k*.5})`; g.beginPath(); g.arc(x,y,1+k*S*.012,0,7); g.fill(); }
@@ -277,6 +278,58 @@ function drawArm(now){
   // charge glow at the mouth of the channel
   if(arm.glow>0){ const gl=g.createRadialGradient(W/2,H,0,W/2,H,H*.22); gl.addColorStop(0,`rgba(200,255,250,${arm.glow})`); gl.addColorStop(1,"rgba(125,255,240,0)"); g.fillStyle=gl; g.beginPath(); g.arc(W/2,H,H*.22,0,7); g.fill(); }
   g.restore(); }
+// ---- the other players: alien arms reach in from the edges of the table and bet too (their chips never touch your credits) ----
+const Others = (()=>{
+  const WHO = [   // tip = where the chip is held (fraction of the sprite), base = the open end/cuff that stays off-screen
+    { img:"tentacle_purple", tip:[.70,.115], base:[.30,.975], holds:true,  ring:"#c46bff" },
+    { img:"tentacle_orange", tip:[.36,.93],  base:[.55,.02],  holds:true,  ring:"#ff8a3a" },
+    { img:"hand_pinch",      tip:[.86,.135], base:[.52,.985], holds:true,  ring:"#8dff6a" },
+    { img:"hand_closed",     tip:[.5,.2],    base:[.5,.985],  holds:false, ring:"#3fe6c8" } ];
+  WHO.forEach(w=>{ w.im=new Image(); w.im.src=ART.arms[w.img]; });
+  let chips=[], visits=[], last=0;
+  const AMTS=[1,5,5,5,25,25,100];
+  // pick a spot on the table: a section, a colour band or the black hole
+  function pickSpot(){ const r=Math.random();
+    if(r<.12) return { kind:"void", amt:pick(AMTS), at:()=>[CX+(Math.random()-.5)*R[3]*.6, CY+(Math.random()-.5)*R[3]*.6] };
+    if(r<.3){ const q=Math.floor(Math.random()*4), a=(q+.5)/4+(Math.random()-.5)*.12; return { kind:"color", q, amt:pick(AMTS), at:()=>P((RB[0]+RB[1])/2,a) }; }
+    const t=Math.floor(Math.random()*3), i=Math.floor(Math.random()*TIERS[t].n), [a0,a1]=sectionSpan(t,i), a=a0+(a1-a0)*(.25+Math.random()*.5);
+    return { kind:"tier", t, i, amt:pick(AMTS), at:()=>P((R[t]+R[t+1])/2+(Math.random()-.5)*(R[t]-R[t+1])*.3,a) }; }
+  function start(){ const busy=new Set(visits.map(v=>v.w)); const free=WHO.filter(w=>!busy.has(w)); if(!free.length) return;
+    const w=pick(free), spot=pickSpot(), [x,y]=spot.at(); let dx=x-CX, dy=y-CY, l=Math.hypot(dx,dy);
+    if(l<R[3]){ const ang=Math.random()*Math.PI*2; dx=Math.cos(ang); dy=Math.sin(ang); l=1; }
+    const d=[dx/l, dy/l]; if(d[1]<-.55 && d[0]>.2){ d[0]=-d[0]; }                   // keep clear of the launcher's corner
+    visits.push({ w, spot, x, y, d, t0:performance.now(), dropped:false }); last=performance.now(); }
+  // how far from (x,y) to the edge of the play area along d, in bowl coordinates
+  function toEdge(x,y,d){ const x0=-FXO[0], y0=-FXO[1], x1=FXS[0]-FXO[0], y1=FXS[1]-FXO[1]; let t=1e9;
+    if(d[0]>0) t=Math.min(t,(x1-x)/d[0]); if(d[0]<0) t=Math.min(t,(x0-x)/d[0]); if(d[1]>0) t=Math.min(t,(y1-y)/d[1]); if(d[1]<0) t=Math.min(t,(y0-y)/d[1]); return t; }
+  const IN=.65, HOLD=.4, OUT=.55;
+  function drawArms(now){ const T=performance.now();
+    visits=visits.filter(v=>{ const s=(T-v.t0)/1000, w=v.w; if(s>IN+HOLD+OUT) return false;
+      if(!v.dropped && s>=IN+HOLD*.5){ v.dropped=true; if(!spinning){ chips.push({ w, ...v.spot, x:v.x, y:v.y, res:null }); SFX.chip(); } }
+      const e = s<IN ? 1-Math.pow(1-s/IN,3) : s<IN+HOLD ? 1 : 1-Math.pow((s-IN-HOLD)/OUT,2);
+      const L=Math.max(S*.68, toEdge(v.x,v.y,v.d)+S*.12), back=L*1.15*(1-e), tx=v.x+v.d[0]*back, ty=v.y+v.d[1]*back;
+      const im=w.im, H=420, W=H*(im.naturalWidth||100)/(im.naturalHeight||420), k=L/(H*Math.abs(w.base[1]-w.tip[1])*1.02);
+      const vx=(w.base[0]-w.tip[0])*W, vy=(w.base[1]-w.tip[1])*H, rot=Math.atan2(v.d[1],v.d[0])-Math.atan2(vy,vx);
+      g.save(); g.translate(tx,ty); g.rotate(rot); g.scale(k,k); g.shadowColor="#000b"; g.shadowBlur=14/k; g.shadowOffsetY=6/k;
+      if(im.complete) g.drawImage(im,-w.tip[0]*W,-w.tip[1]*H,W,H); g.restore();
+      if(w.holds && !v.dropped) drawChip(tx,ty,v.spot.amt,.78,null,w.ring);           // the chip in the curl / between the fingers
+      return true; }); }
+  function drawChips(now){ const T=performance.now();
+    for(const c of chips){ let a=1; if(c.res==="lose") a=Math.max(0,1-(T-c.tr)/900); if(c.res==="clear") a=Math.max(0,1-(T-c.tr)/500);
+      if(a<=0) continue; if(c.res==="win"){ g.save(); g.fillStyle=`rgba(255,240,170,${.35+.25*Math.sin(now*9)})`; g.beginPath(); g.arc(c.x,c.y,S*.045,0,7); g.fill(); g.restore(); }
+      drawChip(c.x,c.y,c.amt,.74,null,c.w.ring,a); }
+    chips=chips.filter(c=>!(c.res==="lose"&&T-c.tr>900) && !(c.res==="clear"&&T-c.tr>500)); }
+  // after a spin: their chips win or lose against the same comets as yours
+  function settle(res){ const T=performance.now();
+    for(const c of chips){ let won=0;
+      for(const b of res.balls){ if(c.kind==="tier" && b.results[c.t]===c.i) won+=c.amt*TIERS[c.t].pay;
+        if(c.kind==="color" && b.colorQ===c.q) won+=c.amt*COLOR_PAY; if(c.kind==="void" && b.voidCount) won+=c.amt*VOID_PAY[b.voidCount]; }
+      c.res = won ? "win" : "lose"; c.tr=T; if(won) popAt(c.x,c.y,`+${won}`, c.w.ring); }
+    setTimeout(()=>{ const T2=performance.now(); chips.forEach(c=>{ if(c.res!=="lose"){ c.res="clear"; c.tr=T2; } }); }, 2600); }
+  setInterval(()=>{ if(spinning || document.hidden || !R[0]) return; const T=performance.now();
+    if(visits.length<2 && chips.length<9 && T-last>1100 && Math.random()<.4) start(); }, 450);
+  return { drawArms, drawChips, settle, get active(){ return visits.length>0; } };
+})();
 function animate(ms, fn){ return new Promise(done=>{ const t0=performance.now(); const f=now=>{ const k=Math.min(1,(now-t0)/ms); fn(k); draw(); if(k<1) requestAnimationFrame(f); else done(); }; requestAnimationFrame(f); }); }
 // text that follows a circle: each letter placed and turned along the arc. Bottom-half arcs read left-to-right along the underside.
 function arcText(str, r, centre, under, col, size, maxSpan=1){
@@ -291,10 +344,12 @@ function arcText(str, r, centre, under, col, size, maxSpan=1){
     g.save(); g.translate(x,y); g.rotate(ac*Math.PI*2 + (under?Math.PI:0)); g.fillText(ch,0,0); g.restore();
     a += under ? -step : step; });
   g.restore(); }
-function drawChip(x,y,v,k=1,col){ const r=S*.034*k; col=col||(v>=100?"#1d1b2a":v>=25?"#2fae5f":v>=5?"#ff4d6d":"#4fd8ff");
+function drawChip(x,y,v,k=1,col,ring,alpha=1){ const r=S*.034*k; g.save(); g.globalAlpha=alpha; col=col||(v>=100?"#1d1b2a":v>=25?"#2fae5f":v>=5?"#ff4d6d":"#4fd8ff");
   g.save(); g.shadowColor="#000a"; g.shadowBlur=4; g.shadowOffsetY=2; g.fillStyle=col; g.beginPath(); g.arc(x,y,r,0,7); g.fill(); g.restore();
   g.strokeStyle="#fff"; g.lineWidth=1.5; g.setLineDash([3,3]); g.beginPath(); g.arc(x,y,r*.78,0,7); g.stroke(); g.setLineDash([]);
-  g.fillStyle="#fff"; g.font=`700 ${Math.max(8,r*.9)}px "Chakra Petch",system-ui`; g.textAlign="center"; g.textBaseline="middle"; g.fillText(v>=1000?Math.round(v/100)/10+"k":v,x,y+.5); }
+  g.fillStyle="#fff"; g.font=`700 ${Math.max(8,r*.9)}px "Chakra Petch",system-ui`; g.textAlign="center"; g.textBaseline="middle"; g.fillText(v>=1000?Math.round(v/100)/10+"k":v,x,y+.5);
+  if(ring){ g.strokeStyle=ring; g.lineWidth=2.5; g.beginPath(); g.arc(x,y,r+1.5,0,7); g.stroke(); }
+  g.restore(); }
 
 // ---- betting: tap the bowl ----
 function hitTest(ev){ const b=cv.getBoundingClientRect(), x=ev.clientX-b.left-CX, y=ev.clientY-b.top-CY, r=Math.hypot(x,y);
@@ -323,7 +378,7 @@ function paint(){ $("credits").textContent=credits; $("bet").textContent=totalBe
 function say(t){ $("say").textContent=t; }
 function banner(big, small, color){ const b=$("banner"); $("bannerBig").textContent=big; $("bannerSmall").textContent=small||""; b.style.setProperty("--bc", color||"var(--gold)");
   b.classList.add("show"); clearTimeout(banner.t); banner.t=setTimeout(()=>b.classList.remove("show"), 2000); }
-function popAt(x,y,txt){ const st=$("stage").getBoundingClientRect(), b=cv.getBoundingClientRect(), e=document.createElement("div"); e.className="pop"; e.textContent=txt;
+function popAt(x,y,txt,col){ const st=$("stage").getBoundingClientRect(), b=cv.getBoundingClientRect(), e=document.createElement("div"); e.className="pop"; e.textContent=txt; if(col) e.style.color=col;
   e.style.left=(b.left-st.left+x)+"px"; e.style.top=(b.top-st.top+y)+"px"; $("stage").appendChild(e);
   e.animate([{transform:"translate(-50%,-50%) scale(.6)",opacity:0},{transform:"translate(-50%,-90%) scale(1.1)",opacity:1,offset:.25},{transform:"translate(-50%,-180%) scale(1)",opacity:0}],{duration:1400,easing:"ease-out"}).finished.then(()=>e.remove()); }
 function countTo(el,from,to,ms=600){ const t0=performance.now(); const f=n=>{ const k=Math.min(1,(n-t0)/ms); el.textContent=Math.round(from+(to-from)*k); if(k<1) requestAnimationFrame(f); }; requestAnimationFrame(f); }
@@ -371,7 +426,7 @@ async function doSpin(){
       arm.ext = sinceLast<.35 ? 1 : Math.max(0, 1 - (sinceLast-.35)/0.8); arm.spin = t<lastFire ? 1 : Math.max(0, 1 - sinceLast/1.1);
       draw(); if(!comets.every(c=>c.done) || t<lastFire+comets[0].F.KT[4]+.35) requestAnimationFrame(frame); else done(); };
     requestAnimationFrame(frame); });
-  Music.spin(false); $("app").classList.remove("frenzy");
+  Music.spin(false); $("app").classList.remove("frenzy"); Others.settle(res);
   countTo($("win"),0,won,700); countTo($("credits"),credits-res.totalWin,credits,700);
   say(won>res.staked ? pick(["Ooh, nice landing!","The well provides!","Cosmic!"]) : won>0 ? "Some of it came back." : pick(["The well takes all.","Swallowed whole.","Gravity: undefeated."]));
   await wait(500); comets=[]; spinning=false; paint();
