@@ -413,7 +413,7 @@ function setControls(mode){
   box.innerHTML=`<div class="deck">
     <div class="readout chrome betbox"><span>Bet</span><b id="bet">${bet}</b>
       <div class="stepper"><button class="chrome" id="betdown" aria-label="Lower bet">−</button><button class="chrome" id="betup" aria-label="Raise bet">+</button></div></div>
-    <div class="center"><button class="go" id="go">${idle ? "PLAY" : "DROP"}<small>${idle ? bet+" a climb" : "row "+Math.min(ROWS,climb.row+1)+"/"+ROWS}</small></button></div>
+    <div class="center"><button class="go" id="go">${idle ? "PLAY" : "DROP"}<small>${idle || !climb ? bet+" a climb" : "row "+Math.min(ROWS,climb.row+1)+"/"+ROWS}</small></button></div>
     <div class="readout chrome" id="stackwin"><span>Stacked</span><b id="stacked">${climb?climb.total:0}</b><span class="next">${climb ? nextBandText() : "×1.5 · ×5 · ×35"}</span></div></div>`;
   $("go").onclick = idle ? play : doDrop; $("go").disabled = mode==="busy";
   $("betdown").disabled = !idle || bet===BETS[0]; $("betup").disabled = !idle || bet===BETS.at(-1);
@@ -467,9 +467,19 @@ async function doDrop(){
 }
 async function doCash(){
   if(busy || !climb?.offer) return; busy=true;
-  const amt=cashOut(); SFX.cash(); stoneEls.forEach(s=>s.el.classList.add("glow")); countTo($("credits"), credits-amt, credits, 900);
+  const amt=cashOut(); setControls("busy"); SFX.cash(); stoneEls.forEach(s=>s.el.classList.add("glow"));
   banner("CASHED OUT", `+${amt} gold bars`, "var(--alien)"); say(pick(["A sensible human. How boring.","Gold in hand. Smart.","Wise. The desert is fickle."]));
-  setControls("busy"); await wait(1500); stoneEls.forEach(s=>s.el.classList.remove("glow")); paint(); busy=false; setControls("play");
+  await wait(500); await collectStones(); countTo($("credits"), credits-amt, credits, 700);
+  await wait(700); paint(); busy=false; setControls("play");
+}
+// cash out: every stone lifts off the board and flies into the gold counter, leaving the board clear
+async function collectStones(){
+  const to=document.querySelector(".coins").getBoundingClientRect();
+  await Promise.all(stoneEls.slice().reverse().map((s,i)=>wait(i*28).then(()=>{ const r=s.el.getBoundingClientRect();
+    const dx=to.left+20-(r.left+r.width/2), dy=to.top+12-(r.top+r.height/2);
+    if(i%3===0) SFX.coin();
+    return s.el.animate([{transform:"none",opacity:1},{transform:`translate(${dx*.25}px,${dy*.25-30}px) scale(.8)`,opacity:1,offset:.35},{transform:`translate(${dx}px,${dy}px) scale(.25)`,opacity:.3}],{duration:620,easing:"cubic-bezier(.5,0,.4,1)",fill:"forwards"}).finished; })));
+  clearStones(); document.querySelector(".coins").animate([{transform:"scale(1)"},{transform:"scale(1.12)"},{transform:"scale(1)"}],{duration:300});
 }
 function doClimb(){ if(busy) return; keepClimbing(); SFX.climb(); say(pick(["Bold! I like bold.","No turning back now.","Higher!"])); setControls("drop"); showLane(); }
 
@@ -482,6 +492,7 @@ const SFX = {
   collapse(){ Sound.noise(1.1,{vol:.22,type:"lowpass",freq:500,sweep:.25}); Sound.tone(90,.9,{type:"sawtooth",vol:.06,slide:.4,lp:400}); },
   band(r){ const n=r===4?[0,4,7,12]:[0,4,7,12,16,19]; n.forEach((v,i)=>Sound.tone(Sound.note(v+5),.25,{type:"triangle",vol:.09,at:i*.07})); },
   cash(){ for(let i=0;i<10;i++) Sound.tone(1700+i*90,.05,{type:"triangle",vol:.05,at:i*.05}); Sound.tone(Sound.note(17),.4,{type:"sine",vol:.07,at:.5}); },
+  coin(){ Sound.tone(1600+Math.random()*600,.06,{type:"triangle",vol:.05}); },
   climb(){ Sound.tone(300,.3,{type:"sawtooth",vol:.04,slide:2.2,lp:1500}); },
   capstone(){ [0,4,7,12,16,19,24].forEach((v,i)=>Sound.tone(Sound.note(v+5),.4,{type:"square",vol:.05,lp:2400,at:i*.09})); [0,7,12].forEach(v=>Sound.tone(Sound.note(v+5),1.6,{type:"triangle",vol:.06,at:.7})); },
 };
