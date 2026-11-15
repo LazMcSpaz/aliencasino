@@ -167,7 +167,7 @@ body{margin:0;background:radial-gradient(100% 50% at 50% 0%,#2b1d4f 0%,var(--voi
 <div class="sheet" id="sheet" hidden><div class="card chrome" role="dialog" aria-label="How to play">
   <h2>How to play</h2>
   <p>Pay your bet to start a climb. Each <b>DROP</b> spins the next row sideways like a reel. Stones that stop over thin air crumble.</p>
-  <p><b>Skim:</b> between drops, tap a stone worth 2 or more to pocket half its value right away. It cracks, and every crack adds to the chance the tower falls on each drop.</p>
+  <p><b>Skim:</b> between drops, tap a stone worth 2 or more to pocket half its value right away. It cracks, and every crack adds to the chance the tower falls on each drop — and a skim can shatter the tower on the spot.</p>
   <p>Reach a band to <b>cash out</b> (band × everything stacked) or <b>keep climbing</b>. Keep climbing and collapse, and you get nothing.</p>
   <table id="paytable"></table>
   <div class="dbg"><button class="chrome" id="fperfect">Debug: perfect drops</button><button class="chrome" id="fcollapse">Debug: collapse next</button><button class="chrome" id="close">Close</button></div>
@@ -182,7 +182,8 @@ const ART = {"sandstone": "data:image/webp;base64,UklGRkpJAABXRUJQVlA4WAoAAAAQAA
 // Keep climbing and collapse = nothing. Reaching the top pays the capstone multiplier automatically.
 // SKIM: between drops the player may skim any uncracked stone worth 2 or more: half its value (rounded down) goes straight to their
 // gold and is kept even if the tower falls. The stone stays, cracked, keeping the other half for the bands. Every crack adds
-// CRACK_RISK to the chance that the next drop — and every drop after — brings the whole tower down.
+// CRACK_RISK to the chance that the next drop — and every drop after — brings the whole tower down. And each skim itself has a
+// SHATTER chance that the crack spreads and the tower falls on the spot (the skimmed gold is still kept).
 const COLS = 5, ROWS = 10;
 const BANDS = { 4:{ mult:1.5, name:"MINOR" }, 7:{ mult:5, name:"MAJOR" }, 10:{ mult:35, name:"CAPSTONE" } };
 const BETS = [20, 40, 100, 200, 400];                       // stone values scale with the bet (see UNIT_DIV)
@@ -190,7 +191,8 @@ const STONE_VALUES = [[1, 56], [2, 30], [3, 10], [5, 4]];  // [value in units, h
 // Landing odds per row: hit = chance the row lands perfectly on top; otherwise it lands 1, 2, 3… columns off,
 // each extra column `spread` times as likely as the last. Landing a full width off (or more) = collapse.
 const DROP = { hit:r => Math.max(.2, .37 - .006*r), spread:.66 };   // tuned with tools/tune.js: every cash-out strategy pays ~87%
-const CRACK_RISK = .015;                                   // added collapse chance per cracked stone, on every drop
+const CRACK_RISK = .04;                                    // added collapse chance per cracked stone, on every drop
+const SHATTER = .04;                                       // chance a skim's crack spreads and the tower falls right then
 const START = 400;
 let credits = START, bet = 20, climb = null;
 
@@ -247,7 +249,9 @@ function skim(row, col){
   if(!skimmable().some(s=>s.row===row && s.col===col)) return null;
   const st = climb.rows[row-1].find(s=>s.col===col), take = Math.floor(st.val/2);
   st.val -= take; st.cracked = true; climb.cracks++; climb.total -= take; climb.skimmed += take; credits += take;
-  return { row, col, take, left:st.val, total:climb.total, risk:crackRisk() };
+  const res = { row, col, take, left:st.val, total:climb.total, risk:crackRisk() };
+  if(Math.random() < SHATTER){ res.shattered = true; climb = null; }
+  return res;
 }
 function cashOut(){ if(!climb?.offer) return 0; const a = climb.offer.amount; credits += a; climb = null; return a; }
 function keepClimbing(){ if(climb?.offer) climb.offer = null; }
@@ -446,8 +450,14 @@ async function doSkim(s){
   f.animate([{transform:"translate(0,0)",opacity:1},{transform:"translate(0,-24px)",opacity:1,offset:.3},{transform:`translate(${to.left+20-(r.left+r.width/2)}px,${to.top-r.top}px) scale(.7)`,opacity:.4}],{duration:750,easing:"cubic-bezier(.5,0,.4,1)"}).finished.then(()=>{ f.remove(); $("credits").textContent=credits; SFX.coin(); });
   // the whole tower gives a little shudder
   stoneEls.forEach(x=>{ if(x!==s) x.el.animate([{transform:"none"},{transform:`translateX(${(Math.random()-.5)*2}px)`},{transform:"none"}],{duration:260}); });
+  if(res.shattered){   // the crack spreads and the whole tower comes down (the skimmed gold is still kept)
+    busy=true; setControls("busy"); s.el.classList.add("redcrack"); SFX.crack(); say("The crack is spreading…!");
+    await wait(650); await collapseTower(); banner("SHATTERED!", "That skim was one too many.", "var(--major)");
+    say(pick(["Greed: the oldest building code violation.","Should've left that one alone.","Crumble crumble."]));
+    paint(); await wait(1100); busy=false; setControls("play"); return;
+  }
   $("stacked").textContent=climb.total; paintRisk(); paintBandValues(); paintSkimmable();
-  if(climb.cracks===1) say("Cracked! Every crack makes the next drops riskier.");
+  if(climb.cracks===1) say("Cracked! Every crack makes the tower shakier.");
   else say(pick(["Easy, human…","*creeeak*","That one's gonna leave a mark.","Greedy, greedy."]));
 }
 function paintRisk(){ const n=document.querySelector("#stackwin .next"); if(!n||!climb) return;

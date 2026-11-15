@@ -5,7 +5,8 @@
 // Keep climbing and collapse = nothing. Reaching the top pays the capstone multiplier automatically.
 // SKIM: between drops the player may skim any uncracked stone worth 2 or more: half its value (rounded down) goes straight to their
 // gold and is kept even if the tower falls. The stone stays, cracked, keeping the other half for the bands. Every crack adds
-// CRACK_RISK to the chance that the next drop — and every drop after — brings the whole tower down.
+// CRACK_RISK to the chance that the next drop — and every drop after — brings the whole tower down. And each skim itself has a
+// SHATTER chance that the crack spreads and the tower falls on the spot (the skimmed gold is still kept).
 const COLS = 5, ROWS = 10;
 const BANDS = { 4:{ mult:1.5, name:"MINOR" }, 7:{ mult:5, name:"MAJOR" }, 10:{ mult:35, name:"CAPSTONE" } };
 const BETS = [20, 40, 100, 200, 400];                       // stone values scale with the bet (see UNIT_DIV)
@@ -13,7 +14,8 @@ const STONE_VALUES = [[1, 56], [2, 30], [3, 10], [5, 4]];  // [value in units, h
 // Landing odds per row: hit = chance the row lands perfectly on top; otherwise it lands 1, 2, 3… columns off,
 // each extra column `spread` times as likely as the last. Landing a full width off (or more) = collapse.
 const DROP = { hit:r => Math.max(.2, .37 - .006*r), spread:.66 };   // tuned with tools/tune.js: every cash-out strategy pays ~87%
-const CRACK_RISK = .015;                                   // added collapse chance per cracked stone, on every drop
+const CRACK_RISK = .04;                                    // added collapse chance per cracked stone, on every drop
+const SHATTER = .04;                                       // chance a skim's crack spreads and the tower falls right then
 const START = 400;
 let credits = START, bet = 20, climb = null;
 
@@ -70,7 +72,9 @@ function skim(row, col){
   if(!skimmable().some(s=>s.row===row && s.col===col)) return null;
   const st = climb.rows[row-1].find(s=>s.col===col), take = Math.floor(st.val/2);
   st.val -= take; st.cracked = true; climb.cracks++; climb.total -= take; climb.skimmed += take; credits += take;
-  return { row, col, take, left:st.val, total:climb.total, risk:crackRisk() };
+  const res = { row, col, take, left:st.val, total:climb.total, risk:crackRisk() };
+  if(Math.random() < SHATTER){ res.shattered = true; climb = null; }
+  return res;
 }
 function cashOut(){ if(!climb?.offer) return 0; const a = climb.offer.amount; credits += a; climb = null; return a; }
 function keepClimbing(){ if(climb?.offer) climb.offer = null; }

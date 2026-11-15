@@ -167,7 +167,7 @@ body{margin:0;background:radial-gradient(100% 50% at 50% 0%,#2b1d4f 0%,var(--voi
 <div class="sheet" id="sheet" hidden><div class="card chrome" role="dialog" aria-label="How to play">
   <h2>How to play</h2>
   <p>Pay your bet to start a climb. Each <b>DROP</b> spins the next row sideways like a reel. Stones that stop over thin air crumble.</p>
-  <p><b>Skim:</b> between drops, tap a stone worth 2 or more to pocket half its value right away. It cracks, and every crack adds to the chance the tower falls on each drop.</p>
+  <p><b>Skim:</b> between drops, tap a stone worth 2 or more to pocket half its value right away. It cracks, and every crack adds to the chance the tower falls on each drop — and a skim can shatter the tower on the spot.</p>
   <p>Reach a band to <b>cash out</b> (band × everything stacked) or <b>keep climbing</b>. Keep climbing and collapse, and you get nothing.</p>
   <table id="paytable"></table>
   <div class="dbg"><button class="chrome" id="fperfect">Debug: perfect drops</button><button class="chrome" id="fcollapse">Debug: collapse next</button><button class="chrome" id="close">Close</button></div>
@@ -287,8 +287,14 @@ async function doSkim(s){
   f.animate([{transform:"translate(0,0)",opacity:1},{transform:"translate(0,-24px)",opacity:1,offset:.3},{transform:`translate(${to.left+20-(r.left+r.width/2)}px,${to.top-r.top}px) scale(.7)`,opacity:.4}],{duration:750,easing:"cubic-bezier(.5,0,.4,1)"}).finished.then(()=>{ f.remove(); $("credits").textContent=credits; SFX.coin(); });
   // the whole tower gives a little shudder
   stoneEls.forEach(x=>{ if(x!==s) x.el.animate([{transform:"none"},{transform:`translateX(${(Math.random()-.5)*2}px)`},{transform:"none"}],{duration:260}); });
+  if(res.shattered){   // the crack spreads and the whole tower comes down (the skimmed gold is still kept)
+    busy=true; setControls("busy"); s.el.classList.add("redcrack"); SFX.crack(); say("The crack is spreading…!");
+    await wait(650); await collapseTower(); banner("SHATTERED!", "That skim was one too many.", "var(--major)");
+    say(pick(["Greed: the oldest building code violation.","Should've left that one alone.","Crumble crumble."]));
+    paint(); await wait(1100); busy=false; setControls("play"); return;
+  }
   $("stacked").textContent=climb.total; paintRisk(); paintBandValues(); paintSkimmable();
-  if(climb.cracks===1) say("Cracked! Every crack makes the next drops riskier.");
+  if(climb.cracks===1) say("Cracked! Every crack makes the tower shakier.");
   else say(pick(["Easy, human…","*creeeak*","That one's gonna leave a mark.","Greedy, greedy."]));
 }
 function paintRisk(){ const n=document.querySelector("#stackwin .next"); if(!n||!climb) return;
