@@ -159,7 +159,7 @@ const wait = ms => new Promise(r=>setTimeout(r,ms));
 document.documentElement.style.setProperty("--bar", `url(${ART.bar})`);
 const SHADE = {1:"#ffffff",5:"#d4cfe6",25:"#9b96b2",100:"#4e4a66"};
 const shadeFor = v => SHADE[v>=100?100:v>=25?25:v>=5?5:1];
-let chip=5, rolling=false;
+let chip=5, rolling=false, view=null;   // view: what the table showed before the roll, held until the animations finish
 
 // ---- the gap row ----
 for(let g=1; g<=7; g++){ const b=document.createElement("button"); b.className="spot"; b.dataset.spot=g; b.innerHTML=`<span class="nm">${g}</span><span class="px">×${GAP_PAY[g]}</span>`; $("gaps").appendChild(b); }
@@ -178,14 +178,16 @@ $("undo").onclick=()=>{ if(rolling) return; const h=undoBet(); h ? Sound.tap() :
 $("clear").onclick=()=>{ if(rolling) return; clearBets(); Sound.tap(); paint(); };
 
 function paint(){
-  $("credits").textContent=credits; $("bet").textContent=tableTotal();
-  document.querySelectorAll(".spot").forEach(b=>{ const s=isNaN(+b.dataset.spot)?b.dataset.spot:+b.dataset.spot, amt=typeof s==="number"?(bets.gaps[s]||0):bets[s];
+  const B = view ? view.bets : bets, P = view ? view.point : point, ST = view ? view.streak : streak;
+  const tot = B.with + B.against + B.collide + Object.values(B.gaps).reduce((a,b)=>a+b,0);
+  if(!view) $("credits").textContent=credits; $("bet").textContent=tot;
+  document.querySelectorAll(".spot").forEach(b=>{ const s=isNaN(+b.dataset.spot)?b.dataset.spot:+b.dataset.spot, amt=typeof s==="number"?(B.gaps[s]||0):B[s];
     let c=b.querySelector(".chipon"); if(amt){ if(!c){ c=document.createElement("span"); c.className="chipon"; b.appendChild(c); } c.textContent=amt; c.style.setProperty("--cc",shadeFor(amt)); c.style.color=amt>=25?"#fff":"#1a1530"; } else c?.remove();
-    b.disabled = rolling || !canBet(s); b.classList.toggle("point", s===point); });
-  const p=$("puck"); p.classList.toggle("on", point!==null); p.querySelector("b").textContent = point===null ? "OFF" : point;
-  p.querySelector("span").textContent = point===null ? "POINT" : "GAP";
-  $("streak").textContent = streak>1 ? `ORBIT STREAK ×${streak}` : ""; $("streak").classList.toggle("show", streak>1);
-  const go=$("go"); go.disabled = rolling || !hasAction(); go.querySelector("small").textContent = rolling ? "…" : !hasAction() ? "place a bet" : point===null ? "come-out" : `point: gap ${point}`;
+    b.disabled = rolling || !canBet(s); b.classList.toggle("point", s===P); });
+  const p=$("puck"); p.classList.toggle("on", P!==null); p.querySelector("b").textContent = P===null ? "OFF" : P;
+  p.querySelector("span").textContent = P===null ? "POINT" : "GAP";
+  $("streak").textContent = ST>1 ? `ORBIT STREAK ×${ST}` : ""; $("streak").classList.toggle("show", ST>1);
+  const go=$("go"); go.disabled = rolling || !hasAction(); go.querySelector("small").textContent = rolling ? "rolling…" : !hasAction() ? "place a bet" : point===null ? "come-out" : `point: gap ${point}`;
   $("undo").disabled = rolling || !history.length; $("clear").disabled = rolling || !history.length;
 }
 // dealer bubble
@@ -248,8 +250,7 @@ async function throwMoons(d){
   moons[0].face=d[0]; moons[1].face=d[1]; SFX.land();
   if(crash){ // they roll into each other
     await anim(260,k=>{ moons[0].x=tgt[0][0]+r*.05*k; moons[1].x=tgt[1][0]-r*.05*k; });
-    flash=.75; SFX.crash(); $("app").classList.add("shake"); setTimeout(()=>$("app").classList.remove("shake"),460);
-    for(let i=0;i<34;i++){ const a=Math.random()*Math.PI*2, v=1.5+Math.random()*4; debris.push({x:W*.5,y:H*.5,vx:Math.cos(a)*v,vy:Math.sin(a)*v-1.5,r:1.5+Math.random()*3,l:1,c:i%2?"255,120,150":"220,200,255"}); }
+    SFX.land();
     await anim(380,k=>{ const e=1-Math.pow(1-k,2); moons[0].x=tgt[0][0]-r*.5*e; moons[1].x=tgt[1][0]+r*.5*e; });
   }
   ruler={d, a:0}; await anim(250,k=>{ ruler.a=k; });
@@ -259,18 +260,87 @@ function anim(ms,fn){ return new Promise(done=>{ const t0=performance.now(); con
 
 // ---- a roll ----
 async function doRoll(){
-  if(rolling) return; const c0=credits, res=roll(); if(!res) return;
-  rolling=true; ruler=null; document.querySelectorAll(".spot").forEach(b=>b.classList.remove("win","lose")); $("win").textContent=0; paint();
+  if(rolling) return; const c0=credits, snap={ bets:JSON.parse(JSON.stringify(bets)), point, streak };
+  const res=roll(); if(!res) return;
+  view=snap; rolling=true; ruler=null; document.querySelectorAll(".spot").forEach(b=>b.classList.remove("win","lose")); $("win").textContent=0; paint();
   say(line("roll")); await throwMoons(res.dice);
-  for(const o of res.outcomes){ const el=spotEl(o.spot); if(!el) continue; el.classList.add(o.win>o.amt?"win":o.win===o.amt?"win":"lose"); if(o.win) popOn(el,"+"+o.win); }
-  if(res.outcomes.some(o=>o.win)) SFX.win(); else if(res.outcomes.length) SFX.lose();
-  if(res.crash){ banner("COLLISION!", res.comeOut ? "Come-out crash" : res.pointBefore!==null ? `Crashed before gap ${res.pointBefore}` : "", "var(--crash)"); say(line("crash")); }
-  else if(res.natural){ banner("FULL ORBIT!", "1 and 8 · first-roll winner", "var(--gold)"); say(line("natural")); }
-  else if(res.made){ banner("POINT HIT!", `Gap ${res.gap} again${res.streak>1?` · streak ×${res.streak}`:""}`, "var(--win)"); say(line("made")); }
+  // the big moments play out over the whole screen before anything on the table changes
+  if(res.crash){ say(line("crash")); await Cine.collision(res.dice, res.comeOut ? "Come-out crash" : snap.point!==null ? `Crashed before gap ${snap.point}` : ""); }
+  else if(res.natural){ say(line("natural")); await Cine.orbit(res.dice, "FULL ORBIT!", "1 and 8 · first-roll winner"); }
+  else if(res.made){ say(line("made")); await Cine.orbit(res.dice, "POINT HIT!", `Gap ${res.gap} again${res.streak>1?` · streak ×${res.streak}`:""}`); }
   else if(res.comeOut){ say(line("point",res.gap)); SFX.point(); }
+  // now the table settles: winning and losing spots flash on the chips as they were, then pay out and clear
+  for(const o of res.outcomes){ const el=spotEl(o.spot); if(!el) continue; el.classList.add(o.win>0?"win":"lose"); if(o.win) popOn(el,"+"+o.win); }
+  if(res.outcomes.some(o=>o.win)) SFX.win(); else if(res.outcomes.length) SFX.lose();
   countTo($("win"),0,res.totalWin,600); countTo($("credits"),c0,credits,600);
-  await wait(700); rolling=false; paint();
+  await wait(1000); view=null; rolling=false; paint();
 }
+
+// ---- full-screen cut-scenes: the moons colliding, and the moons orbiting when a point is hit ----
+const Cine = (()=>{ const c=document.createElement("canvas"); c.id="cine"; Object.assign(c.style,{position:"fixed",inset:"0",width:"100%",height:"100%",pointerEvents:"none",zIndex:"60"}); document.body.appendChild(c);
+  const x=c.getContext("2d"); let w=0, h=0;
+  const size=()=>{ const d=Math.min(3,devicePixelRatio||1); w=innerWidth; h=innerHeight; c.width=w*d; c.height=h*d; x.setTransform(d,0,0,d,0,0); };
+  const moon=(px,py,r,face,i,rot=0)=>{ const col=i?["#f5ecff","#cdb4f0","#6a4f99"]:["#f2fcff","#a9dcef","#3f7891"];
+    x.save(); x.translate(px,py); x.shadowColor=i?"#b45cff":"#5fd0ff"; x.shadowBlur=r*.5;
+    const gr=x.createRadialGradient(-r*.35,-r*.4,r*.1,0,0,r); gr.addColorStop(0,col[0]); gr.addColorStop(.6,col[1]); gr.addColorStop(1,col[2]); x.fillStyle=gr; x.beginPath(); x.arc(0,0,r,0,7); x.fill(); x.shadowBlur=0;
+    x.save(); x.beginPath(); x.arc(0,0,r,0,7); x.clip(); x.rotate(rot); for(const [cx,cy,cr] of CRATERS[i]){ x.fillStyle="#00000020"; x.beginPath(); x.arc(cx*r,cy*r,cr*r,0,7); x.fill(); } x.restore();
+    x.fillStyle=i?"#3b1f6e":"#103a52"; x.font=`400 ${r*.95}px "Bungee",Impact,sans-serif`; x.textAlign="center"; x.textBaseline="middle"; x.fillText(face,0,r*.06); x.restore(); };
+  const title=(big,small,col,k)=>{ const sc = k<.15 ? 2.4-1.4*(k/.15) : 1, a=Math.min(1,k/.08)*(k>.85?(1-k)/.15:1);
+    x.save(); x.globalAlpha=Math.max(0,a); x.translate(w/2,h*.28); x.scale(sc,sc); x.textAlign="center"; x.textBaseline="middle";
+    let fs=Math.min(w*.13,64); x.font=`400 ${fs}px "Bungee",Impact,sans-serif`; const tw=x.measureText(big).width; if(tw>w*.88){ fs*=w*.88/tw; x.font=`400 ${fs}px "Bungee",Impact,sans-serif`; } x.lineWidth=8; x.strokeStyle="#0b0918"; x.strokeText(big,0,0); x.shadowColor=col; x.shadowBlur=26; x.fillStyle=col; x.fillText(big,0,0);
+    x.shadowBlur=0; x.font=`600 ${Math.min(w*.045,18)}px "Chakra Petch",system-ui`; x.fillStyle="#fff"; x.fillText(small,0,Math.min(w*.1,48)); x.restore(); };
+  const run=(ms,frame)=>new Promise(done=>{ size(); const t0=performance.now(); const f=n=>{ const t=n-t0; x.clearRect(0,0,w,h); frame(t,Math.min(1,t/ms)); if(t<ms) requestAnimationFrame(f); else { x.clearRect(0,0,w,h); done(); } }; requestAnimationFrame(f); });
+  function shake(px,ms){ $("app").animate(Array.from({length:12},(_,i)=>({transform:`translate(${(Math.random()-.5)*px*(1-i/12)*2}px,${(Math.random()-.5)*px*(1-i/12)}px)`})).concat([{transform:"none"}]),{duration:ms}); }
+
+  // COLLISION: the screen dims, the moons rush in from the edges, slam together and explode into fire and rock, shockwaves roll out, the screen shakes
+  async function collision(d, sub){
+    const parts=[], smoke=[]; let hit=false; const IMPACT=560; size(); const r=Math.min(w,h)*.17;
+    SFX.whoosh();
+    await run(2400,(t)=>{ const cx=w/2, cy=h*.48;
+      const dim = t<IMPACT ? t/IMPACT*.72 : t>2000 ? .72*(1-(t-2000)/400) : .72; x.fillStyle=`rgba(5,3,15,${dim})`; x.fillRect(0,0,w,h);
+      if(t<IMPACT){ const e=Math.pow(t/IMPACT,2.2), dx=(w*.5+r)*(1-e);
+        for(let s=0;s<6;s++){ x.strokeStyle=`rgba(255,255,255,${.08+s*.02})`; x.lineWidth=r*.1; const yy=cy-r*.45+s*r*.18;
+          x.beginPath(); x.moveTo(cx-dx-r*1.6,yy); x.lineTo(cx-dx-r*1.6-r*e*3,yy); x.stroke(); x.beginPath(); x.moveTo(cx+dx+r*1.6,yy); x.lineTo(cx+dx+r*1.6+r*e*3,yy); x.stroke(); }
+        moon(cx-dx-r*.98,cy,r,d[0],0,t*.01); moon(cx+dx+r*.98,cy,r,d[1],1,-t*.01); return; }
+      if(!hit){ hit=true; SFX.boom(); shake(28,750);
+        for(let i=0;i<120;i++){ const a=Math.random()*Math.PI*2, v=2+Math.random()*11, fire=i<75;
+          parts.push({x:cx,y:cy,vx:Math.cos(a)*v,vy:Math.sin(a)*v,r:fire?3+Math.random()*7:3+Math.random()*9,l:1,fire,c:fire?["255,220,120","255,140,60","255,80,120"][i%3]:(i%2?"169,220,239":"205,180,240"),rot:Math.random()*6}); }
+        for(let i=0;i<16;i++){ const a=Math.random()*Math.PI*2; smoke.push({x:cx,y:cy,vx:Math.cos(a)*1.3,vy:Math.sin(a)*1.3-.4,r:r*.4,l:.7}); } }
+      const s=t-IMPACT;
+      if(s<180){ x.fillStyle=`rgba(255,250,240,${1-s/180})`; x.fillRect(0,0,w,h); }
+      for(const [delay,col] of [[0,"255,240,200"],[90,"255,120,150"],[200,"200,170,255"]]){ const q=(s-delay)/700; if(q<0||q>1) continue;
+        x.strokeStyle=`rgba(${col},${1-q})`; x.lineWidth=14*(1-q)+2; x.beginPath(); x.ellipse(cx,cy,q*w*.8,q*w*.8*.55,0,0,7); x.stroke(); }
+      if(s<520){ const q=s/520, fr=r*(1.2+q*1.7); const fb=x.createRadialGradient(cx,cy,0,cx,cy,fr); fb.addColorStop(0,`rgba(255,255,220,${1-q})`); fb.addColorStop(.35,`rgba(255,170,60,${(1-q)*.9})`); fb.addColorStop(1,"rgba(255,60,90,0)");
+        x.fillStyle=fb; x.beginPath(); x.arc(cx,cy,fr,0,7); x.fill(); }
+      for(const p of smoke){ p.x+=p.vx; p.y+=p.vy; p.r+=1.4; p.l-=.006; if(p.l<=0) continue; x.fillStyle=`rgba(70,60,95,${p.l*.45})`; x.beginPath(); x.arc(p.x,p.y,p.r,0,7); x.fill(); }
+      for(const p of parts){ p.x+=p.vx; p.y+=p.vy; p.vx*=.985; p.vy=p.vy*.985+(p.fire?.02:.18); p.l-=p.fire?.022:.011; p.rot+=.1; if(p.l<=0) continue;
+        x.fillStyle=`rgba(${p.c},${p.l})`; if(p.fire){ x.beginPath(); x.arc(p.x,p.y,p.r*p.l,0,7); x.fill(); }
+        else { x.save(); x.translate(p.x,p.y); x.rotate(p.rot); x.beginPath(); x.moveTo(-p.r,0); x.lineTo(0,-p.r*.7); x.lineTo(p.r,p.r*.2); x.lineTo(0,p.r*.8); x.closePath(); x.fill(); x.restore(); } }
+      if(s>120) title("COLLISION!", sub, "#ff4d6d", Math.min(1,(s-120)/1700));
+    }); }
+
+  // POINT HIT / FULL ORBIT: the moons spiral into orbit round each other with golden trails, a sunburst, a ring of light and a shower of stars
+  async function orbit(d, big, sub){
+    const stars=[], trails=[[],[]]; let burst=false; size(); const r=Math.min(w,h)*.11, col=big==="FULL ORBIT!"?"#ffc845":"#7dff7a";
+    SFX.rise();
+    await run(2200,(t)=>{ const cx=w/2, cy=h*.47;
+      const dim = t<300 ? t/300*.6 : t>1800 ? .6*(1-(t-1800)/400) : .6; x.fillStyle=`rgba(5,3,15,${dim})`; x.fillRect(0,0,w,h);
+      if(t>650){ const q=Math.min(1,(t-650)/400); x.save(); x.translate(cx,cy); x.rotate(t*.0006); x.globalAlpha=q*.5*(t>1800?Math.max(0,1-(t-1800)/400):1);
+        for(let i=0;i<16;i++){ x.rotate(Math.PI/8); x.fillStyle=i%2?"#ffc84555":"#fff2b033"; x.beginPath(); x.moveTo(0,0); x.lineTo(w,-w*.08); x.lineTo(w,w*.08); x.closePath(); x.fill(); } x.restore(); }
+      const sp = Math.min(1,t/700), ang = t*.0105, rad = t<700 ? r*(3.4-2*sp) : r*1.4+Math.sin((t-700)*.004)*r*.15;
+      const pos=[[cx+Math.cos(ang)*rad, cy+Math.sin(ang)*rad*.62],[cx-Math.cos(ang)*rad, cy-Math.sin(ang)*rad*.62]];
+      pos.forEach((p,i)=>{ trails[i].push([...p]); if(trails[i].length>28) trails[i].shift();
+        trails[i].forEach((q,j)=>{ const a=j/trails[i].length; x.fillStyle=`rgba(255,${200+i*30},${110+i*80},${a*.6})`; x.beginPath(); x.arc(q[0],q[1],r*.2*a+1,0,7); x.fill(); }); });
+      pos.forEach((p,i)=>moon(p[0],p[1],r,d[i],i,t*.004*(i?-1:1)));
+      if(t>650 && !burst){ burst=true; SFX.fanfare(); shake(8,350);
+        for(let i=0;i<80;i++){ const a=Math.random()*Math.PI*2, v=2+Math.random()*8; stars.push({x:cx,y:cy,vx:Math.cos(a)*v,vy:Math.sin(a)*v-2,r:3+Math.random()*5,l:1,c:["255,214,90","255,255,255","125,255,122","191,239,255"][i%4],rot:Math.random()*6}); } }
+      if(t>650){ const q=(t-650)/600; if(q<1){ x.strokeStyle=`rgba(255,220,120,${1-q})`; x.lineWidth=10*(1-q)+2; x.beginPath(); x.arc(cx,cy,q*w*.6,0,7); x.stroke(); } }
+      for(const s of stars){ s.x+=s.vx; s.y+=s.vy; s.vy+=.09; s.vx*=.99; s.l-=.011; s.rot+=.15; if(s.l<=0) continue;
+        x.save(); x.translate(s.x,s.y); x.rotate(s.rot); x.fillStyle=`rgba(${s.c},${s.l})`; x.beginPath(); for(let j=0;j<10;j++){ const rr=j%2?s.r*.45:s.r, aa=j*Math.PI/5; x.lineTo(Math.cos(aa)*rr,Math.sin(aa)*rr); } x.closePath(); x.fill(); x.restore(); }
+      if(t>650) title(big, sub, col, Math.min(1,(t-650)/1550));
+    }); }
+  return { collision, orbit };
+})();
 $("go").onclick=()=>{ Sound.unlock(); Music.start(); doRoll(); };
 
 // ---- sound ----
@@ -282,6 +352,11 @@ const SFX = {
   bounce(){ Sound.thud(.22,500); Sound.tone(320,.08,{type:"sine",vol:.05}); },
   land(){ Sound.thud(.18,300); Sound.thud(.14,260); },
   crash(){ Sound.noise(.8,{vol:.18,type:"lowpass",freq:1400,sweep:.2}); Sound.tone(110,.7,{type:"sawtooth",vol:.06,slide:.4,lp:600}); Sound.thud(.5,180); },
+  whoosh(){ Sound.noise(.6,{vol:.07,type:"bandpass",freq:600,sweep:4,attack:.4}); Sound.tone(200,.55,{type:"sawtooth",vol:.03,slide:2.5,lp:1500}); },
+  boom(){ Sound.noise(1.6,{vol:.24,type:"lowpass",freq:1800,sweep:.08}); Sound.tone(70,1.2,{type:"sine",vol:.2,slide:.4}); Sound.tone(140,.6,{type:"sawtooth",vol:.06,slide:.3,lp:500}); Sound.thud(.6,160); Sound.thud(.4,100); },
+  rise(){ Sound.tone(300,.65,{type:"triangle",vol:.04,slide:2.2}); Sound.noise(.6,{vol:.03,type:"highpass",freq:2000,sweep:3,attack:.5}); },
+  fanfare(){ [0,4,7,12,16,19,24].forEach((v,i)=>Sound.tone(Sound.note(v+7),.3,{type:"triangle",vol:.07,at:i*.06})); [12,16,19].forEach(v=>Sound.tone(Sound.note(v+7),1.2,{type:"sine",vol:.04,at:.45,attack:.03}));
+    for(let i=0;i<10;i++) Sound.tone(2200+Math.random()*1800,.05,{type:"sine",vol:.03,at:.4+i*.06}); },
   win(){ for(let i=0;i<7;i++) Sound.tone(1600+Math.random()*900,.06,{type:"triangle",vol:.045,at:i*.05}); },
   lose(){ Sound.tone(Sound.note(-5),.18,{type:"triangle",vol:.05}); Sound.tone(Sound.note(-8),.25,{type:"triangle",vol:.05,at:.12}); },
   point(){ [0,7].forEach((n,i)=>Sound.tone(Sound.note(n+12),.25,{type:"sine",vol:.06,at:i*.1})); },
