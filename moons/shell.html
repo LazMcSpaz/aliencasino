@@ -319,8 +319,8 @@ const Cine = (()=>{ const c=document.createElement("canvas"); c.id="cine"; Objec
     let fs=Math.min(w*.13,64); x.font=`400 ${fs}px "Bungee",Impact,sans-serif`; const tw=x.measureText(big).width; if(tw>w*.88){ fs*=w*.88/tw; x.font=`400 ${fs}px "Bungee",Impact,sans-serif`; }
     x.lineJoin="round"; x.lineWidth=fs*.16; x.strokeStyle="#0b0918"; x.strokeText(big,0,0);
     const tg=x.createLinearGradient(0,-fs/2,0,fs/2); tg.addColorStop(0,"#fff"); tg.addColorStop(.45,col); tg.addColorStop(1,col);
-    x.shadowColor=col; x.shadowBlur=fs*.45; x.fillStyle=tg; x.fillText(big,0,0); x.shadowBlur=0;
-    x.font=`600 ${Math.min(w*.045,18)}px "Chakra Petch",system-ui`; x.fillStyle="#fff"; x.globalAlpha=a*.9; x.fillText(small,0,fs*.82); x.restore(); };
+    x.shadowColor=col; x.shadowBlur=fs*.45; x.fillStyle=col; x.fillText(big,0,0);      // glow pass in a flat colour (Safari mis-draws shadows on gradient text)
+    x.shadowBlur=0; x.shadowColor="transparent"; x.fillStyle=tg; x.fillText(big,0,0); x.restore(); };   // no line underneath: the title says it all
   const vignette=a=>{ if(a<=0) return; const g2=x.createRadialGradient(w/2,h*.46,Math.min(w,h)*.15,w/2,h*.46,Math.max(w,h)*.75); g2.addColorStop(0,`rgba(8,5,22,${a*.88})`); g2.addColorStop(1,`rgba(2,1,8,${Math.min(1,a*1.05)})`); x.fillStyle=g2; x.fillRect(0,0,w,h); };
   const run=(ms,frame)=>new Promise(done=>{ size(); const SL=window.__cineSlow||1, t0=performance.now(); let last=t0; const f=n=>{ const t=(n-t0)*SL, dt=Math.min(40,n-last)/16.67*SL; last=n;   /* __cineSlow: debug slow motion */ x.clearRect(0,0,w,h); frame(t,dt); if(t<ms) requestAnimationFrame(f); else { x.clearRect(0,0,w,h); done(); } }; requestAnimationFrame(f); });
   function shake(px,ms){ $("app").animate(Array.from({length:14},(_,i)=>{ const k=Math.pow(1-i/14,1.6); return {transform:`translate(${rnd(-1,1)*px*k}px,${rnd(-1,1)*px*k*.7}px) rotate(${rnd(-1,1)*k*.6}deg)`}; }).concat([{transform:"none"}]),{duration:ms,easing:"linear"}); }
