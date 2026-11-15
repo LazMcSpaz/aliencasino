@@ -156,6 +156,20 @@ body{margin:0;background:radial-gradient(100% 50% at 50% 0%,#2b1d4f 0%,var(--voi
 .pick.climb::before{background:radial-gradient(90% 90% at 50% 100%,#7dff7a33,transparent 70%),linear-gradient(180deg,#1c2a2a,#0b1414)}
 .pick.climb strong{color:var(--alien);font-weight:400;text-shadow:0 0 12px var(--alien)}
 .pick:active{transform:translateY(2px)}
+/* golden stone: flash, rays, sparks, board glint */
+.goldflash{position:absolute;inset:0;z-index:96;pointer-events:none;background:radial-gradient(circle at 50% 55%,#fff6c8,#ffc84588 40%,transparent 75%);animation:gflash .8s ease-out forwards}
+@keyframes gflash{0%{opacity:0}12%{opacity:1}100%{opacity:0}}
+.goldrays{position:absolute;width:420px;height:420px;margin:-210px 0 0 -210px;z-index:1;pointer-events:none;border-radius:50%;
+  background:repeating-conic-gradient(from 0deg,#ffd76a66 0 7deg,transparent 7deg 22deg);-webkit-mask:radial-gradient(closest-side,#000 15%,transparent);mask:radial-gradient(closest-side,#000 15%,transparent);
+  animation:grays 2.6s ease-out forwards}
+@keyframes grays{0%{transform:scale(.2) rotate(0);opacity:0}15%{opacity:1}100%{transform:scale(1.15) rotate(70deg);opacity:0}}
+.spark{position:absolute;width:9px;height:9px;z-index:85;pointer-events:none;background:radial-gradient(circle,#fff 15%,#ffd34d 45%,transparent 70%);clip-path:polygon(50% 0,62% 38%,100% 50%,62% 62%,50% 100%,38% 62%,0 50%,38% 38%)}
+.spark.sm{width:7px;height:7px;background:radial-gradient(circle,#fff 15%,#b9ffcf 50%,transparent 70%)}
+.machine.glint::after{content:"";position:absolute;inset:0;z-index:2;pointer-events:none;border-radius:inherit;background:linear-gradient(105deg,transparent 35%,#fff5c955 48%,#ffd76a33 52%,transparent 65%);background-size:250% 100%;animation:glint 1.2s ease-out forwards}
+@keyframes glint{from{background-position:120% 0}to{background-position:-30% 0}}
+.app.beam .stone.gold{animation:goldPulse 1.1s ease-in-out infinite}
+@keyframes goldPulse{50%{filter:sepia(1) saturate(3.2) hue-rotate(-12deg) brightness(1.6) drop-shadow(0 0 16px #ffd84a) drop-shadow(0 0 4px #fff3b0)}}
+@media (prefers-reduced-motion:reduce){.goldrays,.machine.glint::after{animation:none;display:none}}
 /* band choice: a panel in the middle of the screen, well away from the DROP button */
 .offer{position:absolute;left:50%;top:38%;z-index:92;width:min(330px,92%);box-sizing:border-box;transform:translate(-50%,-50%) scale(.85);opacity:0;pointer-events:none;
   transition:transform .3s cubic-bezier(.3,1.5,.5,1),opacity .2s;--k:14px;padding:14px 12px 12px;text-align:center;--ehi:var(--bc);--elo:color-mix(in srgb,var(--bc) 25%,transparent)}
@@ -327,7 +341,22 @@ function placeBeam(){
   f.style.left = cx+"px"; f.style.top = top+"px";
   f.style.setProperty("--rw", Math.max(90, (climb ? climb.w : COLS)*CW + 30)+"px"); f.style.setProperty("--rh", Math.max(30, rowY(topRow+1) + SH - 20 - top)+"px");
 }
-function setBeam(on){ $("app").classList.toggle("beam", on); Mascot.beam(on); placeBeam(); }
+function setBeam(on){ $("app").classList.toggle("beam", on); Mascot.beam(on); Music.beam(on); if(!on) Music.platform(climb?.w); placeBeam(); }
+// ---- golden stone fireworks: a flash, light rays behind the stone, a sparkle burst, and a gold glint across the board ----
+function goldBurst(res){
+  const f=document.createElement("div"); f.className="goldflash"; $("app").appendChild(f); setTimeout(()=>f.remove(),900);
+  const st=stoneEls.find(s=>s.row===res.row && s.el.classList.contains("gold")); if(!st) return;
+  const cx=colX(st.col)+CW/2, cy=rowY(st.row)+SH/2;
+  const rays=document.createElement("div"); rays.className="goldrays"; Object.assign(rays.style,{left:cx+"px",top:cy+"px"}); $("board").appendChild(rays); setTimeout(()=>rays.remove(),2600);
+  for(let i=0;i<34;i++){ const d=document.createElement("i"); d.className="spark"; Object.assign(d.style,{left:cx+"px",top:cy+"px"}); $("board").appendChild(d);
+    const a=Math.random()*Math.PI*2, v=50+Math.random()*110, rot=Math.random()*360;
+    d.animate([{transform:`translate(-50%,-50%) rotate(${rot}deg) scale(1)`,opacity:1},{transform:`translate(calc(-50% + ${Math.cos(a)*v}px),calc(-50% + ${Math.sin(a)*v+30}px)) rotate(${rot+180}deg) scale(.2)`,opacity:0}],
+      {duration:900+Math.random()*600,easing:"cubic-bezier(.2,.7,.4,1)",delay:Math.random()*120}).finished.then(()=>d.remove()); }
+  $("machine").classList.add("glint"); setTimeout(()=>$("machine").classList.remove("glint"),1300);
+}
+// a small twinkle when a beamed stone lands
+function twinkle(row,col){ for(let i=0;i<6;i++){ const d=document.createElement("i"); d.className="spark sm"; Object.assign(d.style,{left:colX(col)+CW/2+"px",top:rowY(row)+SH*.3+"px"}); $("board").appendChild(d);
+  const a=-Math.PI*Math.random(), v=14+Math.random()*24; d.animate([{transform:"translate(-50%,-50%) scale(1)",opacity:1},{transform:`translate(calc(-50% + ${Math.cos(a)*v}px),calc(-50% + ${Math.sin(a)*v}px)) scale(.3)`,opacity:0}],{duration:600,easing:"ease-out"}).finished.then(()=>d.remove()); } }
 // ---- stones ----
 let stoneEls=[];                                      // [{el,row,col,val}]
 function makeStone(row,col,val){ const e=document.createElement("div"); e.className="stone";
@@ -380,7 +409,7 @@ async function settleRow(res){
   const tasks=[];
   res.kept.forEach((c,i)=>{ const st=res.stones[i], e=makeStone(res.row,c,null); $("board").appendChild(e); stoneEls.push({el:e,row:res.row,col:c,val:st.val});
     if(st.gold) e.classList.add("gold"); if(res.beamed) e.classList.add("doubled");
-    tasks.push(wait(40*i).then(()=>{ e.classList.add("land","fresh"); e.innerHTML=`<b>${st.val}</b>`; SFX.land(i); })); });
+    tasks.push(wait(40*i).then(()=>{ e.classList.add("land","fresh"); e.innerHTML=`<b>${st.val}</b>`; SFX.land(i); if(res.beamed){ twinkle(res.row,c); SFX.twinkle(i); } })); });
   const floor = HEAD + ROWS*STEP - SH*.3;
   res.lost.filter(c=>c>=0 && c<COLS).forEach(c=>{ const e=makeStone(res.row,c,null); e.classList.add("dead"); e.style.zIndex=60; $("board").appendChild(e);
     const spin=(Math.random()-.5)*70;
@@ -447,7 +476,7 @@ async function placeAnchor(side){
 // ---- controls ----
 let busy=false, firstClimb=true, lastAct=Date.now();
 document.addEventListener("pointerdown",()=>lastAct=Date.now());
-function setControls(mode){
+function setControls(mode){ if(mode==="play") Music.platform(null);
   const box=$("controls"); if(mode!=="choice") Mascot.unperch();
   const choosing = mode==="choice"; if(choosing) mode="busy";
   showOffer(choosing);
@@ -503,9 +532,9 @@ async function doDrop(){
     say(pick(["Ooh. That's going to need a permit.","The desert reclaims all.","Gravity: 1, human: 0."]),"smug");
     await wait(1100); busy=false; setControls("play"); Mascot.home(); return;
   }
-  countTo($("stacked"), prev, res.total); paintBandValues();
-  if(res.gold){   // golden stone: big moment, then the UFO beam locks on
-    SFX.gold(); $("app").classList.add("shake"); setTimeout(()=>$("app").classList.remove("shake"),460);
+  countTo($("stacked"), prev, res.total); paintBandValues(); Music.platform(climb.w);
+  if(res.gold){   // golden stone: big moment, then the mascot's beam locks on
+    SFX.gold(); $("app").classList.add("shake"); setTimeout(()=>$("app").classList.remove("shake"),460); goldBurst(res);
     banner("GOLDEN STONE!", `${GOLD.drops} BEAM DROPS · every stone ×${GOLD.mult}`, "var(--gold)"); say("Golden! I'll hold them steady — beam drops can't fail.","excited");
     await wait(900); setBeam(true); SFX.beam(); await wait(900);
   } else if(res.beamed){ placeBeam(); if(!res.beamLeft){ setBeam(false); say("Phew, my arms… you're on your own again.","worried"); } }
@@ -553,24 +582,47 @@ const SFX = {
   cash(){ for(let i=0;i<10;i++) Sound.tone(1700+i*90,.05,{type:"triangle",vol:.05,at:i*.05}); Sound.tone(Sound.note(17),.4,{type:"sine",vol:.07,at:.5}); },
   crack(){ Sound.noise(.12,{vol:.16,type:"highpass",freq:2500}); Sound.tone(420,.08,{type:"square",vol:.04,slide:.5}); Sound.thud(.2,300); },
   anchor(){ Sound.tone(220,.35,{type:"sawtooth",vol:.05,slide:2,lp:1800}); Sound.thud(.3,200); Sound.tone(Sound.note(19),.3,{type:"sine",vol:.06,at:.15}); },
-  gold(){ [0,4,7,12,16,19,24,28].forEach((v,i)=>Sound.tone(Sound.note(v+7),.3,{type:"triangle",vol:.08,at:i*.06})); for(let i=0;i<12;i++) Sound.tone(2200+Math.random()*1800,.05,{type:"sine",vol:.03,at:.5+i*.05}); },
+  gold(){ Sound.noise(1.4,{vol:.07,type:"highpass",freq:5000,attack:.02,sweep:.3}); Sound.tone(Sound.note(-7),1.2,{type:"sawtooth",vol:.04,lp:800,lpEnd:3000});
+    [0,4,7].forEach(n=>Sound.tone(Sound.note(n+19),1.6,{type:"triangle",vol:.035,at:.5,attack:.03,vib:.01}));
+    [0,4,7,12,16,19,24,28].forEach((v,i)=>Sound.tone(Sound.note(v+7),.3,{type:"triangle",vol:.08,at:i*.06})); for(let i=0;i<12;i++) Sound.tone(2200+Math.random()*1800,.05,{type:"sine",vol:.03,at:.5+i*.05}); },
   beam(){ Sound.tone(110,1.6,{type:"sawtooth",vol:.04,lp:700,vib:.03}); Sound.tone(660,1.2,{type:"sine",vol:.03,slide:1.5,at:.1}); },
+  twinkle(i){ Sound.tone(Sound.note(19+i*2),.12,{type:"sine",vol:.035,at:.03}); },
   coin(){ Sound.tone(1600+Math.random()*600,.06,{type:"triangle",vol:.05}); },
   climb(){ Sound.tone(300,.3,{type:"sawtooth",vol:.04,slide:2.2,lp:1500}); },
   capstone(){ [0,4,7,12,16,19,24].forEach((v,i)=>Sound.tone(Sound.note(v+5),.4,{type:"square",vol:.05,lp:2400,at:i*.09})); [0,7,12].forEach(v=>Sound.tone(Sound.note(v+5),1.6,{type:"triangle",vol:.06,at:.7})); },
 };
-// ---- music: a slow desert groove (hijaz scale) on the music channel ----
-const Music = (()=>{ let timer=null, step=0, nextT=0;
+// ---- music: a slow desert groove (hijaz scale); a bright beam track for golden drops; tempo climbs as the platform narrows ----
+const Music = (()=>{ let timer=null, step=0, nextT=0, bpm=92, target=92, mode="base";
   const BASS=[0,0,5,0, 0,0,8,7], MEL=[7,-1,8,7, 5,-1,4,-1, 5,7,8,-1, 7,5,4,1];
-  function tick(){ if(!Sound.ready()) return; const now=Sound.now(), sd=60/92/2; if(nextT<now-.25) nextT=now+.05;
-    while(nextT<now+.12){ const at=nextT-now, k=step%16;
+  // beam track: major key, driving eighth-note bass, four-on-the-floor, a climbing sparkle arp
+  const BROOT=[0,0,5,7], BARP=[0,4,7,12, 16,12,7,4, 0,4,7,12, 19,16,12,7];
+  function tick(){ if(!Sound.ready()) return; const now=Sound.now(); if(nextT<now-.25) nextT=now+.05;
+    while(nextT<now+.12){ bpm += (target-bpm)*.04; const sd=60/bpm/2, at=nextT-now, k=step%16, bar=Math.floor(step/16);
       if(Sound.on && Sound.musicOn){ const M={bus:"music"};
-        if(k%2===0) Sound.tone(Sound.note(BASS[(k/2)%8]-7),sd*1.8,{...M,at,type:"triangle",vol:.06,lp:700});
-        if(k%4===0) Sound.tone(170,.14,{...M,at,vol:.06,slide:.5,lp:400});
-        if(k%4===2) Sound.noise(.06,{...M,at,vol:.022,type:"bandpass",freq:3200});
-        const m=MEL[k]; if(m>=0 && step%32>=16) Sound.tone(Sound.note(m+5),sd*1.6,{...M,at,type:"sine",vol:.035,vib:.008,attack:.02}); }
+        if(mode==="beam"){
+          const root=BROOT[bar%4]+5;
+          if(k%4===0) Sound.tone(150,.16,{...M,at,vol:.075,slide:.45,lp:420});                                   // kick
+          if(k%4===2) Sound.noise(.05,{...M,at,vol:.03,type:"highpass",freq:6000});                              // open hat on the offbeat
+          if(k%8===4) Sound.noise(.12,{...M,at,vol:.035,type:"bandpass",freq:1800,q:.7});                        // clap
+          if(k%2===0) Sound.tone(Sound.note(root-12 + (k%4===2?12:0)),sd*.9,{...M,at,type:"sawtooth",vol:.03,lp:900});   // octave-pumping bass
+          Sound.tone(Sound.note(root+BARP[k]),sd*.8,{...M,at,type:"triangle",vol:.028});                         // sparkle arp
+          if(k===0) [0,4,7].forEach(n=>Sound.tone(Sound.note(root+n+12),sd*14,{...M,at,type:"sine",vol:.016,attack:.08,vib:.006}));   // shimmer pad
+        } else {
+          const tense = target>=100;
+          if(k%2===0) Sound.tone(Sound.note(BASS[(k/2)%8]-7),sd*1.8,{...M,at,type:"triangle",vol:.06,lp:700});
+          if(k%4===0) Sound.tone(170,.14,{...M,at,vol:.06,slide:.5,lp:400});
+          if(k%4===2) Sound.noise(.06,{...M,at,vol:.022,type:"bandpass",freq:3200});
+          if(tense && k%2===1) Sound.noise(.03,{...M,at,vol:.014,type:"highpass",freq:7000});                   // nervous ticking when the platform is thin
+          if(target>=112 && k%8===6) Sound.tone(Sound.note(13),.08,{...M,at,type:"square",vol:.012,lp:1600});  // and a warning blip at one stone
+          const m=MEL[k]; if(m>=0 && step%32>=16) Sound.tone(Sound.note(m+5),sd*1.6,{...M,at,type:"sine",vol:.035,vib:.008,attack:.02}); }
+      }
       step++; nextT+=sd; } }
-  return { start(){ if(!timer){ nextT=(Sound.now()||0)+.1; timer=setInterval(tick,25); } } };
+  return {
+    start(){ if(!timer){ nextT=(Sound.now()||0)+.1; timer=setInterval(tick,25); } },
+    beam(on){ const m=on?"beam":"base"; if(m===mode) return; mode=m; step=0; target = on ? 128 : 92; },
+    // platform width → tempo: 3+ stones relaxed, 2 stones quicker, 1 stone tense
+    platform(w){ if(mode==="beam") return; target = w==null ? 92 : w<=1 ? 116 : w===2 ? 104 : 92; },
+  };
 })();
 
 // ---- wiring ----
