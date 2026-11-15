@@ -5,7 +5,7 @@ Branch: harness-setup (snapshot = d56cb90 on main)
 |---|---|
 | 0 Safety net | done: git repo, branch created, no dependents, only this session working |
 | 1 Investigate | done |
-| 2 Confirm with owner (checkpoint A) | in progress |
+| 2 Confirm with owner (checkpoint A) | product.md approved ("good for now", 2026-11-15); still-works.md written but NOT yet run by owner; paused while owner brainstorms a new casino game |
 | 3 Sort notes | todo |
 | 4 Target map + cleanup plan (checkpoint B) | todo |
 | 5 Install harness | todo |
