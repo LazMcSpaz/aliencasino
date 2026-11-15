@@ -1143,7 +1143,7 @@ const BASE_LINES = {
   sleepy:  ["Zzz… spin me…", "So… quiet… zzz", "I could use a snack…"],
 };
 let LINES_SAID = BASE_LINES;
-const sayRand = k => { const a=LINES_SAID[k]; return a[Math.floor(Math.random()*a.length)]; };
+const sayRand = k => fromBag(k, LINES_SAID[k]);
 let typeTimer=null, faceTimer=null, idleTimer=null, blinkTimer=null, lookTimer=null;
 function say(text){
   const el=$("bubble"); clearInterval(typeTimer); el.textContent=""; el.classList.add("typing");
@@ -1211,7 +1211,7 @@ const MOOD_LINES = {
   bluffWin:  ["FINE. You caught me. Here's some hush money.", "How did you KNOW?! Shh. Take this."],
   bluffRude: ["RUDE! I wasn't bluffing. Two fewer spins for you.", "You doubted me?! That'll cost you two spins."],
   stopTap:   ["Mm… there?", "*yawn* …okay…"],
-  afterBonus:["That goop gave me the ZOOMIES!"],
+  afterBonus:["That bonus gave me the ZOOMIES!","Whew! I need a minute after that.","Did you see that? I saw that!","Again! Do that again!"],
 };
 // short power text: on the mood badge, and spelled out on a mood change
 const MOOD_POWER = {
@@ -1229,8 +1229,8 @@ const MOOD_TIPS = {
   sleepy:      ["Tap a spinning reel to stop it yourself.", "mid"],
   mischievous: ["It fakes bonus teases. Tap CALL BLUFF if you think it's lying.", "mid"],
 };
-const moodSay = (k, m=mood) => { const a = m ? MOOD_LINES[k][m] : MOOD_LINES[k]; return a[Math.floor(Math.random()*a.length)]; };
-const pickLine = k => { const a=MOOD_LINES[k]; return a[Math.floor(Math.random()*a.length)]; };
+const moodSay = (k, m=mood) => fromBag(k+":"+m, m ? MOOD_LINES[k][m] : MOOD_LINES[k]);
+const pickLine = k => fromBag(k, MOOD_LINES[k]);
 let tipTimer=null, smackPaid=false, smackCool=0;
 function showTip(key, text, where, host){   // a pop-up hint for something you can do RIGHT NOW — short, and only the first couple of times
   let seen={}; try{ seen=JSON.parse(localStorage.getItem("slot-tips")||"{}"); }catch(e){}
@@ -1787,6 +1787,98 @@ MACHINES.mob = { name:"Al'ien Capone's Casino", l1:"Al'ien", l2:"CAPONE", signat
     jug:["A fine cigar! More spins!","Light one up. The night's not over."],
     bonusEnd:["Job's done. Split it up.","That's what I call a payday."],
   } };
+// ---- more lines: added to each machine's pools so the face rarely repeats itself ----
+// A key listed here for a machine that doesn't define it itself REPLACES the food-themed base pool (so the club never mentions goop).
+const MORE_LINES = {
+  food: {
+    hello:    ["Table for one? Spin right this way.","The buffet is open, earthling.","Napkin on. Credits in. Let's eat.","Smells like a winner in here. Or soup."],
+    spin:     ["Stirring the pot…","Chop chop!","Into the oven!","Hot and fresh, coming up!","Let it simmer…","What's on the menu?","Sizzle sizzle…","Order up!","Tossing the salad…","Let's get cooking!","Mmm, I can smell it already…"],
+    lose:     ["Burnt it.","Back to the kitchen.","That one's undercooked.","Nope. Inedible.","Send it back!","Empty plate.","Not even a garnish.","Chef says no.","Bland. Very bland.","Skip that course.","Leftovers? None.","Hmm. Needs salt.","That was the appetizer. Probably."],
+    small:    ["A tasty bite!","Snack time!","Just a nibble.","Amuse-bouche!","A little side dish.","Mmm, finger food.","Tide you over?"],
+    medium:   ["Second helpings!","Now we're feasting!","Belly full of credits!","A proper meal!","Compliments to the reels!"],
+    big:      ["ALL YOU CAN EAT!","THE WHOLE BUFFET!","BRING MORE PLATES!","FOOD COMA INCOMING!"],
+    crumbs:   ["Leftovers.","A little doggy bag.","Some of it came back up. Gross, but true.","Half a snack."],
+    nearMiss: ["SO close!","Agh! Almost!","The goop gods tease us.","Next time. Maybe.","One bite short!","Nearly a meal!","Ooh, I could taste it!","Argh, it slipped off the plate!"],
+    streak:   ["Oh, you poor hungry thing.","Starving, human? I'd share, but no.","The kitchen will open eventually. Probably.","Rough service tonight, huh?"],
+    tense:    ["Ooh… ooh… OOH…","Wait for it…","Don't blink.","It's bubbling…","Almost done…"],
+    mildTease:["Hmm? Hmm…","Ooh, maybe…","Could be something…","Smells promising…"],
+    smug:     ["Don't get greedy now.","The house always eats last.","Feeling lucky? Hmm.","Save room for dessert. And losses."],
+    sleepy:   ["Zzz… spin me…","So… quiet… zzz","I could use a snack…","Food coma… zzz…","Mmm… midnight snack… zzz"],
+    bonusSpin:["Mmm, goopy.","Slurp.","Every win doubled. Like seconds.","More goop, more glory.","Ladle it on!","Goop, glorious goop!","Extra sauce!","Gooey gains!"],
+  },
+  club: {
+    hello:    ["Look who walked in. Spin, superstar.","No dress code. Just spin.","Lights down, reels up.","Hey you! Yes, you. Spin me."],
+    spin:     ["Spin it back!","One more time!","Lights! Reels! Action!","Turn it up!","Here comes the drop…","Feel that rhythm?","Bass is building…","Get on the floor!","Remix!","Let's go, let's go!","Ooh, this one's a banger…"],
+    lose:     ["Off-beat.","Wrong playlist.","The crowd's not feeling it.","Scratch that.","Bouncer says no.","That track flopped.","Needle off the record.","Silent disco.","Not on the guest list.","Dead dance floor.","Nobody's dancing to that.","Skip!","Booo. Kidding. Mostly."],
+    small:    ["A little tip!","Nice groove.","Cheers to that.","Small sip!","A tiny encore.","Two-step!","Cute moves."],
+    medium:   ["Now we're partying!","Round of drinks on you!","The crowd goes wild!","Hands in the air!","Crowd surfing!","That's a hit single!"],
+    big:      ["MAIN STAGE WIN!","WHAT. A. NIGHT.","Somebody call the press!","PLATINUM RECORD!","THE ROOF IS ON FIRE!"],
+    crumbs:   ["Spare change.","Not even a tip.","A sip, not a drink.","Coat check money."],
+    nearMiss: ["SO close!","Almost on the list!","The beat almost dropped!","One beat off!","Argh! Wrong side of the rope!","Nearly a hit!","Just missed the chorus!"],
+    streak:   ["Rough night, huh?","The DJ hates you. Kidding. Maybe.","Your song's coming up. Probably.","Don't leave! The good set starts soon."],
+    tense:    ["Ooh… ooh… OOH…","Wait for the drop…","Don't blink.","Build-up… build-up…","Here it comes…"],
+    mildTease:["Hmm? Hmm…","Ooh, maybe…","I hear something…","Could be a banger…"],
+    smug:     ["Don't get greedy now.","The house always parties last.","Feeling lucky? Hmm.","Pace yourself, party animal."],
+    sleepy:   ["Zzz… after-party nap…","So… tired… zzz","Last call already?","Five more songs… zzz…","The bass is so… soothing… zzz"],
+    bonusSpin:["Bottle service!","The dance floor is yours.","Every win doubled. VIP perks.","Spin it again, DJ!","Lounge life!","Velvet everything!","VIP only!","Pop the bubbly!"],
+  },
+  mob: {
+    hello:    ["Come in, come in. Nobody bites. Much.","The boss says you're welcome. For now.","Sit. Spin. Don't ask questions.","A new face. I like new faces. They lose."],
+    spin:     ["Let's see what the reels owe us.","Round and round, like the money.","Nobody move…","Spin it, wise guy.","Roll 'em.","Make it count.","The family's watching.","Business as usual…","Let's do business.","Easy… easy…","Big money, big money…","Shuffle the deck. I mean the reels.","Keep your hands where I can see 'em.","Don't make me ask twice. Spin.","The wheels of justice. Er, fortune."],
+    lose:     ["Fuhgeddaboudit.","The reels say no.","Tough break, pal.","Not today, capisce?","The house thanks you.","Consider it a donation.","Sleeps with the fishes.","That's the cost of doing business.","No deal.","The boss keeps that one.","Bad luck, kid.","Walk it off.","Them's the breaks.","You didn't see nothin'.","That one fell off a truck.","Put it on your tab."],
+    small:    ["A little skim.","Nice. Quiet money.","Every bar counts.","Something for your pocket.","Lunch money.","Small potatoes, but potatoes."],
+    medium:   ["Now that's a score!","The family is proud.","Look at you, big shot!","A real earner!","Now you're made!"],
+    big:      ["THE BIG SCORE!","WHAT. A. HEIST.","Somebody count this!","CRACK THE VAULT!","THE WHOLE STASH!"],
+    crumbs:   ["Pocket change.","Barely a tip for the driver.","Some of it came back.","Cab fare."],
+    nearMiss: ["SO close!","Almost had the vault!","One tumbler short!","The safe nearly cracked!","Argh! The cops showed up!","Close, but no cannoli."],
+    streak:   ["You're in deep, pal.","Luck owes you one. Collect soon.","Hang in there, kid.","The family takes care of its own. Eventually."],
+    tense:    ["Ooh… ooh… OOH…","Quiet… quiet…","Don't blink.","Here comes the payday…","Steady hands…"],
+    mildTease:["Hmm? Hmm…","Ooh, maybe…","Could be something…","Smells like money…"],
+    smug:     ["Don't get greedy, kid.","The house always collects.","Feelin' lucky? Hmm.","Easy now. Greed gets people whacked."],
+    sleepy:   ["Zzz… stakeout…","Lay low… zzz","Wake me when there's a job.","Long night… zzz…","Counting money… zzz…"],
+    bonusSpin:["Count it again.","Every win doubled. Family discount.","Keep it coming.","Money talks.","Cash, cash, cash!","Stack it up!","Business is booming!","Easy money!"],
+  },
+};
+const MORE_MOOD = {
+  in: {
+    happy:       ["Feeling sunny! Pat me if you want.","Everything's lovely! You're lovely! Spin!","I'm in a great mood. Don't ruin it. Or do. Whatever!"],
+    giddy:       ["Hehehe! Nudge-o-clock!","Fizzy fizzy fizzy! Nudge a reel, go on!","I can't sit still! Nudge me!"],
+    grumpy:      ["Leave me alone. Or smack me. I don't care.","Grr. Bad mood. Big wins, though. Smack at your own risk.","Don't talk to me. …A good smack might help."],
+    sleepy:      ["Mmm… so slow… you could… stop them… yourself…","*yawn* My reels are… dragging… tap them…","Night night… stop the reels… if you're quick…"],
+    mischievous: ["Heh. Watch closely, human.","I've got a secret. Several, actually.","Teases might not be what they seem… heh."],
+  },
+  chat: {
+    happy:       ["Spinning with you is nice.","A pat would be lovely. No pressure!","What a day! What a spin!"],
+    giddy:       ["NUDGE! NUDGE! NUDGE!","One step down could change everything!","Ooh, nudge that one! Or don't!"],
+    grumpy:      ["Hmph.","I'm not talking to you.","Go ahead. Smack me. See what happens.","Grr."],
+    sleepy:      ["…tap… the… reel… zzz","So… slow… so… sleepy…","Mmf… stop them yourself…"],
+    mischievous: ["Heh heh heh…","Don't trust every tease.","Did I just… never mind.","Three bowls? Or two and a lie?"],
+  },
+  tap: {
+    happy:       ["Heehee!","Oh, stop it. Don't stop it.","That's the spot!","Pats accepted."],
+    giddy:       ["WHEE!","Again! Again!","Hee hee hee!","Boop boop!"],
+    sleepy:      ["Nnngh…","Not now… zzz…","Five… more… spins…"],
+    mischievous: ["Too slow!","Heh. Ticklish? Never.","Catch me if you can."],
+  },
+  smackOw:   ["Ow!","Watch it!","Hey, hands off!","That's assault. On a slot machine.","Ouch! Rude!"],
+  smackMad:  ["Oh, NOW you've done it.","You're on my list, human.","I'm staying grumpy. Forever. Maybe."],
+  smackPay:  ["Ow! Here, take it! Just stop!","Fine! Coins! Happy?!","OK OK OK, here's your money!"],
+  nudged:    ["Bump!","There we go!","A little nudge does wonders!","Nudge-tastic!"],
+  nudgeMiss: ["Zip. Nada.","Nothing! Hehe.","Empty nudge!","Worth a shot!"],
+  nudgeLost: ["Aaand it's gone!","Oops! Bye-bye, win!","Nudged right out of your pocket!"],
+  stopTap:   ["Mm… okay…","*yawn* there.","…stop… zzz…"],
+};
+// merge the extra lines in, and pick lines from shuffled bags so nothing repeats until a pool is used up
+function machineLines(id){ const own = MACHINES[id].lines, more = MORE_LINES[id] || {}, out = {};
+  for(const k of new Set([...Object.keys(BASE_LINES), ...Object.keys(own), ...Object.keys(more)]))
+    out[k] = (own[k] || (more[k] && id!=="food" ? [] : BASE_LINES[k] || [])).concat(more[k] || []).filter((t,i,a)=>a.indexOf(t)===i);
+  return out; }
+for(const [k,v] of Object.entries(MORE_MOOD)){ if(Array.isArray(v)) MOOD_LINES[k] = [...new Set([...(MOOD_LINES[k]||[]), ...v])];
+  else for(const [m,a] of Object.entries(v)) MOOD_LINES[k][m] = [...new Set([...(MOOD_LINES[k][m]||[]), ...a])]; }
+const LINE_BAGS = {}, LAST_LINE = {};
+function fromBag(key, pool){ if(!pool || !pool.length) return ""; let b = LINE_BAGS[key];
+  if(!b || !b.length || b.pool !== pool){ b = pool.slice().sort(()=>Math.random()-.5); b.pool = pool; if(pool.length>1 && b[b.length-1]===LAST_LINE[key]) b.unshift(b.pop()); LINE_BAGS[key] = b; }
+  const t = b.pop(); LAST_LINE[key] = t; return t; }
 let MACH = MACHINES.food;
 function applyMachine(id){
   MACH = MACHINES[id] || MACHINES.food;
@@ -1795,7 +1887,7 @@ function applyMachine(id){
   ANY_LABEL = MACH.anyLabel;
   iconStyle.textContent = SYMBOLS.map(s=>`.s-${s[0]}{background-image:url(${ICON_SRC[MACH.icons[s[0]]]})}`).join("") + `.coin{background-image:url(${ICON_SRC.c_bar})}`;
   for(const [k,v] of Object.entries(MACH.colors)) document.documentElement.style.setProperty(k,v);
-  LINES_SAID = { ...BASE_LINES, ...MACH.lines };
+  LINES_SAID = machineLines(Object.keys(MACHINES).find(k=>MACHINES[k]===MACH));
   $("app").classList.toggle("nodrips", !MACH.drips);
   $("bblabel").textContent = MACH.bonus.short+" win";
   makeBub(MACH.bubble); buildTitle(); buildPaytable();
