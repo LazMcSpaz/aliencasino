@@ -25,7 +25,12 @@ function buildGravityTable(THREE, opts = {}) {
       g.beginPath(); g.ellipse(0, 0, 62, 34, 0, 0, Math.PI * 2); g.fill(); g.shadowBlur = 0; g.fillStyle = "#3a2400"; g.beginPath(); g.ellipse(sx * 8, 4, 22, 22, 0, 0, Math.PI * 2); g.fill(); g.restore(); }
     g.strokeStyle = "#ffc845aa"; g.lineWidth = 6; g.lineCap = "round"; g.beginPath(); g.arc(256, 215, 40, .25, Math.PI - .25); g.stroke(); }
   const faceTex = new THREE.CanvasTexture(fc); faceTex.encoding = THREE.sRGBEncoding;
-  mat.face = new THREE.MeshStandardMaterial({ name: "DealerFace", color: 0x000000, emissive: 0xffffff, emissiveMap: T.face ? tex(T.face) : faceTex });   // the same face as the slot machines
+  // the slot face is wide; the dealer screen is tall: fit it by width, centred, on the face's own dark background
+  function fitTall(img){ const c = document.createElement("canvas"); c.width = 400; c.height = 560; const g = c.getContext("2d");
+    const t = document.createElement("canvas"); t.width = img.width; t.height = img.height; const tg = t.getContext("2d"); tg.drawImage(img, 0, 0);
+    const [r, gg, b] = tg.getImageData(4, 4, 1, 1).data; g.fillStyle = `rgb(${r},${gg},${b})`; g.fillRect(0, 0, 400, 560);
+    const h = 400 * img.height / img.width; g.drawImage(img, 0, (560 - h) / 2, 400, h); return c; }
+  mat.face = new THREE.MeshStandardMaterial({ name: "DealerFace", color: 0x000000, emissive: 0xffffff, emissiveMap: T.face ? tex(fitTall(T.face)) : faceTex });   // the same face as the slot machines
 
   function chamferBox(w, h, d, c) {
     const s = new THREE.Shape(), x = w / 2 - c, y = h / 2 - c; s.moveTo(-x, -y); s.lineTo(x, -y); s.lineTo(x, y); s.lineTo(-x, y); s.closePath();
@@ -67,18 +72,15 @@ function buildGravityTable(THREE, opts = {}) {
 
   // ---- the dealer: a console on the far side, face on its tilted screen, LED strips down its sides ----
   const CZ = -1.42, CXc = -.34, cons = grp(root, "Console", [CXc, 0, CZ]);
-  // the back of the table sits on a solid base shaped like the tongue, all the way to the floor — no gap under the console
-  { const tb = [], ins = .06, y0 = zJoin - .28, x0 = HW - ins, y1 = BACK - ins, cr = CR - ins;
-    tb.push([x0, y0]); for (let i = 0; i <= 8; i++) { const a = i / 8 * Math.PI / 2; tb.push([x0 - cr + Math.cos(a) * cr, y1 - cr + Math.sin(a) * cr]); }
-    for (let i = 0; i <= 8; i++) { const a = Math.PI / 2 + i / 8 * Math.PI / 2; tb.push([-x0 + cr + Math.cos(a) * cr, y1 - cr + Math.sin(a) * cr]); } tb.push([-x0, y0]);
-    add(table, slab(tb, TOP - .2, null), mat.shell, "TongueBase", [0, .04, 0]);
-    add(table, slab(tb.map(([x, y]) => [x * 1.04, y < y0 + .01 ? y - .03 : y + .03]), .03, null), mat.shellDark, "TongueFoot", [0, 0, 0]); }
+  // the console and the arm pedestal each run straight down to the floor, so nothing hangs off the table
+  add(root, chamferBox(.6, TOP - .1, .42, .04), mat.shell, "ConsoleLegs", [CXc, (TOP - .1) / 2, CZ]);
+  add(root, chamferBox(.72, .04, .52, .015), mat.shellDark, "ConsoleFoot", [CXc, .02, CZ]);
   const BODY_H = 1.05; add(cons, chamferBox(.66, BODY_H, .46, .05), mat.shell, "ConsoleBody", [0, TOP + BODY_H / 2, 0]);
   add(cons, chamferBox(.72, .05, .52, .02), mat.trim, "ConsoleBand", [0, TOP + .03, 0]);
   const FACE_Y = 1.5;                                                                                             // a little above seated eye level
-  const scr = grp(cons, "ScreenMount", [0, FACE_Y, .25]); scr.rotation.x = -.14;
-  add(scr, chamferBox(.64, .4, .06, .02), mat.dark, "ScreenBezel");
-  add(scr, new THREE.PlaneGeometry(.58, .332), mat.face, "DealerScreen", [0, 0, .032]);
+  const scr = grp(cons, "ScreenMount", [0, FACE_Y + .04, .25]); scr.rotation.x = -.14;
+  add(scr, chamferBox(.46, .62, .06, .02), mat.dark, "ScreenBezel");
+  add(scr, new THREE.PlaneGeometry(.4, .56), mat.face, "DealerScreen", [0, 0, .032]);
   add(cons, chamferBox(.5, .07, .36, .02), mat.shellDark, "ConsoleCap", [0, TOP + BODY_H + .035, -.04]);
   // a stool at the player's spot, for scale
   const stool = grp(root, "Stool", [0, 0, 1.55]);
@@ -90,6 +92,8 @@ function buildGravityTable(THREE, opts = {}) {
   // ---- the arm: its own pedestal beside the console → turret → shoulder → upper arm → elbow → forearm → wrist → launcher ----
   const AX = .4, AZ = -1.4, PED_H = .42, L1 = .95, L2 = .9, TURRET_Y = TOP + PED_H, SH = [AX, TURRET_Y + .17, AZ];
   add(root, new THREE.CylinderGeometry(.16, .22, PED_H, 16), mat.shellDark, "ArmPedestal", [AX, TOP + PED_H / 2, AZ]);
+  add(root, new THREE.CylinderGeometry(.2, .26, TOP - .1, 16), mat.shell, "ArmLeg", [AX, (TOP - .1) / 2, AZ]);   // down to the floor too
+  add(root, new THREE.CylinderGeometry(.3, .3, .04, 16), mat.shellDark, "ArmFoot", [AX, .02, AZ]);
   add(root, new THREE.CylinderGeometry(.25, .27, .04, 16), mat.trim, "ArmPedestalRing", [AX, TOP + .02, AZ]);
   const turret = grp(root, "Turret", [SH[0], TURRET_Y, SH[2]]);
   add(turret, new THREE.CylinderGeometry(.2, .24, .14, 16), mat.shellDark, "TurretBase");
