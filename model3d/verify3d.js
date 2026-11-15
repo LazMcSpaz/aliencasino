@@ -1,0 +1,14 @@
+const {chromium}=require('playwright'); const fs=require('fs');
+const NM='/tmp/claude-0/-home-claude/ec4c4efc-38ac-5fe2-a0fc-cbb2a3d619e4/scratchpad/m3d/node_modules/three/';
+(async()=>{ const b=await chromium.launch({args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']}); const p=await b.newPage({viewport:{width:500,height:600}}); const errs=[]; p.on('pageerror',e=>errs.push(e.message));
+ await p.setContent('<html><body style="margin:0;background:#1e1240"></body></html>');
+ for(const f of ['build/three.min.js','examples/js/loaders/GLTFLoader.js']) await p.addScriptTag({content:fs.readFileSync(NM+f,'utf8')});
+ const glb=fs.readFileSync(__dirname+'/out/slot_bot.glb').toString('base64');
+ const info=await p.evaluate(async glb=>{ const bin=Uint8Array.from(atob(glb),c=>c.charCodeAt(0)).buffer;
+   const g=await new Promise((res,rej)=>new THREE.GLTFLoader().parse(bin,'',res,rej));
+   const r=new THREE.WebGLRenderer({antialias:true}); r.setSize(500,600); r.outputEncoding=THREE.sRGBEncoding; document.body.appendChild(r.domElement);
+   const s=new THREE.Scene(); s.add(new THREE.HemisphereLight(0xffffff,0x332255,1)); const d=new THREE.DirectionalLight(0xffffff,1.2); d.position.set(2,3,3); s.add(d); s.add(g.scene);
+   const mx=new THREE.AnimationMixer(g.scene); mx.clipAction(g.animations.find(a=>a.name==="Idle_Sleepy")).play(); mx.update(1.0);
+   const c=new THREE.PerspectiveCamera(35,500/600,.05,20); c.position.set(1.7,1.3,3.0); c.lookAt(0,.9,0); r.render(s,c);
+   const box=new THREE.Box3().setFromObject(g.scene); return {anims:g.animations.map(a=>a.name), size:box.getSize(new THREE.Vector3()).toArray().map(v=>v.toFixed(2)), min:box.min.y.toFixed(3)}; },glb);
+ await p.screenshot({path:'/tmp/claude-0/-home-claude/ec4c4efc-38ac-5fe2-a0fc-cbb2a3d619e4/scratchpad/glbcheck.png'}); console.log(info,errs); await b.close(); })();

@@ -1,0 +1,182 @@
+<title>Take a Bite Titles</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Monoton&family=Yellowtail&family=Lilita+One&family=Fredoka:wght@600;700&family=Outfit:wght@400;500;700&display=swap">
+<style>
+/* Layout: one column of three title "specimens", each shown in a strip that mimics the top of the machine; theme chips on top re-colour all three */
+:root{
+  color-scheme:dark;
+  --void:#0a0816; --hull:#151129; --rule:#2e2752; --ink:#f1edff; --dim:#9a92c7;
+  /* theme tokens: every title reads only these */
+  --t-main:#ffd23f; --t-deep:#c2560f; --t-accent:#ff5fae; --t-glow:#ff9d3d; --t-cream:#fff6d6; --t-bg:#1b1230;
+  --f-ui:"Outfit", system-ui, sans-serif;
+}
+:root[data-skin="goop"]{ --t-main:#9dff4a; --t-deep:#2c7a06; --t-accent:#ffd23f; --t-glow:#7dff3a; --t-cream:#f0ffd9; --t-bg:#0d2208 }
+:root[data-skin="cosmic"]{ --t-main:#7fe3ff; --t-deep:#3b2aa8; --t-accent:#c79bff; --t-glow:#5fd0ff; --t-cream:#eefbff; --t-bg:#0e1233 }
+html,body{background:var(--void);color:var(--ink)}
+body{font-family:var(--f-ui);padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:20px 40px}
+.wrap{max-width:440px;margin:0 auto;display:flex;flex-direction:column;gap:22px}
+header h1{margin:0;font-size:1.25rem;letter-spacing:.01em;text-wrap:balance}
+header p{margin:6px 0 0;color:var(--dim);font-size:.9rem;line-height:1.45}
+.skins{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.skins button{font:500 .8rem var(--f-ui);color:var(--dim);background:var(--hull);border:0;border-radius:999px;padding:7px 12px;box-shadow:inset 0 0 0 1px var(--rule);cursor:pointer}
+.skins button[aria-pressed="true"]{color:var(--void);background:var(--t-main);box-shadow:0 0 16px -4px var(--t-glow)}
+.skins button:focus-visible,.stage:focus-visible{outline:2px solid var(--t-main);outline-offset:3px}
+.card{display:flex;flex-direction:column;gap:8px}
+.card h2{margin:0;font-size:1rem}
+.card h2 span{color:var(--dim);font-weight:400;font-size:.85rem}
+.card p{margin:0;color:var(--dim);font-size:.85rem;line-height:1.45}
+.stage{position:relative;height:150px;border-radius:24px;overflow:hidden;display:grid;place-items:center;cursor:pointer;
+  background:radial-gradient(90% 120% at 50% 0%, color-mix(in srgb, var(--t-bg) 100%, #fff 6%), var(--t-bg) 55%, #05030c);
+  box-shadow:inset 0 0 0 1px var(--rule), inset 0 -30px 40px -20px #000}
+.stage small{position:absolute;right:12px;bottom:9px;font-size:.68rem;color:var(--dim);opacity:.8}
+/* shared: per-letter spans + the bite (a scalloped chunk carved out with a mask) */
+.ltr{display:inline-block;position:relative}
+@property --bite{syntax:"<length>";inherits:false;initial-value:0px}
+.bitten{--bite:0px;transition:--bite .11s cubic-bezier(.3,1.4,.5,1);
+  padding:.42em;margin:-.42em;   /* room around the letter so its glow and depth aren't cut off by the mask */
+  -webkit-mask-image:radial-gradient(circle at calc(100% - .42em - .06em) calc(.42em + .08em), transparent var(--bite), #000 calc(var(--bite) + .6px)),radial-gradient(circle at calc(100% - .42em - .34em) calc(.42em - .04em), transparent calc(var(--bite) * .72), #000 calc(var(--bite) * .72 + .6px)),radial-gradient(circle at calc(100% - .42em + .05em) calc(.42em + .36em), transparent calc(var(--bite) * .68), #000 calc(var(--bite) * .68 + .6px));-webkit-mask-composite:source-in;
+  mask-image:radial-gradient(circle at calc(100% - .42em - .06em) calc(.42em + .08em), transparent var(--bite), #000 calc(var(--bite) + .6px)),radial-gradient(circle at calc(100% - .42em - .34em) calc(.42em - .04em), transparent calc(var(--bite) * .72), #000 calc(var(--bite) * .72 + .6px)),radial-gradient(circle at calc(100% - .42em + .05em) calc(.42em + .36em), transparent calc(var(--bite) * .68), #000 calc(var(--bite) * .68 + .6px));mask-composite:intersect}
+.bitten.regrow{transition:--bite .9s cubic-bezier(.5,0,.3,1)}
+.crumb{position:absolute;width:5px;height:5px;border-radius:2px;background:var(--crumb, var(--t-main));pointer-events:none;opacity:0}
+.crumb.fly{animation:crumb .7s cubic-bezier(.2,.6,.4,1) forwards}
+@keyframes crumb{0%{opacity:1;transform:translate(0,0) rotate(0)}100%{opacity:0;transform:translate(var(--dx),var(--dy)) rotate(var(--rot))}}
+.chomp{animation:chomp .22s ease-out}
+@keyframes chomp{40%{transform:translate(1px,1px) scale(.985)}}
+
+/* ---------- A · Neon chomp ---------- */
+.neon{text-align:center;line-height:.9}
+.neon .l1{font:400 1.7rem/1 "Yellowtail", cursive;color:var(--t-cream);transform:rotate(-6deg) translate(-38px,6px);
+  text-shadow:0 0 2px #fff, 0 0 8px var(--t-accent), 0 0 18px var(--t-accent), 0 0 34px var(--t-accent)}
+.neon .l2{font:400 3.1rem/1 "Monoton", sans-serif;letter-spacing:.04em;color:var(--t-cream);
+  filter:drop-shadow(0 0 3px var(--t-main)) drop-shadow(0 0 10px var(--t-main)) drop-shadow(0 0 22px var(--t-glow))}   /* glow is applied after the bite, so it follows the bitten shape */
+.neon .ltr{animation:buzz 6s steps(1) infinite;animation-delay:calc(var(--i) * -1.37s)}
+@keyframes buzz{0%,100%{opacity:1}91%{opacity:1}92%{opacity:.35}93%{opacity:1}95%{opacity:.5}96%{opacity:1}}
+.neon .l2 .ltr:nth-child(2){animation-duration:4.3s}
+
+/* ---------- B · Candy marquee (3D letters) ---------- */
+.candy{text-align:center;font-family:"Lilita One", "Impact", sans-serif;line-height:.92}
+.candy .l1{font-size:1.35rem;letter-spacing:.14em;color:var(--t-cream);text-shadow:0 2px 0 var(--t-deep), 0 4px 8px #0008}
+.candy .l2{font-size:3.6rem;letter-spacing:.03em}
+.candy .l2 .ltr{color:var(--t-deep);animation:wave 2.4s ease-in-out infinite;animation-delay:calc(var(--i) * .12s);
+  -webkit-text-stroke:3px color-mix(in srgb, var(--t-deep) 70%, #000);
+  text-shadow:0 1px 0 color-mix(in srgb, var(--t-deep) 85%, #000), 0 2px 0 color-mix(in srgb, var(--t-deep) 80%, #000), 0 3px 0 color-mix(in srgb, var(--t-deep) 75%, #000),
+    0 4px 0 color-mix(in srgb, var(--t-deep) 70%, #000), 0 5px 0 color-mix(in srgb, var(--t-deep) 65%, #000), 0 6px 0 color-mix(in srgb, var(--t-deep) 60%, #000), 0 10px 12px #000a}
+.candy .l2 .ltr::after{content:attr(data-ch);position:absolute;inset:0;padding:inherit;-webkit-text-stroke:0;text-shadow:none;
+  background:linear-gradient(180deg, var(--t-cream) 0%, var(--t-main) 38%, var(--t-main) 55%, color-mix(in srgb, var(--t-main) 70%, var(--t-deep)) 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent}
+.candy .l2 .ltr::before{content:attr(data-ch);position:absolute;inset:0;padding:inherit;z-index:1;-webkit-text-stroke:0;text-shadow:none;pointer-events:none;
+  background:linear-gradient(105deg, transparent 0 40%, #ffffffd0 47%, transparent 54%) 0 0/300% 100% no-repeat;
+  -webkit-background-clip:text;background-clip:text;color:transparent;animation:shine 3.2s ease-in-out infinite;animation-delay:calc(var(--i) * .07s)}
+@keyframes wave{0%,100%{transform:translateY(0)}20%{transform:translateY(-6px) rotate(-2deg)}40%{transform:translateY(0)}}
+@keyframes shine{0%,55%{background-position:120% 0}85%,100%{background-position:-60% 0}}
+.candy .spark{position:absolute;width:12px;height:12px;background:var(--t-cream);clip-path:polygon(50% 0,62% 38%,100% 50%,62% 62%,50% 100%,38% 62%,0 50%,38% 38%);animation:twinkle 2s ease-in-out infinite;opacity:0}
+@keyframes twinkle{0%,100%{opacity:0;transform:scale(.3) rotate(0)}50%{opacity:1;transform:scale(1) rotate(45deg)}}
+
+/* ---------- C · Jelly (soft, wobbly, glossy) ---------- */
+.jelly{text-align:center;font-family:"Fredoka", system-ui, sans-serif;font-weight:700;line-height:.9}
+.jelly .l1{font-size:1.4rem;letter-spacing:.06em;color:var(--t-cream);text-shadow:0 2px 0 var(--t-deep)}
+.jelly .l2{font-size:3.7rem;letter-spacing:.01em}
+.jelly .l2 .ltr{color:color-mix(in srgb, var(--t-deep) 80%, #000);transform-origin:50% 95%;animation:jiggle 1.8s ease-in-out infinite;animation-delay:calc(var(--i) * -.23s);
+  -webkit-text-stroke:4px color-mix(in srgb, var(--t-deep) 80%, #000);text-shadow:0 6px 10px #000b}
+.jelly .l2 .ltr::after{content:attr(data-ch);position:absolute;inset:0;padding:inherit;-webkit-text-stroke:0;text-shadow:none;
+  background:radial-gradient(60% 35% at 40% 28%, #ffffffe0, transparent 70%), linear-gradient(180deg, color-mix(in srgb, var(--t-main) 55%, #fff) 0%, var(--t-main) 45%, color-mix(in srgb, var(--t-main) 55%, var(--t-deep)) 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent}
+@keyframes jiggle{0%,100%{transform:scale(1,1)}15%{transform:scale(1.08,.9)}30%{transform:scale(.95,1.07)}45%{transform:scale(1.03,.97)}60%{transform:scale(1,1)}}
+.jelly .drop{position:absolute;width:9px;height:12px;border-radius:50% 50% 50% 50%/40% 40% 60% 60%;background:radial-gradient(circle at 35% 30%, #fff9, var(--t-main) 45%, var(--t-deep));animation:fall 2.6s cubic-bezier(.55,0,.85,.4) infinite;opacity:0}
+@keyframes fall{0%,40%{opacity:0;transform:translateY(0) scaleY(.5)}50%{opacity:1;transform:translateY(0) scaleY(1)}95%{opacity:1;transform:translateY(46px)}100%{opacity:0;transform:translateY(50px)}}
+
+.notes{background:var(--hull);border-radius:18px;padding:14px 16px;box-shadow:inset 0 0 0 1px var(--rule)}
+.notes h2{margin:0 0 8px;font-size:1rem}
+.notes ul{margin:0;padding-left:18px;color:var(--dim);font-size:.85rem;line-height:1.55}
+.notes b{color:var(--ink);font-weight:500}
+@media (prefers-reduced-motion:reduce){.ltr,.ltr::before,.spark,.drop{animation:none!important}}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Take a Bite: title designs</h1>
+    <p>Three animated title styles, all built in code so they can move. Each takes a bite out of the "E" every few seconds. Tap a title to make it chomp now. The chips below re-colour all three, which is how each new machine would get its own look.</p>
+    <div class="skins" role="group" aria-label="Colour theme">
+      <button id="sk-food" data-skin="food" aria-pressed="true">Take a Bite colours</button>
+      <button id="sk-goop" data-skin="goop" aria-pressed="false">Goop colours</button>
+      <button id="sk-cosmic" data-skin="cosmic" aria-pressed="false">Cosmic colours</button>
+    </div>
+  </header>
+
+  <section class="card">
+    <h2>A · Neon chomp <span>buzzing glass tubes</span></h2>
+    <div class="stage" id="stA" tabindex="0" role="button" aria-label="Neon title, tap to chomp">
+      <div class="neon"><div class="l1">Take a</div><div class="l2" data-word="BITE"></div></div><small>tap to chomp</small>
+    </div>
+    <p>Classic casino neon. The letters flicker now and then like real tubes. Feels retro and night-time.</p>
+  </section>
+
+  <section class="card">
+    <h2>B · Candy marquee <span>chunky 3D letters</span></h2>
+    <div class="stage" id="stB" tabindex="0" role="button" aria-label="3D title, tap to chomp">
+      <div class="candy"><div class="l1">TAKE A</div><div class="l2" data-word="BITE"></div></div><small>tap to chomp</small>
+    </div>
+    <p>Thick letters with real depth, a shine that sweeps across, a gentle wave and sparkles. Feels like a big Vegas sign.</p>
+  </section>
+
+  <section class="card">
+    <h2>C · Jelly <span>soft, glossy, wobbly</span></h2>
+    <div class="stage" id="stC" tabindex="0" role="button" aria-label="Jelly title, tap to chomp">
+      <div class="jelly"><div class="l1">take a</div><div class="l2" data-word="BITE"></div></div><small>tap to chomp</small>
+    </div>
+    <p>Rounded, glossy letters that jiggle like gummy candy, with little drips. Cute, and the most "alive".</p>
+  </section>
+
+  <section class="notes">
+    <h2>What changes per machine</h2>
+    <ul>
+      <li><b>Colours:</b> six colour settings re-skin the whole title (try the chips).</li>
+      <li><b>Title style:</b> neon, 3D or jelly, each with its own font.</li>
+      <li><b>Signature move:</b> Take a Bite chomps. Another machine could drip, flicker, spin or melt.</li>
+      <li><b>Possible extras:</b> reel-frame trim (gold, chrome, candy), the face's eye colour, the bonus name and its music key.</li>
+    </ul>
+  </section>
+</div>
+
+<script>
+// Split each word into letter spans (so letters can move on their own); the E gets the bite mask
+document.querySelectorAll("[data-word]").forEach(el=>{
+  [...el.dataset.word].forEach((ch,i,arr)=>{ const s=document.createElement("span"); s.className="ltr"+(i===arr.length-1?" bitten":""); s.textContent=ch; s.dataset.ch=ch; s.style.setProperty("--i",i); el.appendChild(s); });
+});
+// sparkles for B, drips for C
+const stB=document.querySelector("#stB .candy");
+[[8,22,0],[86,14,.7],[94,70,1.3],[4,78,.4]].forEach(([x,y,d])=>{ const s=document.createElement("i"); s.className="spark"; s.style.cssText=`left:${x}%;top:${y}%;animation-delay:${d}s`; document.getElementById("stB").appendChild(s); });
+document.querySelectorAll("#stC .l2 .ltr").forEach((l,i)=>{ if(i===1) return; const d=document.createElement("i"); d.className="drop"; d.style.cssText=`left:calc(50% - 4px);bottom:2px;animation-delay:${i*.7}s`; l.appendChild(d); });
+
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+// The chomp: two quick bites (the chunk grows in steps), crumbs fly, a pause, then the letter grows back
+function chomp(stage){
+  const e=stage.querySelector(".bitten"); if(!e || e.dataset.busy) return; e.dataset.busy="1";
+  const word=e.parentElement, size=parseFloat(getComputedStyle(e).fontSize);
+  const bite=(r)=>{ e.classList.remove("regrow"); e.style.setProperty("--bite", (r*size).toFixed(1)+"px"); word.classList.remove("chomp"); void word.offsetWidth; word.classList.add("chomp"); crumbs(stage,e,6); };
+  if(reduce){ e.style.setProperty("--bite",(.36*size)+"px"); setTimeout(()=>{ e.style.setProperty("--bite","0px"); delete e.dataset.busy; },1500); return; }
+  bite(.2); setTimeout(()=>bite(.36),260);
+  setTimeout(()=>{ e.classList.add("regrow"); e.style.setProperty("--bite","0px"); }, 1900);
+  setTimeout(()=>{ e.classList.remove("regrow"); delete e.dataset.busy; }, 2900);
+}
+function crumbs(stage,e,n){
+  const sr=stage.getBoundingClientRect(), er=e.getBoundingClientRect();
+  for(let i=0;i<n;i++){ const c=document.createElement("i"); c.className="crumb";
+    const pad=parseFloat(getComputedStyle(e).paddingTop)||0; c.style.left=(er.right-sr.left-pad-er.width*.06)+"px"; c.style.top=(er.top-sr.top+pad+er.height*.08)+"px";
+    c.style.setProperty("--dx",(8+Math.random()*30)+"px"); c.style.setProperty("--dy",(-14+Math.random()*44)+"px"); c.style.setProperty("--rot",(Math.random()*360)+"deg");
+    stage.appendChild(c); requestAnimationFrame(()=>c.classList.add("fly")); setTimeout(()=>c.remove(),800); }
+}
+const stages=[...document.querySelectorAll(".stage")];
+stages.forEach((st,i)=>{
+  st.addEventListener("click",()=>chomp(st));
+  st.addEventListener("keydown",e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); chomp(st); } });
+  setTimeout(()=>{ chomp(st); setInterval(()=>chomp(st), 5200); }, 900+i*1300);
+});
+// colour themes
+document.querySelectorAll(".skins button").forEach(b=>b.addEventListener("click",()=>{
+  document.documentElement.dataset.skin = b.dataset.skin==="food" ? "" : b.dataset.skin;
+  if(b.dataset.skin==="food") document.documentElement.removeAttribute("data-skin");
+  document.querySelectorAll(".skins button").forEach(x=>x.setAttribute("aria-pressed", String(x===b)));
+}));
+</script>

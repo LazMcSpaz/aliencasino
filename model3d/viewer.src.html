@@ -1,0 +1,77 @@
+<title>Slot Bot 3D</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&display=swap">
+<style>
+:root{--bg:#0b0718;--bg2:#1e1240;--ink:#efe8ff;--dim:#9a8fc0;--rule:#ffffff1f;--gold:#ffc845;--pink:#ff5fae;color-scheme:dark}
+body{background:radial-gradient(120% 80% at 50% 30%,var(--bg2),var(--bg) 70%);color:var(--ink);font:500 14px "Chakra Petch",system-ui,sans-serif;height:100dvh;overflow:hidden}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.ui{position:fixed;left:0;right:0;bottom:0;padding:12px max(16px,env(safe-area-inset-right,0px)) calc(14px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));display:grid;gap:10px;justify-items:center;pointer-events:none;background:linear-gradient(transparent,#0b0718e6 40%)}
+.row{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;pointer-events:auto}
+.lab{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);width:100%;text-align:center}
+button{font:inherit;color:var(--ink);background:#ffffff0d;border:1px solid var(--rule);padding:7px 12px;border-radius:8px;cursor:pointer;clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px)}
+button[aria-pressed=true]{background:color-mix(in srgb,var(--gold) 22%,transparent);border-color:var(--gold);color:#fff}
+.mood button[aria-pressed=true]{background:color-mix(in srgb,var(--pink) 22%,transparent);border-color:var(--pink)}
+header{position:fixed;top:env(safe-area-inset-top,0px);left:0;right:0;padding:14px max(16px,env(safe-area-inset-left,0px));display:flex;justify-content:space-between;align-items:baseline;pointer-events:none}
+h1{margin:0;font-size:18px;font-weight:700;letter-spacing:.06em}h1 b{color:var(--gold)}
+.note{margin:0;color:var(--dim);font-size:12px;text-align:center;min-height:1.2em;pointer-events:none}
+header small{color:var(--dim);font-size:12px}
+</style>
+<canvas id="c"></canvas>
+<header><h1>SLOT <b>BOT</b></h1><small>drag to orbit · pinch to zoom</small></header>
+<div class="ui">
+  <div class="row anim"><span class="lab">Animation</span><button data-a="Idle" aria-pressed="true">Idle</button><button data-a="Walk">Walk</button><button data-a="Grab">Grab</button><button data-a="Stop">Hold still</button></div>
+  <div class="row mood"><span class="lab">Mood</span></div>
+  <p class="note" id="note"></p>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+/* {{MODEL}} */
+const TEX_SRC = /* {{TEX}} */;
+const cv=document.getElementById("c");
+const renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true});
+renderer.setPixelRatio(Math.min(2,devicePixelRatio)); renderer.outputEncoding=THREE.sRGBEncoding; renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.0;
+renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+const scene=new THREE.Scene(), cam=new THREE.PerspectiveCamera(35,1,.05,50);
+cam.position.set(1.8,1.5,3.1);
+const ctl=new THREE.OrbitControls(cam,cv); ctl.target.set(0,.95,0); ctl.enableDamping=true; ctl.minDistance=1.1; ctl.maxDistance=6; ctl.maxPolarAngle=Math.PI*.52; ctl.autoRotate=true; ctl.autoRotateSpeed=.8;
+cv.addEventListener("pointerdown",()=>ctl.autoRotate=false);
+scene.add(new THREE.HemisphereLight(0xbfb4ff,0x1a1030,.75));
+const key=new THREE.DirectionalLight(0xffffff,1.6); key.position.set(2,4,3); key.castShadow=true; key.shadow.mapSize.set(1024,1024); Object.assign(key.shadow.camera,{left:-1.5,right:1.5,top:2.5,bottom:-.5}); scene.add(key);
+const rim=new THREE.DirectionalLight(0xff5fae,1.1); rim.position.set(-2.5,2,-2.5); scene.add(rim);
+const fill=new THREE.PointLight(0x7dffb0,.5,3); fill.position.set(0,1.5,1.2); scene.add(fill);
+// floor: a soft glowing disc under the robot
+const fc=document.createElement("canvas"); fc.width=fc.height=256; const fg=fc.getContext("2d"), rg=fg.createRadialGradient(128,128,0,128,128,128);
+rg.addColorStop(0,"#3b2a7a"); rg.addColorStop(.55,"#1e1440"); rg.addColorStop(1,"rgba(11,7,24,0)"); fg.fillStyle=rg; fg.fillRect(0,0,256,256);
+const ft=new THREE.CanvasTexture(fc); ft.encoding=THREE.sRGBEncoding;
+const floor=new THREE.Mesh(new THREE.CircleGeometry(2.4,48),new THREE.MeshStandardMaterial({map:ft,transparent:true,roughness:.9})); floor.rotation.x=-Math.PI/2; floor.receiveShadow=true; scene.add(floor);
+const ring=new THREE.Mesh(new THREE.RingGeometry(.78,.8,64),new THREE.MeshBasicMaterial({color:0xffc845,transparent:true,opacity:.35})); ring.rotation.x=-Math.PI/2; ring.position.y=.002; scene.add(ring);
+
+const loadImg=s=>new Promise(r=>{const i=new Image(); i.onload=()=>r(i); i.onerror=()=>r(null); i.src=s;});
+let bot, mixer, acts={}, cur=null;
+(async()=>{
+  const tex={hud:await loadImg(TEX_SRC.hud), glass:await loadImg(TEX_SRC.glass), controls:await loadImg(TEX_SRC.controls), faces:{}};
+  for(const [m,s] of Object.entries(TEX_SRC.faces)) tex.faces[m]=await loadImg(s);
+  bot=buildSlotBot(THREE,{mood:"happy",tex}); scene.add(bot.root); start();
+})();
+function start(){
+mixer=new THREE.AnimationMixer(bot.root); bot.clips.forEach(c=>acts[c.name]=mixer.clipAction(c));
+buildMoods(); play(); beacon=bot.root.getObjectByName("Beacon");
+}
+let mode="Idle", mood="happy";
+const NOTES={happy:"Relaxed stance · normal walk",giddy:"Bouncing, arms up, claws clacking · fast skippy walk",grumpy:"Stiff and fuming · slow heavy stomp",sleepy:"Slumped forward, arms out · slow dragging walk",mischievous:"Hunched, claws rubbing together · sneaky creep"};
+function clipName(){ return mode==="Grab"?"Grab":`${mode}_${mood[0].toUpperCase()+mood.slice(1)}`; }
+function play(){ document.getElementById("note").textContent=NOTES[mood]+(mode==="Walk"?` · ${bot.moodAnim[mood].walk.toFixed(2)} s per step`:"");
+  if(mode==="Stop"){ if(cur) cur.fadeOut(.3); cur=null; return; }
+  const a=acts[clipName()]; if(a===cur) return; a.reset().setEffectiveWeight(1).play(); if(cur) cur.crossFadeTo(a,.35,false); cur=a; }
+function setAnim(n){ document.querySelectorAll(".anim button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.a===n))); mode=n; play(); }
+document.querySelectorAll(".anim button").forEach(b=>b.onclick=()=>setAnim(b.dataset.a));
+const mrow=document.querySelector(".mood");
+function buildMoods(){ bot.moods.forEach((m,i)=>{ const b=document.createElement("button"); b.textContent=m[0].toUpperCase()+m.slice(1); b.setAttribute("aria-pressed",String(i===0));
+  b.onclick=()=>{ bot.setMood(m); mood=m; play(); mrow.querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",String(x===b))); }; mrow.appendChild(b); }); }
+function size(){ const w=innerWidth,h=innerHeight; renderer.setSize(w,h,false); cam.aspect=w/h; cam.fov=w<h?48:35; cam.updateProjectionMatrix(); }
+addEventListener("resize",size); size();
+const clock=new THREE.Clock(); let beacon=null;
+renderer.setAnimationLoop(()=>{ const dt=Math.min(.05,clock.getDelta()); if(mixer) mixer.update(dt); ctl.update();
+  if(beacon) beacon.material.emissiveIntensity=1.1+.6*Math.sin(clock.elapsedTime*5); renderer.render(scene,cam); });
+</script>

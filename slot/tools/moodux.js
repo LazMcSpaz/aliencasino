@@ -1,0 +1,17 @@
+const {chromium}=require('playwright'); const fs=require('fs');
+const F='/tmp/claude-0/-home-claude/ec4c4efc-38ac-5fe2-a0fc-cbb2a3d619e4/scratchpad/fonts/node_modules/@fontsource/';
+const ff=(fam,file,w)=>`@font-face{font-family:"${fam}";font-weight:${w||400};src:url(data:font/woff2;base64,${fs.readFileSync(F+file).toString('base64')}) format("woff2")}`;
+const fonts=ff("Monoton","monoton/files/monoton-latin-400-normal.woff2")+ff("Yellowtail","yellowtail/files/yellowtail-latin-400-normal.woff2")+ff("Bungee","bungee/files/bungee-latin-400-normal.woff2")+ff("Outfit","outfit/files/outfit-latin-500-normal.woff2",500)+ff("Chakra Petch","chakra-petch/files/chakra-petch-latin-700-normal.woff2",700)+ff("Chakra Petch","chakra-petch/files/chakra-petch-latin-600-normal.woff2",600);
+const OUT='/tmp/claude-0/-home-claude/ec4c4efc-38ac-5fe2-a0fc-cbb2a3d619e4/scratchpad/';
+(async()=>{ const b=await chromium.launch(); const p=await b.newPage({viewport:{width:390,height:844}}); const errs=[]; p.on('pageerror',e=>errs.push(e.message));
+ await p.setContent('<!doctype html><html><head><meta charset="utf-8"><style>'+fonts+'html,body{margin:0}[hidden]{display:none!important}</style></head><body>'+fs.readFileSync('slot.html','utf8')+'</body></html>');
+ await p.waitForTimeout(1200); await p.evaluate(()=>{ credits=2000; update(); });
+ const shot=n=>p.screenshot({path:OUT+`ux_${n}.png`});
+ await shot("0_happy");
+ await p.evaluate(()=>{ setMood("sleepy",30); applyMoodUI(true); }); await p.waitForTimeout(500); await shot("1_shift");
+ await p.waitForTimeout(2600); await shot("2_sleepy_chip");
+ await p.click('#spin'); await p.waitForTimeout(1000); await shot("3_sleepy_spin");
+ await p.waitForFunction(()=>!spinning,null,{timeout:20000}); await p.waitForTimeout(800);
+ await p.evaluate(()=>{ setMood("grumpy",30); applyMoodUI(true); }); await p.waitForTimeout(3000); await shot("4_grumpy");
+ await p.evaluate(()=>{ setMood("mischievous",30); applyMoodUI(false); moodSpins=3; moodReminder(); }); await p.waitForTimeout(250); await shot("5_ping");
+ console.log(errs); await b.close(); })();

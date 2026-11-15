@@ -1,0 +1,23 @@
+const {chromium}=require('playwright'); const fs=require('fs');
+const NM='/tmp/claude-0/-home-claude/ec4c4efc-38ac-5fe2-a0fc-cbb2a3d619e4/scratchpad/m3d/node_modules/three/';
+const OUT='/home/claude/slot/model3d/out/'; fs.mkdirSync(OUT,{recursive:true});
+(async()=>{ const b=await chromium.launch(); const p=await b.newPage(); const errs=[]; p.on('pageerror',e=>errs.push(e.message));
+ await p.setContent('<html><body></body></html>');
+ for(const f of ['build/three.min.js','examples/js/exporters/GLTFExporter.js']) await p.addScriptTag({content:fs.readFileSync(NM+f,'utf8')});
+ await p.addScriptTag({content:fs.readFileSync(__dirname+'/model.js','utf8')});
+ const C=__dirname+'/cap/'; const d=f=>'data:image/webp;base64,'+fs.readFileSync(C+f).toString('base64');
+ const src={hud:d('tex_hud.webp'),glass:d('tex_glass.webp'),controls:d('tex_controls.webp'),faces:{}}; for(const m of ['happy','giddy','grumpy','sleepy','mischievous']) src.faces[m]=d(`tex_face_${m}.webp`);
+ const r=await p.evaluate(async src=>{
+   const L=s=>new Promise(r=>{const i=new Image(); i.onload=()=>r(i); i.src=s;});
+   const tex={hud:await L(src.hud),glass:await L(src.glass),controls:await L(src.controls),faces:{}}; for(const [m,s] of Object.entries(src.faces)) tex.faces[m]=await L(s);
+   const bot=buildSlotBot(THREE,{mood:"happy",tex});
+   const faces={}; for(const m of bot.moods){ bot.setMood(m); faces[m]=bot.faceCanvas.toDataURL('image/png'); } bot.setMood("happy");
+   const scene=new THREE.Scene(); scene.add(bot.root);
+   const glb=await new Promise((res,rej)=>new THREE.GLTFExporter().parse(scene,res,rej,{binary:true,animations:bot.clips,onlyVisible:true}));
+   const u=new Uint8Array(glb); let s=""; for(let i=0;i<u.length;i+=8192) s+=String.fromCharCode.apply(null,u.subarray(i,i+8192));
+   let tris=0; bot.root.traverse(o=>{ if(o.isMesh) tris+=o.geometry.attributes.position.count/3; });
+   return {glb:btoa(s),faces,tris:Math.round(tris)};
+ },src);
+ fs.writeFileSync(OUT+'slot_bot.glb',Buffer.from(r.glb,'base64'));
+ for(const [m,d] of Object.entries(r.faces)) fs.writeFileSync(OUT+`face_${m}.png`,Buffer.from(d.split(',')[1],'base64'));
+ console.log('tris',r.tris,errs); await b.close(); })();
