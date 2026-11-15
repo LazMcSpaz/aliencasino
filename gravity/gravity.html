@@ -1,0 +1,479 @@
+<!-- Gravity Well: page layout, styles and screen logic. build.py adds the engine, the shared sound engine and the art, and writes gravity.html.
+     May use: part_engine.js (all game maths), Sound (shared synth). Must not: decide outcomes or change credits itself; the engine does that.
+     The bowl is the betting table: tap a section to put a chip on it, tap the black hole for the void bet. -->
+<title>Gravity Well</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Chakra+Petch:wght@500;600;700&family=Monoton&family=Yellowtail&display=swap">
+<style>
+:root{--void:#07061a;--ink:#f1edff;--dim:#9a92c7;--gold:#ffc845;--alien:#7dff7a;--hole:#b45cff;
+  --q0:#ff4d6d;--q1:#4fd8ff;--q2:#ffc845;--q3:#7dff7a;
+  --ui:color-mix(in srgb,var(--hole) 55%,#7fe3ff);
+  --f-sign:"Bungee",Impact,sans-serif;--f-tech:"Chakra Petch",system-ui,sans-serif;color-scheme:dark}
+html,body{height:100%}
+body{margin:0;background:radial-gradient(90% 55% at 50% 45%,#2a1658 0%,var(--void) 72%);color:var(--ink);font:500 14px var(--f-tech);overflow:hidden;-webkit-tap-highlight-color:transparent;user-select:none}
+[hidden]{display:none!important}
+.stars{position:fixed;inset:0;z-index:-1;pointer-events:none;background:
+  radial-gradient(1px 1px at 12% 18%,#fff9,transparent),radial-gradient(1px 1px at 78% 12%,#fff8,transparent),radial-gradient(1.5px 1.5px at 30% 82%,#fff7,transparent),
+  radial-gradient(1px 1px at 88% 64%,#fff8,transparent),radial-gradient(1px 1px at 52% 6%,#fff6,transparent),radial-gradient(1.5px 1.5px at 6% 58%,#fff6,transparent),
+  radial-gradient(1px 1px at 64% 92%,#fff7,transparent),radial-gradient(1px 1px at 94% 30%,#fff5,transparent)}
+.app{position:relative;height:100dvh;max-width:480px;margin:0 auto;display:grid;grid-template-rows:auto auto 1fr auto;gap:6px;box-sizing:border-box;
+  padding:calc(8px + env(safe-area-inset-top,0px)) max(12px,env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) max(12px,env(safe-area-inset-left,0px))}
+.chrome{--k:9px;--ehi:color-mix(in srgb,var(--ui) 70%,transparent);--elo:color-mix(in srgb,var(--ui) 14%,transparent);position:relative;isolation:isolate;
+  clip-path:polygon(var(--k) 0,100% 0,100% calc(100% - var(--k)),calc(100% - var(--k)) 100%,0 100%,0 var(--k));
+  background:linear-gradient(135deg,var(--ehi),var(--elo) 30%,var(--elo) 70%,var(--ehi))}
+.chrome::before{content:"";position:absolute;inset:1px;z-index:-1;
+  clip-path:polygon(calc(var(--k) - .4px) 0,100% 0,100% calc(100% - var(--k) + .4px),calc(100% - var(--k) + .4px) 100%,0 100%,0 calc(var(--k) - .4px));
+  background:repeating-linear-gradient(0deg,#ffffff05 0 1px,transparent 1px 3px),linear-gradient(180deg,#221c44 0%,#120f27 55%,#0b091a 100%)}
+.hud{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;height:54px}
+.coins{display:flex;align-items:center;gap:7px;justify-self:start;padding:6px 14px 6px 7px}
+.coins i{width:26px;height:20px;background:var(--bar) center/contain no-repeat}
+.coins b{font:700 1.1rem/1 var(--f-tech)}
+.title{position:relative;justify-self:center;text-align:center;white-space:nowrap}
+.title .l2{display:block;font:400 1.6rem/1 "Monoton",var(--f-sign);letter-spacing:.03em;color:#f3e6ff;text-shadow:0 0 4px #fff,0 0 10px var(--hole),0 0 22px #8a3cff,0 0 40px #8a3cff88}
+.title .l1{position:absolute;right:-10px;bottom:-12px;font:400 1.2rem/1 "Yellowtail",cursive;color:#e6fbff;transform:rotate(-7deg);text-shadow:0 0 3px #fff,0 0 9px var(--q1),0 0 18px var(--q1)}
+.icons{justify-self:end;display:flex;gap:6px}
+.icon{--k:7px;width:38px;height:38px;display:grid;place-items:center;border:0;color:var(--dim);cursor:pointer;padding:0}
+.icon svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+.icon[aria-pressed="false"] .on{display:none}.icon[aria-pressed="true"] .off{display:none}
+/* results strip: one cell per tier + the void count */
+.strip{display:grid;grid-template-columns:repeat(3,1fr) auto;gap:6px}
+.cell{--k:7px;padding:5px 6px 6px;text-align:center;min-width:0}
+.cell span{display:block;font:600 .56rem/1 var(--f-tech);letter-spacing:.18em;color:var(--dim)}
+.cell b{display:block;font:700 1.05rem/1.2 var(--f-tech);margin-top:3px;min-height:1.2em;white-space:nowrap}
+.cell.hit{--ehi:var(--alien)}.cell.void{--ehi:var(--hole)}
+.cell.voidc{min-width:58px}
+.stage{position:relative;min-height:0;display:grid;place-items:center}
+canvas{display:block;touch-action:manipulation}
+.say{position:absolute;left:50%;top:6px;transform:translateX(-50%);max-width:92%;text-align:center;font:600 .82rem var(--f-tech);color:#e3dbff;pointer-events:none;text-shadow:0 1px 3px #000}
+.pop{position:absolute;pointer-events:none;font:700 1.15rem var(--f-tech);color:#fff2b0;text-shadow:0 0 8px #ffb84a,0 1px 2px #000;transform:translate(-50%,-50%);z-index:5}
+.banner{position:absolute;left:50%;top:44%;z-index:9;transform:translate(-50%,-50%) scale(.7);opacity:0;pointer-events:none;transition:transform .32s cubic-bezier(.3,1.6,.5,1),opacity .22s;
+  --k:12px;padding:12px 22px;text-align:center;--ehi:var(--bc,var(--gold));--elo:color-mix(in srgb,var(--bc,var(--gold)) 25%,transparent)}
+.banner.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+.banner strong{display:block;font:400 1.5rem/1 var(--f-sign);color:var(--bc,var(--gold));text-shadow:0 0 16px var(--bc,var(--gold));white-space:nowrap}
+.banner em{display:block;font:600 .85rem var(--f-tech);font-style:normal;color:#fff;margin-top:5px;white-space:nowrap}
+/* controls: chips + table buttons, then bet · SPIN · win */
+.tools{display:flex;gap:6px;align-items:center;justify-content:center;flex-wrap:wrap}
+.chip{width:44px;height:44px;border-radius:50%;border:0;cursor:pointer;font:700 .9rem var(--f-tech);color:#fff;position:relative;
+  background:radial-gradient(circle at 50% 50%,var(--c) 0 48%,#fff 49% 53%,var(--c) 54% 64%,transparent 65%),repeating-conic-gradient(var(--c) 0 20deg,#fff 20deg 30deg);box-shadow:0 3px 0 #0008;transition:transform .12s}
+.chip[aria-pressed="true"]{transform:translateY(-5px);box-shadow:0 8px 14px -4px var(--c),0 0 0 2px #fff}
+.tbtn{--k:7px;border:0;cursor:pointer;color:var(--ink);font:700 .72rem var(--f-tech);letter-spacing:.08em;padding:9px 10px;min-width:56px}
+.tbtn[aria-pressed="true"]{--ehi:var(--gold);color:var(--gold)}
+.tbtn:disabled{opacity:.35;cursor:default}
+.deck{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:12px;margin-top:6px}
+.readout{--k:8px;padding:7px 6px 8px;text-align:center;min-width:0}
+.readout span{display:block;font:600 .6rem/1 var(--f-tech);letter-spacing:.2em;color:var(--dim);text-transform:uppercase}
+.readout b{display:block;font:700 1.4rem/1.1 var(--f-tech);margin-top:3px}
+.readout.l{justify-self:end;width:100%;max-width:120px}.readout.r{justify-self:start;width:100%;max-width:120px}
+#win{color:#fff2cf}
+.go{position:relative;width:96px;height:96px;border-radius:50%;border:0;cursor:pointer;font:700 1.05rem/1.05 var(--f-tech);letter-spacing:.14em;color:#1a0633;text-transform:uppercase;
+  background:radial-gradient(circle at 35% 30%,#f6e6ff,#c48cff 45%,#6a1fbf);box-shadow:0 6px 0 #3a0e70,inset 0 -6px 14px #0004,inset 0 4px 10px #fff8,0 0 0 5px #0c0a1a,0 0 34px -6px var(--hole);transition:transform .08s,filter .2s}
+.go small{display:block;font:700 .6rem var(--f-tech);letter-spacing:.06em;opacity:.75;margin-top:2px}
+.go:active:not(:disabled){transform:translateY(4px)}
+.go:disabled{filter:grayscale(.8) brightness(.55);cursor:default}
+.sheet{position:fixed;inset:0;z-index:100;display:grid;place-items:center;background:#000b;padding:16px}
+.card{--k:14px;max-width:360px;max-height:86dvh;overflow:auto;padding:18px;font:500 .88rem/1.45 var(--f-tech)}
+.card h2{margin:0 0 8px;font:400 1.2rem var(--f-sign);color:var(--hole)}
+.card table{width:100%;border-collapse:collapse;margin:8px 0}.card td{padding:4px 0;border-bottom:1px solid #ffffff14}.card td:last-child{text-align:right}
+.card .dbg{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+.card .dbg button{--k:6px;border:0;font:600 .75rem var(--f-tech);color:var(--ink);padding:7px 10px;cursor:pointer}
+@media (prefers-reduced-motion:reduce){.banner{transition:none}}
+</style>
+
+<div class="stars" aria-hidden="true"></div>
+<div class="app" id="app">
+  <header class="hud">
+    <div class="coins chrome"><i aria-hidden="true"></i><b id="credits">500</b></div>
+    <div class="title" aria-label="Gravity Well"><span class="l2">GRAVITY</span><span class="l1">Well</span></div>
+    <div class="icons">
+      <button class="icon chrome" id="snd" aria-pressed="true" aria-label="Sound"><svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="on" d="M17 9a4 4 0 0 1 0 6"/><path class="off" d="M17 9l4 6M21 9l-4 6"/></svg></button>
+      <button class="icon chrome" id="info" aria-label="How to play"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg></button>
+    </div>
+  </header>
+  <div class="strip">
+    <div class="cell chrome" id="c0"><span>RIM ×4</span><b></b></div>
+    <div class="cell chrome" id="c1"><span>BELT ×12</span><b></b></div>
+    <div class="cell chrome" id="c2"><span>CORE ×24</span><b></b></div>
+    <div class="cell chrome voidc" id="c3"><span>VOIDS</span><b></b></div>
+  </div>
+  <section class="stage" id="stage">
+    <canvas id="bowl" aria-label="The gravity well: tap a section to bet on it, tap the black hole to bet on the void"></canvas>
+    <p class="say" id="say" aria-live="polite">Tap the bowl to place chips.</p>
+    <div class="banner chrome" id="banner"><strong id="bannerBig"></strong><em id="bannerSmall"></em></div>
+  </section>
+  <section id="controls">
+    <div class="tools">
+      <button class="chip" data-v="1" style="--c:#4fd8ff" aria-label="Chip 1">1</button>
+      <button class="chip" data-v="5" style="--c:#ff4d6d" aria-label="Chip 5" aria-pressed="true">5</button>
+      <button class="chip" data-v="25" style="--c:#2fae5f" aria-label="Chip 25">25</button>
+      <button class="chip" data-v="100" style="--c:#1d1b2a" aria-label="Chip 100">100</button>
+      <button class="tbtn chrome" id="path" aria-pressed="false">PATH</button>
+      <button class="tbtn chrome" id="clear">CLEAR</button>
+    </div>
+    <div class="deck">
+      <div class="readout chrome l"><span>Bet</span><b id="bet">0</b></div>
+      <button class="go" id="go" disabled>SPIN<small>place a bet</small></button>
+      <div class="readout chrome r"><span>Win</span><b id="win">0</b></div>
+    </div>
+  </section>
+</div>
+<div class="sheet" id="sheet" hidden><div class="card chrome" role="dialog" aria-label="How to play">
+  <h2>How to play</h2>
+  <p>Tap a section of the bowl to put a chip on it. Then <b>SPIN</b>: the comet circles the rim and spirals down into the black hole.</p>
+  <p>Each time it drops over the bottom edge of a tier, the section it crosses is that tier's result, and bets on it pay straight away. The thin dark slivers are <b>voids</b>: if the comet crosses one, that tier's bets lose.</p>
+  <p><b>Path:</b> tap PATH, then pick one section on each tier. If the comet goes through all three, it pays ×1250.</p>
+  <p><b>Void bet:</b> tap the black hole to bet that the comet crosses a void.</p>
+  <table id="paytable"></table>
+  <div class="dbg"><button class="chrome" id="fpath">Debug: hit my path</button><button class="chrome" id="fvoid">Debug: 3 voids</button><button class="chrome" id="close">Close</button></div>
+</div></div>
+
+<script>
+const ART = {"bar": "data:image/webp;base64,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"};
+// Gravity Well: all game maths. No drawing, no timers, so Node simulations (tools/sim.js) can run it directly.
+// A comet spirals down a three-tier bowl into a black hole. Where it crosses the bottom edge of each tier decides that tier's result.
+// Angles are in turns (0..1), clockwise from the top. The bowl is split into 4 quadrants; each quadrant starts with a thin VOID
+// sliver (the house edge, like roulette's green zero) and the rest is shared equally by that tier's sections.
+// Every tier pays back 1 − VOID (95%); the path and void bets are tuned near that by tools/sim.js.
+
+const TIERS = [
+  { n: 4,  pay: 4,  name: "RIM",  label: i => ["RED","BLUE","GOLD","GREEN"][i] },
+  { n: 12, pay: 12, name: "BELT", label: i => String(i + 1) },
+  { n: 24, pay: 24, name: "CORE", label: i => String(i + 1) },
+];
+const VOID = .05;                                  // share of every tier taken by the four void slivers
+const PATH_PAY = 1250;                             // one pick on every tier, all three hit
+const VOID_PAY = { 1: 5, 2: 30, 3: 300 };          // void side bet: how many tiers the comet crossed in a void
+const CHIPS = [1, 5, 25, 100];
+const START = 500;
+const FORCE = { angles: null };                    // debug: force the next spin's crossing angles
+
+let credits = START;
+// bets: tiers[t] = { sectionIndex: amount }, path = { picks:[i,j,k] (null until picked), amount }, voidBet = amount
+let bets = { tiers: [{}, {}, {}], path: { picks: [null, null, null], amount: 0 }, voidBet: 0 };
+let lastBets = null;
+
+// which section an angle falls in on tier t (−1 = void sliver)
+function sectionAt(t, a) {
+  a = ((a % 1) + 1) % 1; const q = Math.floor(a * 4), f = a * 4 - q;
+  if (f < VOID) return -1;
+  const per = TIERS[t].n / 4; return q * per + Math.min(per - 1, Math.floor((f - VOID) / (1 - VOID) * per));
+}
+// the angular span [from, to] of a section (or of quadrant q's void sliver if i = −1)
+function sectionSpan(t, i, q = 0) {
+  if (i < 0) return [q / 4, (q + VOID) / 4];
+  const per = TIERS[t].n / 4, qq = Math.floor(i / per), k = i % per, w = (1 - VOID) / per;
+  return [(qq + VOID + k * w) / 4, (qq + VOID + (k + 1) * w) / 4];
+}
+const quadrantOf = (t, i) => Math.floor(i / (TIERS[t].n / 4));     // sections share their quadrant's colour
+
+function totalBet(b = bets) {
+  let s = b.voidBet + (pathReady(b) ? b.path.amount : 0);
+  for (const tb of b.tiers) for (const v of Object.values(tb)) s += v;
+  return s;
+}
+const pathReady = (b = bets) => b.path.amount > 0 && b.path.picks.every(p => p !== null);
+
+function addBet(t, i, amt) { if (totalBet() + amt > credits) return false; bets.tiers[t][i] = (bets.tiers[t][i] || 0) + amt; return true; }
+function addVoidBet(amt) { if (totalBet() + amt > credits) return false; bets.voidBet += amt; return true; }
+function setPathPick(t, i) { bets.path.picks[t] = i; }
+function setPathAmount(amt) { const was = pathReady() ? bets.path.amount : 0; if (totalBet() - was + amt > credits) return false; bets.path.amount = amt; return true; }
+function clearBets() { bets = { tiers: [{}, {}, {}], path: { picks: [null, null, null], amount: 0 }, voidBet: 0 }; }
+function rebet() { if (!lastBets || totalBet(lastBets) > credits) return false; bets = JSON.parse(JSON.stringify(lastBets)); return true; }
+
+// one spin: the engine picks the three crossing angles, takes the stake, and works out every payout.
+// Returns { angles, results, tierWins[3] (amount paid per tier), pathWin, voidCount, voidWin, staked, totalWin }
+function spin() {
+  const staked = totalBet(); if (staked <= 0 || staked > credits) return null;
+  credits -= staked; lastBets = JSON.parse(JSON.stringify(bets));
+  const angles = FORCE.angles || [Math.random(), Math.random(), Math.random()]; FORCE.angles = null;
+  const results = angles.map((a, t) => sectionAt(t, a));
+  const tierWins = results.map((r, t) => r < 0 ? 0 : (bets.tiers[t][r] || 0) * TIERS[t].pay);
+  const pathWin = pathReady() && results.every((r, t) => r === bets.path.picks[t]) ? bets.path.amount * PATH_PAY : 0;
+  const voidCount = results.filter(r => r < 0).length, voidWin = voidCount ? bets.voidBet * VOID_PAY[voidCount] : 0;
+  const totalWin = tierWins.reduce((a, b) => a + b, 0) + pathWin + voidWin;
+  return { angles, results, tierWins, pathWin, voidCount, voidWin, staked, totalWin };
+}
+// the screen calls this as each part of the result is revealed, so credits rise in step with the comet
+function collect(amount) { credits += amount; }
+
+// ---- Sound: all synthesized live with Web Audio, no sound files needed ----
+const Sound = (()=>{
+  let ctx=null, master=null, mbus=null, on=true, musicOn=true, mlevel=1;
+  try{ on = localStorage.getItem("slot-sound")!=="off"; musicOn = localStorage.getItem("slot-music")!=="off"; }catch(e){}
+  function ensure(){
+    if(!ctx){ const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return null;
+      ctx=new AC(); master=ctx.createGain(); master.gain.value=0.55;
+      const lim=ctx.createDynamicsCompressor(); lim.threshold.value=-10; lim.knee.value=6; lim.ratio.value=8; lim.attack.value=.003; lim.release.value=.15;
+      master.connect(lim).connect(ctx.destination);   // limiter: stops loud moments from overdriving a phone speaker
+      const hp=ctx.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=90; hp.Q.value=.7;
+      mbus=ctx.createGain(); mbus.gain.value=musicOn?mlevel:0; mbus.connect(hp).connect(master); decodeClips(); }
+    if(ctx.state==="suspended") ctx.resume();
+    return ctx;
+  }
+  // lp = low-pass filter cutoff (warmer, rounder sound); lpEnd = where the cutoff sweeps to; detune in cents; bus "music" goes through the music volume
+  function tone(freq, dur, {type="sine", vol=0.2, at=0, slide=0, attack=0.004, lp=0, lpEnd=0, q=1, detune=0, bus=null, vib=0}={}){
+    if(!on) return; const c=ensure(); if(!c) return; if(bus==="music") attack=Math.max(attack,.008);   // softer note starts = no clicks
+    const t=c.currentTime+Math.max(0,at), o=c.createOscillator(), g=c.createGain();
+    o.type=type; o.frequency.setValueAtTime(freq,t); if(detune) o.detune.value=detune;
+    if(slide) o.frequency.exponentialRampToValueAtTime(Math.max(30,freq*slide), t+dur);
+    if(vib){ const l=c.createOscillator(), lg=c.createGain(); l.frequency.value=5.5; lg.gain.value=freq*vib; l.connect(lg).connect(o.frequency); l.start(t); l.stop(t+dur+0.05); }
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol,t+attack); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    let node=o; if(lp){ const f=c.createBiquadFilter(); f.type="lowpass"; f.Q.value=q; f.frequency.setValueAtTime(lp,t); if(lpEnd) f.frequency.exponentialRampToValueAtTime(lpEnd,t+dur); node.connect(f); node=f; }
+    node.connect(g).connect(bus==="music"?mbus:master); o.start(t); o.stop(t+dur+0.05);
+  }
+  function thud(vol=0.25, freq=260){
+    if(!on) return; const c=ensure(); if(!c) return;
+    const len=Math.floor(c.sampleRate*0.09), buf=c.createBuffer(1,len,c.sampleRate), d=buf.getChannelData(0);
+    for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/len,3);
+    const src=c.createBufferSource(), f=c.createBiquadFilter(), g=c.createGain();
+    src.buffer=buf; f.type="lowpass"; f.frequency.value=freq; g.gain.value=vol;
+    src.connect(f).connect(g).connect(master); src.start();
+  }
+  // Recorded clips (base64 mp3 in SND_SRC) are decoded once the audio system wakes up, then played through the same volume control
+  const clips={};
+  function decodeClips(){ if(typeof SND_SRC==="undefined") return;
+    for(const [k,b64] of Object.entries(SND_SRC)){ if(clips[k]) continue; clips[k]="loading";
+      const bin=atob(b64.split(",")[1]), buf=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) buf[i]=bin.charCodeAt(i);
+      ctx.decodeAudioData(buf.buffer).then(ab=>{ clips[k]=ab; }).catch(()=>{ delete clips[k]; }); } }
+  function clip(name, {vol=1, at=0}={}){ // returns false if the clip isn't ready, so callers can fall back to synth sounds
+    if(!on) return true; const c=ensure(); const ab=clips[name]; if(!c || !(ab instanceof AudioBuffer)) return false;
+    const src=c.createBufferSource(), g=c.createGain(), t=c.currentTime+at; src.buffer=ab;
+    g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(vol,t+.005);   // 5 ms fade-in: no pop when a clip starts
+    src.connect(g).connect(master); src.start(t); return true; }
+  function noise(dur, {vol=0.2, at=0, type="lowpass", freq=1200, q=0.8, attack=0.004, sweep=0, bus=null}={}){   // filtered noise burst: gunshots, tyres, crowds, scribbles
+    if(!on) return; const c=ensure(); if(!c) return; if(bus==="music") attack=Math.max(attack,.01);   // no instant starts on music percussion
+    const t=c.currentTime+Math.max(0,at), len=Math.max(1,Math.floor(c.sampleRate*dur)), buf=c.createBuffer(1,len,c.sampleRate), d=buf.getChannelData(0);
+    for(let i=0;i<len;i++) d[i]=Math.random()*2-1;
+    const src=c.createBufferSource(), f=c.createBiquadFilter(), g=c.createGain();
+    src.buffer=buf; f.type=type; f.frequency.setValueAtTime(freq,t); f.Q.value=q; if(sweep) f.frequency.exponentialRampToValueAtTime(Math.max(40,freq*sweep), t+dur);
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol,t+attack); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    src.connect(f).connect(g).connect(bus==="music"?mbus:master); src.start(t); src.stop(t+dur+0.05);
+  }
+  const note = n => 440*Math.pow(2,(n-9)/12); // n = semitones above C4 (0 = C)
+  const arp = (notes, gap, opts) => notes.forEach((n,i)=>tone(note(n), opts.dur||0.18, {...opts, at:i*gap}));
+  return {
+    get on(){ return on; },
+    set on(v){ on=v; try{ localStorage.setItem("slot-sound", v?"on":"off"); }catch(e){} if(v) ensure(); },
+    unlock(){ if(on) ensure(); },
+    get musicOn(){ return musicOn; },
+    set musicOn(v){ musicOn=v; try{ localStorage.setItem("slot-music", v?"on":"off"); }catch(e){} if(mbus) mbus.gain.setTargetAtTime(v?mlevel:0, ctx.currentTime, .05); },
+    musicLevel(v){ mlevel=v; if(mbus && musicOn) mbus.gain.setTargetAtTime(v, ctx.currentTime, .08); },
+    now(){ return ctx ? ctx.currentTime : null; },
+    ready(){ return !!ctx && ctx.state==="running"; },
+    tap(){ tone(880,.05,{type:"triangle",vol:.08}); },
+    lines(n){ arp([0,4,7,12,16].slice(0,n), .045, {type:"triangle", vol:.09, dur:.12}); },
+    spinStart(){ tone(140,.4,{type:"sawtooth",vol:.05,slide:3}); tone(70,.25,{type:"sine",vol:.12,slide:.8}); },
+    tick(){ tone(1500+Math.random()*400,.02,{type:"square",vol:.018}); },
+    reelStop(i){ thud(.35, 240); tone(150-i*18,.14,{type:"sine",vol:.22,slide:.55}); },
+    wild(){ arp([24,28,31,36], .05, {type:"sine", vol:.08, dur:.25}); },
+    lose(){ tone(note(-5),.18,{type:"triangle",vol:.05}); tone(note(-8),.25,{type:"triangle",vol:.05,at:.12}); },
+    win(level){ // 0 small, 1 medium
+      if(level===0) arp([12,16,19], .07, {type:"triangle", vol:.12, dur:.2});
+      else { arp([7,12,16,19,24], .07, {type:"triangle", vol:.13, dur:.22}); arp([19,24], .1, {type:"sine", vol:.06, dur:.5, at:0}); }
+    },
+    bigWin(){
+      arp([0,4,7,12, 4,7,12,16, 7,12,16,19,24], .085, {type:"square", vol:.05, dur:.16});
+      [0,4,7,12].forEach(n=>tone(note(n),1.4,{type:"triangle",vol:.06,at:1.1,attack:.02}));
+      for(let i=0;i<10;i++) tone(2000+Math.random()*1500,.05,{type:"sine",vol:.03,at:1.1+i*.07});
+    },
+    noise, clip,
+    tone, arp, note, thud,
+    refill(){ for(let i=0;i<8;i++) tone(1800+i*120,.04,{type:"triangle",vol:.05,at:i*.04}); },
+  };
+})();
+const $ = id => document.getElementById(id);
+const wait = ms => new Promise(r=>setTimeout(r,ms));
+const pick = a => a[Math.floor(Math.random()*a.length)];
+document.documentElement.style.setProperty("--bar", `url(${ART.bar})`);
+const QCOL = ["#ff4d6d","#4fd8ff","#ffc845","#7dff7a"];
+
+// ---- bowl geometry: outer rim → three tiers → black hole. Radii as a share of the canvas half-size ----
+const cv=$("bowl"), g=cv.getContext("2d");
+let S=300, CX=150, CY=150, R=[0,0,0,0];          // R[0] rim edge, R[1..3] the bottom edge of tiers 1..3 (R[3] = hole edge)
+const RK=[.97,.76,.555,.36];
+function layout(){
+  const st=$("stage").getBoundingClientRect(); S=Math.floor(Math.min(st.width, st.height, 460));
+  const dpr=Math.min(3,devicePixelRatio||1); cv.width=S*dpr; cv.height=S*dpr; cv.style.width=cv.style.height=S+"px"; g.setTransform(dpr,0,0,dpr,0,0);
+  CX=CY=S/2; R=RK.map(k=>k*S/2); draw();
+}
+const P = (r,a) => [CX + r*Math.sin(a*Math.PI*2), CY - r*Math.cos(a*Math.PI*2)];   // angle in turns, clockwise from the top
+function arcBand(r0,r1,a0,a1){ const A0=(a0-.25)*Math.PI*2, A1=(a1-.25)*Math.PI*2; g.beginPath(); g.arc(CX,CY,r0,A0,A1); g.arc(CX,CY,r1,A1,A0,true); g.closePath(); }
+const shade = (hex,k) => { const n=parseInt(hex.slice(1),16), f=c=>Math.max(0,Math.min(255,Math.round(c*k))); return `rgb(${f(n>>16)},${f(n>>8&255)},${f(n&255)})`; };
+
+// ---- what's on screen right now ----
+let spinning=false, shown=[null,null,null], ball=null, trail=[], pulse=[], pathMode=false, chip=5, t0=performance.now();
+function draw(){
+  const now=performance.now()/1000; g.clearRect(0,0,S,S);
+  // outer lip
+  const lip=g.createRadialGradient(CX,CY,R[0]*.9,CX,CY,S/2); lip.addColorStop(0,"#2a2350"); lip.addColorStop(1,"#0c0a1c");
+  g.fillStyle=lip; g.beginPath(); g.arc(CX,CY,S/2-1,0,7); g.fill();
+  for(let t=0;t<3;t++){ const r0=R[t], r1=R[t+1], T=TIERS[t], depth=1-t*.16;
+    for(let i=0;i<T.n;i++){ const [a0,a1]=sectionSpan(t,i), q=quadrantOf(t,i), base=QCOL[q], alt=(i%2)?.62:.82;
+      const gr=g.createRadialGradient(CX,CY,r1,CX,CY,r0); gr.addColorStop(0,shade(base,alt*.45*depth)); gr.addColorStop(1,shade(base,alt*depth));
+      g.fillStyle=gr; arcBand(r0,r1,a0,a1); g.fill();
+      const hit = shown[t]===i, pk = bets.path.picks[t]===i && (pathMode || pathReady());
+      if(hit){ g.fillStyle=`rgba(255,255,255,${.35+.25*Math.sin(now*8)})`; arcBand(r0,r1,a0,a1); g.fill(); }
+      if(pk){ g.save(); g.strokeStyle="#ffc845"; g.lineWidth=2.5; g.shadowColor="#ffc845"; g.shadowBlur=10; arcBand(r0-1.5,r1+1.5,a0+.002,a1-.002); g.stroke(); g.restore(); }
+      g.strokeStyle="#0a081888"; g.lineWidth=1; arcBand(r0,r1,a0,a1); g.stroke();
+      // labels
+      const am=(a0+a1)/2, rm=(r0+r1)/2, [lx,ly]=P(rm,am);
+      if(t>0){ g.save(); g.translate(lx,ly); g.rotate(am*Math.PI*2); g.fillStyle="#0d0b1ccc"; g.font=`700 ${t===1?Math.max(10,S*.036):Math.max(8,S*.026)}px "Chakra Petch",system-ui`; g.textAlign="center"; g.textBaseline="middle"; g.fillText(T.label(i),0,0); g.restore(); }
+    }
+    // void slivers: deep violet with a faint glow
+    for(let q=0;q<4;q++){ const [a0,a1]=sectionSpan(t,-1,q), hit=shown[t]===-1 && ball && Math.floor(((ball.cross[t]%1+1)%1)*4)===q;
+      g.fillStyle=hit?`rgba(200,140,255,${.7+.3*Math.sin(now*10)})`:"#120726"; arcBand(r0,r1,a0,a1); g.fill();
+      g.save(); g.strokeStyle="#b45cff99"; g.shadowColor="#b45cff"; g.shadowBlur=6; g.lineWidth=1; arcBand(r0,r1,a0,a1); g.stroke(); g.restore(); }
+    // tier edge
+    g.strokeStyle="#ffffff30"; g.lineWidth=1.5; g.beginPath(); g.arc(CX,CY,r1,0,7); g.stroke();
+  }
+  g.strokeStyle="#ffffff55"; g.lineWidth=2; g.beginPath(); g.arc(CX,CY,R[0],0,7); g.stroke();
+  // black hole: accretion swirl + event horizon
+  const H=R[3]; g.save(); g.translate(CX,CY); g.rotate(now*.6);
+  for(let k=0;k<3;k++){ g.rotate(Math.PI*2/3); const sw=g.createLinearGradient(-H,0,H,0); sw.addColorStop(0,"transparent"); sw.addColorStop(.5,k%2?"#ff7a3a55":"#b45cff66"); sw.addColorStop(1,"transparent");
+    g.fillStyle=sw; g.beginPath(); g.ellipse(0,0,H*.98,H*.42,0,0,7); g.fill(); }
+  g.restore();
+  const hole=g.createRadialGradient(CX,CY,0,CX,CY,H); hole.addColorStop(0,"#000"); hole.addColorStop(.55,"#000"); hole.addColorStop(.8,"#1a0636"); hole.addColorStop(1,"#b45cff00");
+  g.fillStyle=hole; g.beginPath(); g.arc(CX,CY,H,0,7); g.fill();
+  g.strokeStyle=`rgba(255,170,90,${.5+.2*Math.sin(now*2)})`; g.lineWidth=1.5; g.beginPath(); g.arc(CX,CY,H*.56,0,7); g.stroke();
+  if(!bets.voidBet && !spinning){ g.fillStyle="#9a92c7"; g.font=`600 ${Math.max(9,S*.03)}px "Chakra Petch",system-ui`; g.textAlign="center"; g.textBaseline="middle"; g.fillText("VOID BET",CX,CY); }
+  // chips on the table
+  for(let t=0;t<3;t++) for(const [i,v] of Object.entries(bets.tiers[t])){ const [a0,a1]=sectionSpan(t,+i); drawChip(...P((R[t]+R[t+1])/2+(t===0?S*.03:0),(a0+a1)/2), v, t===2?.78:1); }
+  if(bets.voidBet) drawChip(CX,CY,bets.voidBet,1.1,"#b45cff");
+  if(pathReady() || (pathMode && bets.path.picks.some(p=>p!==null))) drawPath(now);
+  // the comet and its trail
+  if(ball){ for(let i=0;i<trail.length;i++){ const [x,y]=trail[i], k=i/trail.length; g.fillStyle=`rgba(190,240,255,${k*.5})`; g.beginPath(); g.arc(x,y,1+k*S*.012,0,7); g.fill(); }
+    if(ball.visible){ const [x,y]=ball.pos; const cg=g.createRadialGradient(x,y,0,x,y,S*.03); cg.addColorStop(0,"#fff"); cg.addColorStop(.35,"#bdf4ff"); cg.addColorStop(1,"#4fd8ff00");
+      g.fillStyle=cg; g.beginPath(); g.arc(x,y,S*.03,0,7); g.fill(); } }
+  // ring pulses when a tier is decided
+  pulse=pulse.filter(p=>{ const k=(now-p.t)/.7; if(k>1) return false; g.strokeStyle=`rgba(${p.c},${1-k})`; g.lineWidth=3*(1-k)+1; g.beginPath(); g.arc(CX,CY,p.r+k*8,0,7); g.stroke(); return true; });
+}
+function drawChip(x,y,v,k=1,col){ const r=S*.034*k; col=col||(v>=100?"#1d1b2a":v>=25?"#2fae5f":v>=5?"#ff4d6d":"#4fd8ff");
+  g.save(); g.shadowColor="#000a"; g.shadowBlur=4; g.shadowOffsetY=2; g.fillStyle=col; g.beginPath(); g.arc(x,y,r,0,7); g.fill(); g.restore();
+  g.strokeStyle="#fff"; g.lineWidth=1.5; g.setLineDash([3,3]); g.beginPath(); g.arc(x,y,r*.78,0,7); g.stroke(); g.setLineDash([]);
+  g.fillStyle="#fff"; g.font=`700 ${Math.max(8,r*.9)}px "Chakra Petch",system-ui`; g.textAlign="center"; g.textBaseline="middle"; g.fillText(v>=1000?Math.round(v/100)/10+"k":v,x,y+.5); }
+function drawPath(now){ const pts=bets.path.picks.map((p,t)=>p===null?null:(()=>{ const [a0,a1]=sectionSpan(t,p); return P((R[t]+R[t+1])/2,(a0+a1)/2); })()).filter(Boolean);
+  g.save(); g.strokeStyle="#ffc845"; g.lineWidth=2; g.setLineDash([5,5]); g.lineDashOffset=-now*20; g.shadowColor="#ffc845"; g.shadowBlur=8;
+  g.beginPath(); pts.forEach(([x,y],i)=>i?g.lineTo(x,y):g.moveTo(x,y)); g.stroke(); g.restore();
+  pts.forEach(([x,y])=>{ g.fillStyle="#ffc845"; g.beginPath(); g.arc(x,y,3.5,0,7); g.fill(); });
+  if(pathReady()){ const [x,y]=pts[pts.length-1]; g.fillStyle="#ffc845"; g.font=`700 ${Math.max(9,S*.03)}px "Chakra Petch",system-ui`; g.textAlign="center"; g.fillText(`PATH ${bets.path.amount}`,x,y-S*.045); } }
+
+// ---- betting: tap the bowl ----
+function hitTest(ev){ const b=cv.getBoundingClientRect(), x=ev.clientX-b.left-CX, y=ev.clientY-b.top-CY, r=Math.hypot(x,y);
+  let a=Math.atan2(x,-y)/(Math.PI*2); a=(a+1)%1;
+  if(r<R[3]) return {hole:true};
+  for(let t=0;t<3;t++) if(r<=R[t] && r>R[t+1]) return {t, i:sectionAt(t,a)};
+  return null; }
+cv.addEventListener("click", ev=>{
+  if(spinning) return; Sound.unlock(); Music.start(); const h=hitTest(ev); if(!h) return;
+  if(h.hole){ if(addVoidBet(chip)){ SFX.chip(); say("Betting the comet hits a void."); } else broke(); }
+  else if(h.i<0){ say("That's a void sliver: the house's share. Tap the black hole to bet on voids."); return; }
+  else if(pathMode){ setPathPick(h.t, h.i); if(!bets.path.amount) setPathAmount(chip); SFX.pick(h.t);
+    const left=bets.path.picks.filter(p=>p===null).length; say(left ? `Path: pick ${left} more tier${left>1?"s":""}.` : `Path set: ${bets.path.amount} to win ${bets.path.amount*PATH_PAY}. Tap PATH when done.`); }
+  else if(addBet(h.t, h.i, chip)){ SFX.chip(); const T=TIERS[h.t]; say(`${T.name} ${T.label(h.i)} pays ×${T.pay}.`); }
+  else broke();
+  paint();
+});
+function broke(){ say("Not enough gold bars for that chip."); SFX.no(); }
+document.querySelectorAll(".chip").forEach(b=>b.onclick=()=>{ chip=+b.dataset.v; document.querySelectorAll(".chip").forEach(x=>x.setAttribute("aria-pressed",String(x===b))); Sound.unlock(); Sound.tap(); if(pathMode && bets.path.amount) { if(setPathAmount(chip)) paint(); } });
+$("path").onclick=()=>{ if(spinning) return; pathMode=!pathMode; $("path").setAttribute("aria-pressed",String(pathMode)); Sound.unlock(); Sound.tap();
+  say(pathMode ? "Path: pick one section on each tier. Pays ×"+PATH_PAY+" if the comet goes through all three." : pathReady() ? "Path locked in." : "Path off."); paint(); };
+$("clear").onclick=()=>{ if(spinning) return; clearBets(); pathMode=false; $("path").setAttribute("aria-pressed","false"); Sound.tap(); say("Table cleared."); paint(); };
+
+function paint(){ $("credits").textContent=credits; $("bet").textContent=totalBet(); const tb=totalBet();
+  $("go").disabled = spinning || tb<=0 || tb>credits; $("go").querySelector("small").textContent = spinning ? "…" : tb<=0 ? "place a bet" : tb>credits ? "too much" : tb+" bars";
+  $("path").textContent = pathReady() ? `PATH ${bets.path.amount}` : "PATH"; $("clear").disabled=spinning; draw(); }
+function say(t){ $("say").textContent=t; }
+function banner(big, small, color){ const b=$("banner"); $("bannerBig").textContent=big; $("bannerSmall").textContent=small||""; b.style.setProperty("--bc", color||"var(--gold)");
+  b.classList.add("show"); clearTimeout(banner.t); banner.t=setTimeout(()=>b.classList.remove("show"), 2000); }
+function popAt(x,y,txt){ const st=$("stage").getBoundingClientRect(), b=cv.getBoundingClientRect(), e=document.createElement("div"); e.className="pop"; e.textContent=txt;
+  e.style.left=(b.left-st.left+x)+"px"; e.style.top=(b.top-st.top+y)+"px"; $("stage").appendChild(e);
+  e.animate([{transform:"translate(-50%,-50%) scale(.6)",opacity:0},{transform:"translate(-50%,-90%) scale(1.1)",opacity:1,offset:.25},{transform:"translate(-50%,-180%) scale(1)",opacity:0}],{duration:1400,easing:"ease-out"}).finished.then(()=>e.remove()); }
+function countTo(el,from,to,ms=600){ const t0=performance.now(); const f=n=>{ const k=Math.min(1,(n-t0)/ms); el.textContent=Math.round(from+(to-from)*k); if(k<1) requestAnimationFrame(f); }; requestAnimationFrame(f); }
+
+// ---- the spin: the comet's path is built so it crosses each tier's edge exactly at the angle the engine chose ----
+// θ (turns, unwrapped) and r follow smooth curves through keyframes; between crossings the comet makes whole laps plus the gap.
+function buildFlight(angles){
+  const KT=[0, 2.7, 4.4, 5.8, 6.35], KR=[R[0]*.985, R[1], R[2], R[3], 0], KV=[1.55, 1.05, .9, .85, 1.5];   // times (s), radii, angular speed (turns/s)
+  const th=[Math.random()]; for(let i=1;i<KT.length;i++){ const want=(KV[i-1]+KV[i])/2*(KT[i]-KT[i-1]);
+    if(i<=3){ const a=angles[i-1]; let k=Math.round(th[i-1]+want-a); th.push(a+k); } else th.push(th[i-1]+want); }
+  return { KT, KR, KV, th, cross:angles };
+}
+function herm(p0,p1,m0,m1,s){ const s2=s*s, s3=s2*s; return (2*s3-3*s2+1)*p0+(s3-2*s2+s)*m0+(-2*s3+3*s2)*p1+(s3-s2)*m1; }
+function flightAt(F,t){ const {KT,KR,KV,th}=F; let i=0; while(i<KT.length-2 && t>KT[i+1]) i++;
+  const dt=KT[i+1]-KT[i], s=Math.max(0,Math.min(1,(t-KT[i])/dt));
+  const a=herm(th[i],th[i+1],KV[i]*dt,KV[i+1]*dt,s);
+  const ease = i===0 ? s*s*(1.4-.4*s) : s;                                   // lingers on the rim at first, then sinks steadily
+  const r=KR[i]+(KR[i+1]-KR[i])*Math.min(1,ease); return {a, r}; }
+
+async function doSpin(){
+  if(spinning) return; const res=spin(); if(!res){ broke(); return; }
+  spinning=true; pathMode=false; $("path").setAttribute("aria-pressed","false"); shown=[null,null,null]; trail=[];
+  for(let k=0;k<4;k++){ const c=$("c"+k); c.classList.remove("hit","void"); c.querySelector("b").textContent=""; }
+  $("win").textContent=0; paint(); say(pick(["Into the well…","Round and round…","Gravity always wins. Mostly.","Here it goes!"]));
+  SFX.launch(); const F=buildFlight(res.angles); ball={visible:true, pos:[0,0], cross:F.th.slice(1,4)};
+  let won=0, nextTier=0, lastSec=null; const start=performance.now();
+  await new Promise(done=>{ const frame=now=>{ const t=(now-start)/1000, {a,r}=flightAt(F,Math.min(t,F.KT[4]));
+      ball.pos=P(r,a); trail.push(ball.pos); if(trail.length>22) trail.shift();
+      // ticks as the comet rattles over section dividers
+      const tier=r>R[1]?0:r>R[2]?1:r>R[3]?2:-1; if(tier>=0){ const sec=tier+":"+sectionAt(tier,a); if(sec!==lastSec){ lastSec=sec; SFX.tick(tier); } }
+      while(nextTier<3 && t>=F.KT[nextTier+1]){ reveal(nextTier, res, F); won+=res.tierWins[nextTier]; nextTier++; }
+      if(t>=F.KT[4]-.05) ball.visible=false;
+      draw(); if(t<F.KT[4]+.35) requestAnimationFrame(frame); else done(); };
+    requestAnimationFrame(frame); });
+  SFX.swallow(); trail=[];
+  // path and void settle once the comet is swallowed
+  const c3=$("c3"); c3.querySelector("b").textContent=res.voidCount; if(res.voidCount) c3.classList.add("void");
+  if(res.voidWin){ collect(res.voidWin); won+=res.voidWin; popAt(CX,CY,"+"+res.voidWin); SFX.win(1); banner(`VOID ×${VOID_PAY[res.voidCount]}`, `${res.voidCount} void${res.voidCount>1?"s":""} crossed · +${res.voidWin}`, "var(--hole)"); }
+  if(res.pathWin){ collect(res.pathWin); won+=res.pathWin; SFX.jackpot(); banner("PATH JACKPOT!", `+${res.pathWin} gold bars`, "var(--gold)"); }
+  countTo($("win"),0,won,700); countTo($("credits"),credits-res.totalWin,credits,700);
+  say(won>res.staked ? pick(["Ooh, nice landing!","The well provides!","Cosmic!"]) : won>0 ? "Some of it came back." : pick(["The well takes all.","Swallowed whole.","Gravity: undefeated."]));
+  await wait(500); ball=null; spinning=false; paint();
+}
+function reveal(t, res, F){
+  const r=res.results[t], T=TIERS[t], c=$("c"+t), b=c.querySelector("b"); shown[t]=r;
+  pulse.push({r:R[t+1], t:performance.now()/1000, c: r<0 ? "180,92,255" : "255,255,255"});
+  if(r<0){ b.textContent="VOID"; c.classList.add("void"); SFX.void(); return; }
+  b.textContent=T.label(r); b.style.color=QCOL[quadrantOf(t,r)];
+  const w=res.tierWins[t]; SFX.reveal(t);
+  if(w){ collect(w); c.classList.add("hit"); const [a0,a1]=sectionSpan(t,r); popAt(...P((R[t]+R[t+1])/2,(a0+a1)/2),"+"+w); SFX.win(t); $("credits").textContent=credits; }
+}
+$("go").onclick=()=>{ Sound.unlock(); Music.start(); doSpin(); };
+
+// ---- sound (shared synth engine) ----
+const SFX = {
+  tick(t){ const now=performance.now(); if(now-(SFX._tk||0)<28) return; SFX._tk=now; Sound.tone(1500+t*350,.018,{type:"triangle",vol:.03}); },
+  chip(){ Sound.tone(2200,.03,{type:"triangle",vol:.05}); Sound.tone(1600,.05,{type:"triangle",vol:.04,at:.03}); },
+  pick(t){ Sound.tone(Sound.note(12+t*4),.15,{type:"sine",vol:.06}); },
+  no(){ Sound.tone(220,.15,{type:"square",vol:.03,lp:900}); },
+  launch(){ Sound.noise(.8,{vol:.07,type:"bandpass",freq:900,sweep:2.5,attack:.08}); Sound.tone(300,.6,{type:"sine",vol:.05,slide:1.8}); },
+  reveal(t){ [0,4,7].forEach((n,i)=>Sound.tone(Sound.note(n+t*5+7),.22,{type:"triangle",vol:.06,at:i*.05})); },
+  void(){ Sound.tone(160,.6,{type:"sine",vol:.12,slide:.4}); Sound.noise(.5,{vol:.06,type:"lowpass",freq:500,sweep:.3}); },
+  win(t){ for(let i=0;i<5+t*3;i++) Sound.tone(1600+Math.random()*900,.06,{type:"triangle",vol:.045,at:i*.05}); },
+  swallow(){ Sound.tone(500,.7,{type:"sine",vol:.07,slide:.15}); Sound.noise(.6,{vol:.05,type:"lowpass",freq:1500,sweep:.15}); },
+  jackpot(){ [0,4,7,12,16,19,24,28].forEach((v,i)=>Sound.tone(Sound.note(v+7),.3,{type:"triangle",vol:.08,at:i*.06})); for(let i=0;i<14;i++) Sound.tone(2200+Math.random()*1800,.05,{type:"sine",vol:.03,at:.5+i*.05}); },
+};
+// ---- music: a slow, spacey pad with a soft pulse ----
+const Music = (()=>{ let timer=null, step=0, nextT=0; const CH=[[0,3,7,10],[-4,0,3,7],[-2,2,5,9],[-5,-1,2,7]];
+  function tick(){ if(!Sound.ready()) return; const now=Sound.now(), sd=60/84/2; if(nextT<now-.25) nextT=now+.05;
+    while(nextT<now+.12){ const at=nextT-now, k=step%16, ch=CH[Math.floor(step/16)%4];
+      if(Sound.on && Sound.musicOn){ const M={bus:"music"};
+        if(k===0) ch.forEach(n=>Sound.tone(Sound.note(n),sd*15,{...M,at,type:"sine",vol:.018,attack:.4,vib:.004}));
+        if(k%4===0) Sound.tone(Sound.note(ch[0]-12),sd*1.5,{...M,at,type:"triangle",vol:.045,lp:600});
+        if(k%2===1) Sound.tone(Sound.note(ch[(k>>1)%4]+12),sd*.9,{...M,at,type:"sine",vol:.012,attack:.02}); }
+      step++; nextT+=sd; } }
+  return { start(){ if(!timer){ nextT=(Sound.now()||0)+.1; timer=setInterval(tick,25); } } };
+})();
+
+// ---- wiring ----
+$("snd").addEventListener("click",()=>{ Sound.on=!Sound.on; $("snd").setAttribute("aria-pressed",String(Sound.on)); });
+$("info").addEventListener("click",()=>{ $("paytable").innerHTML=TIERS.map(T=>`<tr><td>${T.name} · ${T.n} sections</td><td>×${T.pay}</td></tr>`).join("")+
+  `<tr><td>Path · one on each tier</td><td>×${PATH_PAY}</td></tr><tr><td>Void bet · 1 / 2 / 3 voids</td><td>×${VOID_PAY[1]} / ×${VOID_PAY[2]} / ×${VOID_PAY[3]}</td></tr>`; $("sheet").hidden=false; });
+$("close").addEventListener("click",()=>$("sheet").hidden=true);
+$("sheet").addEventListener("click",e=>{ if(e.target.id==="sheet") $("sheet").hidden=true; });
+$("fpath").addEventListener("click",()=>{ if(!pathReady()){ say("Set a path first."); $("sheet").hidden=true; return; } FORCE.angles=bets.path.picks.map((p,t)=>{ const [a0,a1]=sectionSpan(t,p); return (a0+a1)/2; }); $("sheet").hidden=true; });
+$("fvoid").addEventListener("click",()=>{ FORCE.angles=[.003,.253,.503]; $("sheet").hidden=true; });
+document.addEventListener("pointerdown",()=>Sound.unlock(),{once:true});
+addEventListener("resize",layout);
+(function idle(){ if(!spinning) draw(); requestAnimationFrame(idle); })();
+paint(); requestAnimationFrame(layout);
+</script>
