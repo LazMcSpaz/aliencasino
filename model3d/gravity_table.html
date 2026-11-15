@@ -68,10 +68,22 @@ function buildGravityTable(THREE, opts = {}) {
   const table = grp(root, "Table");
   // ---- the table: flared pedestal, dark apron, the art-covered top with the bowl stepping down into a black hole ----
   // radii follow the game's bowl drawing (as shares of the art's half-width = TR metres): lip/colour band, three tiers, hole
-  const TR = 1.0, TOP = .92, K = [.835, .655, .48, .315].map(k => k * TR);
-  add(table, lathe([[0, 0], [.78, 0], [.74, .07], [.36, .26], [.3, .46], [.34, .5], [0, .5]], 40), mat.shell, "Pedestal");   // stays below the black hole
-  add(table, lathe([[K[0] * .98, .78], [1.05, .82], [1.08, .88], [1.06, TOP], [K[0], TOP - .003]], 64), mat.shellDark, "Apron");   // stops at the bowl's rim so it never covers the tiers
-  add(table, new THREE.TorusGeometry(1.04, .035, 8, 72), mat.trim, "Rail", [0, TOP, 0], [Math.PI / 2, 0, 0]);
+  const TR = 1.0, TOP = .8, K = [.835, .655, .48, .315].map(k => k * TR);        // seated table height
+  add(table, lathe([[0, 0], [.78, 0], [.74, .07], [.36, .22], [.3, .36], [.34, .4], [0, .4]], 40), mat.shell, "Pedestal");   // stays below the black hole
+  // the table's outline: the round top grows a rounded tongue at the back that the dealer console stands on (one piece)
+  const RT = 1.06, HW = .64, BACK = 1.82, CR = .22, zJoin = Math.sqrt(RT * RT - HW * HW);
+  // plan coordinates: x to the right, y = −z (toward the dealer). One loop: round front → up the left side of the tongue → across the back → down the right.
+  const outline = []; { const a0 = Math.atan2(zJoin, HW), sweep = Math.PI * 2 - 2 * a0;
+    for (let i = 0; i <= 96; i++) { const a = a0 - sweep * (i / 96); outline.push([Math.cos(a) * RT, Math.sin(a) * RT]); }          // ends at (−HW, zJoin)
+    const corner = (cx, cy, from, to) => { for (let i = 0; i <= 8; i++) { const a = from + (to - from) * i / 8; outline.push([cx + Math.cos(a) * CR, cy + Math.sin(a) * CR]); } };
+    corner(-HW + CR, BACK - CR, Math.PI, Math.PI / 2); corner(HW - CR, BACK - CR, Math.PI / 2, 0); }
+  const slab = (pts, depth, hole) => { const sh = new THREE.Shape(); pts.forEach(([x, y], i) => i ? sh.lineTo(x, y) : sh.moveTo(x, y)); sh.closePath();
+    if (hole) { const h = new THREE.Path(); h.absarc(0, 0, hole, 0, Math.PI * 2, true); sh.holes.push(h); }
+    const g = new THREE.ExtrudeGeometry(sh, { depth, bevelEnabled: true, bevelThickness: .012, bevelSize: .012, bevelSegments: 1, curveSegments: 48 }); g.rotateX(-Math.PI / 2); return g; };
+  add(table, slab(outline, .06, K[0]), mat.shellDark, "TableSlab", [0, TOP - .072, 0]);
+  add(table, slab(outline.map(([x, y]) => [x * .95, y * .97 + .02]), .1, K[0]), mat.shell, "Skirt", [0, TOP - .19, 0]);   // hollow in the middle, so the bowl shows
+  { const pts = outline.filter((_, i) => i % 2 === 0).map(([x, y]) => V(x, TOP + .004, -y));
+    add(table, new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, true), 160, .028, 8, true), mat.trim, "Rail"); }
   { const g = planarUV(new THREE.RingGeometry(K[0], TR * .995, 96, 1), TR); g.rotateX(-Math.PI / 2); planarUV(g, TR);
     const m = add(table, g, mat.bowl, "TableTop", [0, TOP + .001, 0]); m.castShadow = false; }
   // the bowl: wall down to the rim tier, then each tier slopes inward and steps down; the hole drops away into the dark
@@ -81,21 +93,30 @@ function buildGravityTable(THREE, opts = {}) {
   add(table, new THREE.TorusGeometry(K[3] * .55, .008, 6, 48), mat.glow, "EventHorizon", [0, TOP - .34, 0], [Math.PI / 2, 0, 0]);
 
   // ---- the dealer: a console on the far side, face on its tilted screen, LED strips down its sides ----
-  const cons = grp(root, "Console", [0, 0, -1.42]);
-  add(cons, chamferBox(.9, 1.3, .55, .05), mat.shell, "ConsoleBody", [0, .65, 0]);
-  add(cons, chamferBox(.96, .06, .6, .02), mat.trim, "ConsoleBand", [0, .92, 0]);
-  const scr = grp(cons, "ScreenMount", [0, 1.08, .3]); scr.rotation.x = -.32;
+  const CZ = -1.45, cons = grp(root, "Console", [0, 0, CZ]);
+  add(cons, chamferBox(.5, TOP - .2, .42, .04), mat.shell, "ConsoleColumn", [0, (TOP - .2) / 2, .02]);          // under the table, down to the floor
+  add(cons, chamferBox(.8, .05, .56, .02), mat.shellDark, "ConsoleFoot", [0, .025, .02]);
+  const BODY_H = .78; add(cons, chamferBox(.9, BODY_H, .5, .05), mat.shell, "ConsoleBody", [0, TOP + BODY_H / 2, 0]);
+  add(cons, chamferBox(.96, .05, .56, .02), mat.trim, "ConsoleBand", [0, TOP + .03, 0]);
+  const FACE_Y = 1.25;                                                                                            // about seated head height
+  const scr = grp(cons, "ScreenMount", [0, FACE_Y, .27]); scr.rotation.x = -.12;
   add(scr, chamferBox(.72, .46, .06, .02), mat.dark, "ScreenBezel");
   add(scr, new THREE.PlaneGeometry(.64, .4), mat.face, "DealerScreen", [0, 0, .032]);
-  for (const sx of [-1, 1]) add(cons, chamferBox(.025, 1.1, .025, .006), mat.led, "ConsoleLed_" + (sx < 0 ? "L" : "R"), [sx * .47, .62, .25]);
-  add(cons, chamferBox(.6, .08, .4, .02), mat.shellDark, "ConsoleCap", [0, 1.34, -.05]);
+  for (const sx of [-1, 1]) add(cons, chamferBox(.025, BODY_H - .1, .025, .006), mat.led, "ConsoleLed_" + (sx < 0 ? "L" : "R"), [sx * .47, TOP + BODY_H / 2, .25]);
+  add(cons, chamferBox(.6, .08, .4, .02), mat.shellDark, "ConsoleCap", [0, TOP + BODY_H + .04, -.05]);
+  // a stool at the player's spot, for scale
+  const stool = grp(root, "Stool", [0, 0, 1.55]);
+  add(stool, new THREE.CylinderGeometry(.2, .2, .07, 20), mat.purple, "StoolSeat", [0, .62, 0]);
+  add(stool, new THREE.CylinderGeometry(.035, .05, .6, 10), mat.metal, "StoolPost", [0, .3, 0]);
+  add(stool, new THREE.CylinderGeometry(.22, .25, .03, 20), mat.shellDark, "StoolFoot", [0, .015, 0]);
+  add(stool, new THREE.TorusGeometry(.16, .012, 6, 20), mat.trim, "StoolRing", [0, .3, 0], [Math.PI / 2, 0, 0]);
 
   // ---- the arm: turret on the console → shoulder → upper arm → elbow → forearm → wrist → launcher ----
-  const L1 = 1.0, L2 = .95, SH = [0, 1.55, -1.47];
-  const turret = grp(root, "Turret", [SH[0], 1.38, SH[2]]);
+  const L1 = 1.0, L2 = .95, TURRET_Y = TOP + BODY_H + .08, SH = [0, TURRET_Y + .17, CZ - .05];
+  const turret = grp(root, "Turret", [SH[0], TURRET_Y, SH[2]]);
   add(turret, new THREE.CylinderGeometry(.2, .24, .14, 16), mat.shellDark, "TurretBase");
   add(turret, new THREE.CylinderGeometry(.23, .23, .03, 16), mat.trim, "TurretRing", [0, .08, 0]);
-  const shoulder = grp(turret, "Shoulder", [0, SH[1] - 1.38, 0]);
+  const shoulder = grp(turret, "Shoulder", [0, SH[1] - TURRET_Y, 0]);
   add(shoulder, new THREE.CylinderGeometry(.13, .13, .3, 14), mat.metal, "ShoulderJoint", [0, 0, 0], [0, 0, Math.PI / 2]);
   add(shoulder, chamferBox(.17, L1, .17, .03), mat.shell, "UpperArm", [0, L1 / 2, 0]);
   add(shoulder, chamferBox(.19, .5, .04, .01), mat.purple, "UpperArmPanel", [0, L1 / 2, .095]);
@@ -128,7 +149,7 @@ function buildGravityTable(THREE, opts = {}) {
     const phi = Math.atan2(h, v), alpha = Math.acos((L1 * L1 + D * D - L2 * L2) / (2 * L1 * D)), inner = Math.acos((L1 * L1 + L2 * L2 - D * D) / (2 * L1 * L2));
     const A = phi - alpha, B = Math.PI - inner; return { yaw, A, B, W: -(A + B) }; }
   const RIM_A = .125, rimPt = [Math.sin(RIM_A * Math.PI * 2) * K[0] * .95, TOP + .24, -Math.cos(RIM_A * Math.PI * 2) * K[0] * .95];
-  const PARK = reach([.25, 2.0, -.85]), FIRE = reach(rimPt);
+  const PARK = reach([.25, SH[1] + .45, -.95]), FIRE = reach(rimPt);
   const launcherYaw = Math.atan2(Math.cos(RIM_A * Math.PI * 2), Math.sin(RIM_A * Math.PI * 2));   // channel along the rim, clockwise as seen from above
   launcher.rotation.y = launcherYaw - FIRE.yaw;
 
