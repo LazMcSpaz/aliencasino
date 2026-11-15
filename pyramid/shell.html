@@ -252,6 +252,50 @@ const $ = id => document.getElementById(id);
 const wait = ms => new Promise(r=>setTimeout(r,ms));
 const pick = a => a[Math.floor(Math.random()*a.length)];
 
+// ---- the mascot's lines: every situation has a pool; each pool is shuffled and used up before any line repeats ----
+const LINES = {
+  start:      ["Stack 'em high, human.","Careful now. Gravity works here too.","Build me a wonder.","Fresh sandstone! Smell that?","Another monument to ambition!","Five stones. Infinite dreams.","Let's see those stacking skills.",
+               "The mothership is watching. No pressure.","Ten rows to glory. Or rubble.","Pyramid number… I've lost count.","Ooh, a builder!","Foundations first. Then fortune.","My favourite part: the beginning. Everything's still standing."],
+  perfect:    ["Perfect fit!","Like it was meant to be.","Clean drop.","Smooth as a moon rock.","Ooh, tidy.","Not a wobble!","The ancients would weep.","Show-off.","Chef's kiss. Do humans do that?",
+               "Right on the money.","Textbook!","I didn't even have to look.","Flawless. Suspicious, but flawless."],
+  crumble:    ["Crumbly!","A little narrower now…","Mind the overhang.","Bye-bye, little stones.","That's a shortcut to the floor.","Some of them just weren't meant to be.","Trimming the fat!",
+               "Ow. Not my stones, but ow.","Less pyramid, more… tower?","The desert takes its share.","Narrower. Pointier. Riskier.","Those ones had a good run.","Dust to dust!"],
+  lastStone:  ["One stone left. Feeling lucky?","Just one! Balance, human. Balance.","A single stone holds your fate.","Uh-oh. One-stone club.","Thin ice. Thin sandstone, actually.","Don't breathe on it.",
+               "One stone. Big dreams.","This is where legends — or rubble — are made.","I'm holding my breath. All three lungs."],
+  collapse:   ["Ooh. That's going to need a permit.","The desert reclaims all.","Gravity: 1, human: 0.","Timber! …Wrong material.","And that's why we have insurance. You don't.","Rubble with a view!",
+               "That was a pyramid. Now it's a pile.","So close! Well. Not that close.","I'll get the broom.","The house thanks you for your donation.","Archaeologists will find that in a million years.",
+               "Down it goes!","Physics is undefeated.","Stack again? Stack again.","Oof. Even I felt that one.","That's the pyramid scheme, baby.","Well, the bottom row was nice."],
+  cracked:    ["Uh oh… those cracks…","Hear that creaking?","The cracks are winning…","I told you skimming had a price!","Something's giving way…","Oh no, oh no, oh no…"],
+  shattering: ["The crack is spreading…!","Oh no — it's going!","Crack! Crack! CRACK!","That's… not a good sound."],
+  shattered:  ["Greed: the oldest building code violation.","Should've left that one alone.","Crumble crumble.","One skim too many!","The house always collects.","Worth it? Probably not.",
+               "Your pockets are full. Your pyramid is not.","Easy come, easy crumble.","At least you kept the gold you pinched!"],
+  skimFirst:  ["Cracked! Every crack makes the tower shakier."],
+  skim:       ["Easy, human…","*creeeak*","That one's gonna leave a mark.","Greedy, greedy.","I saw that.","Sticky fingers!","The pyramid felt that.","Hehe. Naughty.","That's coming out of the foundation.",
+               "Pocketing sandstone, are we?","Quick hands. Shaky tower.","Every skim's a little gamble.","I'm not telling anyone. Yet."],
+  anchor:     ["Anchored! A bigger base for the next row.","Ooh, reinforcements!","Smart. Spend a little, save a lot.","Anchor's down. Let's build.","A little insurance never hurt.","Extra footing!"],
+  gold:       ["Golden! I'll hold them steady — beam drops can't fail.","GOLD! Hang on, I'm beaming in!","The golden stone! Tractor beam, engage!","Ooh, shiny! Leave the next ones to me.",
+               "That's the good stuff! Beam time!","Golden stone! Nothing falls on my watch."],
+  beamEnd:    ["Phew, my arms… you're on your own again.","Beam's out. Good luck, human!","That's all the beam I've got.","Okay, I need a nap. Back to gravity.","Beam fades… the stones are yours again."],
+  band4:      ["Take the gold… or reach for the stars?","First band! Cash or climb?","A little gold now… or a lot later?","Minor band! The safe choice is right there…","Bank it? Or be brave?",
+               "Gold in reach. More gold higher up."],
+  band7:      ["Higher still? The capstone glitters…","Major band! Cash it, or go for the top?","Three more rows to the capstone…","That's real gold. Don't get greedy… or do.","The top is SO close. Or is it?",
+               "Major money on the table!"],
+  capstone:   ["You built a wonder of the galaxy!","CAPSTONE! They'll sing songs about you!","A complete pyramid! I'm actually crying.","The mothership is IMPRESSED.","Top of the world, human!","Legendary. Truly legendary."],
+  cash:       ["A sensible human. How boring.","Gold in hand. Smart.","Wise. The desert is fickle.","Cha-ching!","Taking the money and running? Respect.","A bird in the hand…","Safe and sound!",
+               "Smart human. I hate smart humans.","Spend it wisely! Or here. Here works.","Profit! Come back soon.","Never a bad idea to bank it."],
+  climb:      ["Bold! I like bold.","No turning back now.","Higher!","That's the spirit!","Ooh, a risk-taker!","To the top!","Fortune favours the stacked.","Fearless. Or foolish. We'll see!","Up we go!"],
+  broke:      ["Not enough gold bars for that bet. Try a smaller one."],
+  idleOffer:  ["No rush… but the gold won't wait forever.","Cash or climb? Choose, human.","Tick tock…","The band is waiting.","Thinking hard? I can tell."],
+  idleClimb:  ["Another drop?","Go on. Stack it.","Skim one. I won't tell. Much.","The pyramid won't finish itself.","Waiting for a sign? This is it.","I'm getting old over here.","Any day now, builder."],
+  idleStart:  ["Step right up! Build me a pyramid.","Bigger bet, bigger stones.","The house always wi— I mean, good luck!","Pyramids! Get your pyramids!","Come on, one little climb.",
+               "Bet more, stack more!","Tap PLAY. You know you want to.","I've got sandstone and time."],
+};
+const lineBags = {};
+function line(key){ const pool=LINES[key]; if(!pool) return ""; let bag=lineBags[key];
+  if(!bag || !bag.length){ bag = lineBags[key] = pool.slice().sort(()=>Math.random()-.5);
+    if(pool.length>1 && bag[bag.length-1]===line.last?.[key]) bag.unshift(bag.pop()); }        // a fresh shuffle never starts with the line just said
+  const t=bag.pop(); (line.last ||= {})[key]=t; return t; }
+
 // ---- the mascot (Zib): floats above the stack, reacts, talks in a bubble, and holds the beam on golden drops ----
 // Poses pair a head with a body. Each piece carries its neck point (ax, ay) so any head sits on any body.
 const POSES = {
@@ -449,14 +493,14 @@ async function doSkim(s){
   // the whole tower gives a little shudder
   stoneEls.forEach(x=>{ if(x!==s) x.el.animate([{transform:"none"},{transform:`translateX(${(Math.random()-.5)*2}px)`},{transform:"none"}],{duration:260}); });
   if(res.shattered){   // the crack spreads and the whole tower comes down (the skimmed gold is still kept)
-    busy=true; setControls("busy"); s.el.classList.add("redcrack"); SFX.crack(); say("The crack is spreading…!","ouch");
+    busy=true; setControls("busy"); s.el.classList.add("redcrack"); SFX.crack(); say(line("shattering"),"ouch");
     await wait(650); await collapseTower(); banner("SHATTERED!", "That skim was one too many.", "var(--major)");
-    say(pick(["Greed: the oldest building code violation.","Should've left that one alone.","Crumble crumble."]),"smug");
+    say(line("shattered"),"smug");
     paint(); await wait(1100); busy=false; setControls("play"); return;
   }
   $("stacked").textContent=climb.total; paintRisk(); paintBandValues(); paintSkimmable();
-  if(climb.cracks===1) say("Cracked! Every crack makes the tower shakier.","worried");
-  else chat(pick(["Easy, human…","*creeeak*","That one's gonna leave a mark.","Greedy, greedy."]),"greedy",.4);
+  if(climb.cracks===1) say(line("skimFirst"),"worried");
+  else chat(line("skim"),"greedy",.4);
 }
 function paintRisk(){ const n=document.querySelector("#stackwin .next"); if(!n||!climb) return; if(climb.beam>0) return;
   if(climb.cracks){ n.classList.add("risk"); n.textContent=`${climb.cracks} crack${climb.cracks>1?"s":""} · ${Math.round(crackRisk()*100)}% fall risk`; } }
@@ -474,7 +518,7 @@ async function placeAnchor(side){
   clearSpots(); const res=setAnchor(side); if(!res) return;
   const e=makeStone(res.row, res.col, null); e.classList.add("anchor"); $("board").appendChild(e); stoneEls.push({el:e,row:res.row,col:res.col,val:0,anchor:true});
   e.animate([{transform:"translateY(-40px) scale(1.2)",opacity:0},{transform:"none",opacity:1}],{duration:320,easing:"cubic-bezier(.3,1.5,.5,1)"});
-  SFX.anchor(); paint(); say("Anchored! A bigger base for the next row.","point"); setControls("drop");
+  SFX.anchor(); paint(); say(line("anchor"),"point"); setControls("drop");
 }
 
 // ---- controls ----
@@ -516,11 +560,11 @@ function countTo(el, from, to, ms=600){ if(!el) return; const t0=performance.now
 
 async function play(){
   if(busy || climb) return; Sound.unlock(); Music.start();
-  if(credits < bet){ say("Not enough gold bars for that bet. Try a smaller one.","worried"); return; }
+  if(credits < bet){ say(line("broke"),"worried"); return; }
   busy=true; clearStones(); startClimb(); paint(); setControls("busy");
   await settleRow({ row:1, kept:[0,1,2,3,4], lost:[], stones:climb.rows[0] });       // row 1 always lands as a full base of five
   countTo($("stacked"), 0, climb.total, 450); paintBandValues();
-  (firstClimb ? say : chat)(firstClimb ? "Tip: tap a stone to skim half its value — but it cracks!" : pick(["Stack 'em high, human.","Careful now. Gravity works here too.","Build me a wonder."]), firstClimb ? "point" : "happy");
+  (firstClimb ? say : chat)(firstClimb ? "Tip: tap a stone to skim half its value — but it cracks!" : line("start"), firstClimb ? "point" : "happy");
   firstClimb=false; busy=false; setControls("drop"); showLane(); Mascot.home();
 }
 async function doDrop(){
@@ -530,31 +574,31 @@ async function doDrop(){
   const res=drop();                                    // the engine decides where it stops
   if(res.cracked){                                     // the cracks gave way before the row could land
     stoneEls.forEach(s=>{ if(s.el.classList.contains("cracked")) s.el.classList.add("redcrack","wobble"); }); SFX.crack(); SFX.crack();
-    say("Uh oh… those cracks…","worried"); await wait(700);
+    say(line("cracked"),"worried"); await wait(700);
   } else { if(!climb?.beam) Mascot.set("watch",{look:14}); Mascot.dim(true); await spinRow(res); Mascot.dim(false); await settleRow(res); }
   if(res.collapsed){
     Mascot.set("ouch"); await wait(150); await collapseTower(); paint();
     banner(res.cracked ? "CRACKED!" : "COLLAPSE!", res.cracked ? "The cracks gave way." : r>5 ? "You kept climbing… and lost it all." : "Nothing reached a band.", "var(--major)");
-    say(pick(["Ooh. That's going to need a permit.","The desert reclaims all.","Gravity: 1, human: 0."]),"smug");
+    say(line("collapse"),"smug");
     await wait(1100); busy=false; setControls("play"); Mascot.home(); return;
   }
   countTo($("stacked"), prev, res.total); paintBandValues(); Music.platform(climb.w);
   if(res.gold){   // golden stone: big moment, then the mascot's beam locks on
     SFX.gold(); $("app").classList.add("shake"); setTimeout(()=>$("app").classList.remove("shake"),460); goldBurst(res);
-    banner("GOLDEN STONE!", `${GOLD.drops} BEAM DROPS · every stone ×${GOLD.mult}`, "var(--gold)"); say("Golden! I'll hold them steady — beam drops can't fail.","excited");
+    banner("GOLDEN STONE!", `${GOLD.drops} BEAM DROPS · every stone ×${GOLD.mult}`, "var(--gold)"); say(line("gold"),"excited");
     await wait(700); await setBeam(true); SFX.beam(); await wait(500);
-  } else if(res.beamed){ placeBeam(); if(!res.beamLeft){ setBeam(false); say("Phew, my arms… you're on your own again.","worried"); } }
-  if(res.gold || res.beamed){} else if(res.lost.length) { if(res.kept.length===1 && climb.w===1) say("One stone left. Feeling lucky?","worried"); else chat(pick(["Crumbly!","A little narrower now…","Mind the overhang."]),"think",.25); }
-  else chat(pick(["Perfect fit!","Like it was meant to be.","Clean drop."]),"happy",.2);
+  } else if(res.beamed){ placeBeam(); if(!res.beamLeft){ setBeam(false); say(line("beamEnd"),"worried"); } }
+  if(res.gold || res.beamed){} else if(res.lost.length) { if(res.kept.length===1 && climb.w===1) say(line("lastStone"),"worried"); else chat(line("crumble"),"think",.25); }
+  else chat(line("perfect"),"happy",.2);
   if(res.top){
     await wait(250); $("band10").classList.add("hit"); stoneEls.forEach(s=>s.el.classList.add("glow")); SFX.capstone();
     banner("CAPSTONE!", `×${BANDS[10].mult} → ${res.paid} gold bars`, "var(--cap)"); countTo($("credits"), credits-res.paid, credits, 1600);
-    say("You built a wonder of the galaxy!","cheer"); setBeam(false); await wait(2600); stoneEls.forEach(s=>s.el.classList.remove("glow")); $("band10").classList.remove("hit");
+    say(line("capstone"),"cheer"); setBeam(false); await wait(2600); stoneEls.forEach(s=>s.el.classList.remove("glow")); $("band10").classList.remove("hit");
     busy=false; paint(); setControls("play"); return;
   }
   if(res.offer){
     await wait(200); const o=res.offer, line=$("band"+o.row); line.classList.add("hit"); setTimeout(()=>line.classList.remove("hit"),2400); SFX.band(o.row);
-    say(o.row===4 ? "Take the gold… or reach for the stars?" : "Higher still? The capstone glitters…", "present");
+    say(line(o.row===4 ? "band4" : "band7"), "present");
     busy=false; setControls("choice"); return;
   }
   busy=false; setControls("drop"); showLane(); Mascot.home();
@@ -562,7 +606,7 @@ async function doDrop(){
 async function doCash(){
   if(busy || !climb?.offer) return; busy=true;
   const amt=cashOut(); setControls("busy"); SFX.cash(); stoneEls.forEach(s=>s.el.classList.add("glow"));
-  banner("CASHED OUT", `+${amt} gold bars`, "var(--alien)"); say(pick(["A sensible human. How boring.","Gold in hand. Smart.","Wise. The desert is fickle."]),"wave");
+  banner("CASHED OUT", `+${amt} gold bars`, "var(--alien)"); say(line("cash"),"wave");
   await wait(500); await collectStones(); countTo($("credits"), credits-amt, credits, 700);
   await wait(700); paint(); busy=false; setControls("play");
 }
@@ -575,7 +619,7 @@ async function collectStones(){ setBeam(false);
     return s.el.animate([{transform:"none",opacity:1},{transform:`translate(${dx*.25}px,${dy*.25-30}px) scale(.8)`,opacity:1,offset:.35},{transform:`translate(${dx}px,${dy}px) scale(.25)`,opacity:.3}],{duration:620,easing:"cubic-bezier(.5,0,.4,1)",fill:"forwards"}).finished; })));
   clearStones(); document.querySelector(".coins").animate([{transform:"scale(1)"},{transform:"scale(1.12)"},{transform:"scale(1)"}],{duration:300});
 }
-function doClimb(){ if(busy) return; keepClimbing(); SFX.climb(); chat(pick(["Bold! I like bold.","No turning back now.","Higher!"]),"cheer",.5); setControls("drop"); showLane(); }
+function doClimb(){ if(busy) return; keepClimbing(); SFX.climb(); chat(line("climb"),"cheer",.5); setControls("drop"); showLane(); }
 
 // ---- sound effects (shared synth engine) ----
 const SFX = {
@@ -645,7 +689,7 @@ addEventListener("resize",layout);
 Mascot.init(); setControls("play"); paintSound(); paint(); requestAnimationFrame(layout);
 // idle chatter when nothing's happening
 setInterval(()=>{ if(busy || document.hidden || Date.now()-lastAct<25000 || Date.now()-(say.last||0)<25000) return; lastAct=Date.now();
-  if(climb && climb.offer) say(pick(["No rush… but the gold won't wait forever.","Cash or climb? Choose, human."]),"think");
-  else if(climb) say(pick(["Another drop?","Go on. Stack it.","Skim one. I won't tell. Much."]),"wink");
-  else say(pick(["Step right up! Build me a pyramid.","Bigger bet, bigger stones.","The house always wi— I mean, good luck!"]),"wave"); }, 4000);
+  if(climb && climb.offer) say(line("idleOffer"),"think");
+  else if(climb) say(line("idleClimb"),"wink");
+  else say(line("idleStart"),"wave"); }, 4000);
 </script>
