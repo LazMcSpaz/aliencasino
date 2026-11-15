@@ -51,7 +51,20 @@ canvas{display:block;touch-action:manipulation}
   /* arms fade out toward the play area's edges, so their cut ends are never seen */
   -webkit-mask-image:linear-gradient(to right,transparent 0,#000 34px,#000 calc(100% - 34px),transparent 100%),linear-gradient(to bottom,transparent 0,#000 40px,#000 calc(100% - 40px),transparent 100%);
   -webkit-mask-composite:source-in;mask-image:linear-gradient(to right,transparent 0,#000 34px,#000 calc(100% - 34px),transparent 100%),linear-gradient(to bottom,transparent 0,#000 40px,#000 calc(100% - 40px),transparent 100%);mask-composite:intersect}
-.say{position:absolute;left:50%;top:6px;transform:translateX(-50%);max-width:92%;text-align:center;font:600 .82rem var(--f-tech);color:#e3dbff;pointer-events:none;text-shadow:0 1px 3px #000}
+.say{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+/* speech bubbles: the dealer (gold, always from the top of the screen) and the other players (outlined in their chip colour) */
+:root{--dealer:#ffc845}
+.bub{position:absolute;z-index:6;max-width:58%;width:max-content;padding:7px 11px;border-radius:14px;background:#140d27ee;border:2px solid var(--bc);color:#fff;
+  font:600 .78rem/1.28 var(--f-tech);text-align:left;box-shadow:0 4px 14px #0009,0 0 12px color-mix(in srgb,var(--bc) 30%,transparent);
+  opacity:0;transform:scale(.85);transition:opacity .18s,transform .24s cubic-bezier(.3,1.6,.5,1);pointer-events:none}
+.bub.show{opacity:1;transform:none}
+.bub::after{content:"";position:absolute;width:10px;height:10px;background:#140d27;border:2px solid var(--bc);box-sizing:border-box;transform:rotate(45deg)}
+.bub.t-top::after{top:-6px;left:calc(var(--to,50%) - 5px);border-right:0;border-bottom:0}
+.bub.t-bottom::after{bottom:-6px;left:calc(var(--to,50%) - 5px);border-left:0;border-top:0}
+.bub.t-left::after{left:-6px;top:calc(var(--to,50%) - 5px);border-right:0;border-top:0}
+.bub.t-right::after{right:-6px;top:calc(var(--to,50%) - 5px);border-left:0;border-bottom:0}
+.bub.dealer{--bc:var(--dealer);top:4px;left:50%;translate:-50% 0;max-width:86%;text-align:center;transform-origin:50% 0}
+.bub.dealer b{display:block;font:400 .56rem/1 var(--f-sign);letter-spacing:.12em;color:var(--dealer);margin-bottom:3px}
 .pop{position:absolute;pointer-events:none;font:700 1.15rem var(--f-tech);color:#fff2b0;text-shadow:0 0 8px #ffb84a,0 1px 2px #000;transform:translate(-50%,-50%);z-index:5}
 .banner{position:absolute;left:50%;top:44%;z-index:9;transform:translate(-50%,-50%) scale(.7);opacity:0;pointer-events:none;transition:transform .32s cubic-bezier(.3,1.6,.5,1),opacity .22s;
   --k:12px;padding:12px 22px;text-align:center;--ehi:var(--bc,var(--gold));--elo:color-mix(in srgb,var(--bc,var(--gold)) 25%,transparent)}
@@ -107,6 +120,7 @@ canvas{display:block;touch-action:manipulation}
     <canvas id="fx" aria-hidden="true"></canvas>
     <canvas id="bowl" aria-label="The gravity well: tap a section to bet on it, tap the black hole to bet on the void"></canvas>
     <p class="say" id="say" aria-live="polite">Tap the bowl to place chips.</p>
+    <div class="bub dealer t-top" id="dealer"><b>DEALER</b><span></span></div>
     <div class="banner chrome" id="banner"><strong id="bannerBig"></strong><em id="bannerSmall"></em></div>
   </section>
   <section id="controls">
@@ -132,6 +146,7 @@ canvas{display:block;touch-action:manipulation}
   <p>Each time it drops over the bottom edge of a tier, the section it crosses is that tier's result, and bets on it pay straight away. The thin dark slivers are <b>voids</b>: if the comet crosses one, that tier's bets lose.</p>
   <p><b>Path bonus:</b> if the comet passes through one of your bets on <i>every</i> tier, your smallest winning chip is multiplied by the path bonus, on top of your normal wins. The fewer sections you cover, the bigger the bonus (shown next to the chips).</p>
   <p><b>Frenzy:</b> every so often (about one spin in 18, completely at random) the launcher fires three comets instead of one. Every comet pays on your bets, for the price of one spin.</p>
+  <p><b>Frenzy pool:</b> the pink dish in the corner. Bet that the next spin will be a frenzy; it pays ×16.</p>
   <p><b>Colour bets:</b> tap the coloured band around the outside. You win if the comet stays in that colour on all three tiers.</p>
   <p><b>Void bet:</b> tap the black hole to bet that the comet crosses a void.</p>
   <table id="paytable"></table>
@@ -152,7 +167,10 @@ const QCOL = ["#ff4d6d","#4fd8ff","#ffc845","#7dff7a"];
 const cv=$("bowl"); let g=cv.getContext("2d"); const fxc=$("fx"), fxg=fxc.getContext("2d"); let FXO=[0,0], FXS=[0,0];   // fx layer: the arm, over the whole play area
 let S=300, CX=150, CY=150, R=[0,0,0,0], RB=[0,0];          // R[0] rim edge, R[1..3] the bottom edge of tiers 1..3 (R[3] = hole edge)
 const RK=[.835,.655,.48,.315], BAND=[.945,.85];        // tiers, and the outer colour-bet band (outer, inner)
-const LAUNCH_A=.125;                                  // where the arm fires the comet in (turns, clockwise from the top)
+const LAUNCH_A=.125;
+const POOL=[.085,.915,.072];                          // frenzy pool dish: centre x, y and radius as shares of the canvas (its empty bottom-left corner)
+const poolXY=()=>[POOL[0]*S, POOL[1]*S, POOL[2]*S];
+let poolWon=false;                                  // where the arm fires the comet in (turns, clockwise from the top)
 function layout(){
   const st=$("stage").getBoundingClientRect(); S=Math.floor(Math.min(st.width, st.height, 460));
   const dpr=Math.min(3,devicePixelRatio||1); cv.width=S*dpr; cv.height=S*dpr; cv.style.width=cv.style.height=S+"px"; g.setTransform(dpr,0,0,dpr,0,0);
@@ -229,6 +247,7 @@ function draw(){
   for(let t=0;t<3;t++) for(const [i,v] of Object.entries(bets.tiers[t])){ const [a0,a1]=sectionSpan(t,+i); drawChip(...P((R[t]+R[t+1])/2+(t===0?S*.03:0),(a0+a1)/2), v, t===2?.78:1); }
   for(const [q,v] of Object.entries(bets.colors)) drawChip(...P((RB[0]+RB[1])/2,(+q+.5)/4+.101), v, .78);
   if(bets.voidBet) drawChip(CX,CY,bets.voidBet,1.1);
+  drawPool(now);
   Others.drawChips(now);
   // ghosts: a faint comet left where the ball crossed each tier's edge
   for(const gh of ghosts){ const [x,y]=P(gh.r,gh.a), k=.7+.15*Math.sin(now*3+gh.r);
@@ -297,6 +316,7 @@ const Others = (()=>{
   const AMTS=[1,5,5,5,25,25,100];
   // pick a spot on the table: a section, a colour band or the black hole
   function pickSpot(){ const r=Math.random();
+    if(r<.07){ const [px,py,pr]=poolXY(); return { kind:"pool", amt:pick(AMTS), at:()=>[px+(Math.random()-.5)*pr*.8, py+(Math.random()-.5)*pr*.8] }; }
     if(r<.12) return { kind:"void", amt:pick(AMTS), at:()=>[CX+(Math.random()-.5)*R[3]*.6, CY+(Math.random()-.5)*R[3]*.6] };
     if(r<.3){ const q=Math.floor(Math.random()*4), a=(q+.5)/4+(Math.random()-.5)*.12; return { kind:"color", q, amt:pick(AMTS), at:()=>P((RB[0]+RB[1])/2,a) }; }
     const t=Math.floor(Math.random()*3), i=Math.floor(Math.random()*TIERS[t].n), [a0,a1]=sectionSpan(t,i), a=a0+(a1-a0)*(.25+Math.random()*.5);
@@ -315,7 +335,8 @@ const Others = (()=>{
   let openUntil=0, paused=false;
   function drawArms(now){ const T=performance.now();
     visits=visits.filter(v=>{ const s=(T-v.t0)/1000, w=v.w, [IN,HOLD,OUT]=v.pace; if(s>IN+HOLD+OUT) return false;
-      if(!v.dropped && s>=IN+HOLD*.5){ v.dropped=true; if(!spinning){ chips.push({ w, ...v.spot, x:v.x, y:v.y, res:null }); SFX.chip(); } }
+      if(!v.dropped && s>=IN+HOLD*.5){ v.dropped=true; if(!spinning){ chips.push({ w, ...v.spot, x:v.x, y:v.y, res:null }); SFX.chip();
+        if(Math.random()<.22) talk(w, v.spot.kind==="pool"?"pool":v.spot.kind==="void"?"hole":"bet"); } }
       const e = s<IN ? 1-Math.pow(1-s/IN,3) : s<IN+HOLD ? 1 : 1-Math.pow((s-IN-HOLD)/OUT,2);
       const im=w.im, H=420, W=H*(im.naturalWidth||100)/(im.naturalHeight||420), span=H*Math.abs(w.base[1]-w.tip[1]);
       // long enough that the cut end, sideways width included, is always beyond the play area's edge (where the fade hides it)
@@ -336,7 +357,11 @@ const Others = (()=>{
     for(const c of chips){ let won=0;
       for(const b of res.balls){ if(c.kind==="tier" && b.results[c.t]===c.i) won+=c.amt*TIERS[c.t].pay;
         if(c.kind==="color" && b.colorQ===c.q) won+=c.amt*COLOR_PAY; if(c.kind==="void" && b.voidCount) won+=c.amt*VOID_PAY[b.voidCount]; }
+      if(c.kind==="pool" && res.frenzy) won=c.amt*FRENZY_PAY;
       c.res = won ? "win" : "lose"; c.tr=T; if(won) popAt(c.x,c.y,`+${won}`, CHIP_SHADES[c.w.chips][5]); }
+    // one reaction per alien that had chips down: winners usually crow, losers sometimes grumble
+    const by=new Map(); chips.forEach(c=>{ const r=by.get(c.w)||0; by.set(c.w, r|(c.res==="win"?2:1)); });
+    let d=300; for(const [w,r] of by){ const kind = r&2 ? "win" : "lose"; if(Math.random() < (kind==="win"?.7:.25)){ setTimeout(()=>talk(w,kind,true), d); d+=650; } }
     paused=true; }
   function clear(){ const T=performance.now(); chips.forEach(c=>{ if(c.res!=="lose"){ c.res="clear"; c.tr=T; } }); }
   // a short window between rounds when the aliens bet quickly; resolves when it closes
@@ -344,7 +369,29 @@ const Others = (()=>{
   setInterval(()=>{ if(spinning || paused || document.hidden || !R[0]) return; const T=performance.now();
     if(T<openUntil){ if(visits.length<3 && chips.length<12 && T-last>280) start(); }               // betting window: fast and busy
     else if(visits.length<2 && chips.length<9 && T-last>1100 && Math.random()<.4) start(); }, 140);
-  return { drawArms, drawChips, settle, clear, openTable, get active(){ return visits.length>0; }, get open(){ return performance.now()<openUntil; } };
+  // ---- what the other players say: a bubble by their seat, outlined in their chip colour ----
+  const LINES = {
+    bet:   ["Gimme a seven!","Feeling lucky…","My tentacles are tingling.","This one's mine.","Third time's the charm.","Come on, come on…","Don't copy me, human.","Mama needs new suction cups.","Going deep this time.","Watch and learn."],
+    pool:  ["Frenzy's coming. I can feel it.","Pool's looking juicy.","Three comets, I'm calling it."],
+    hole:  ["Feed me, black hole!","Void, baby, void!"],
+    win:   ["HA! Pay up!","Called it!","Easy money.","Did you see that, human?","My lucky arm!","Woo! Drinks on me!","That's how it's done."],
+    lose:  ["Rigged!","Ugh, my chips…","Next time.","The well hates me.","Not again…","Hmph.","I meant to do that."],
+    frenzy:["FRENZY!","Ooh, three of 'em!","Here we gooo!"] };
+  let lastSaid=0;
+  function talk(w, kind, force){ const T=performance.now(); if(!force && (T-lastSaid<900 || w.bubOn)) return; lastSaid=T;
+    const pool=LINES[kind], text=pool[(w.li=(((w.li??Math.floor(Math.random()*pool.length))+1+Math.floor(Math.random()*(pool.length-1)))%pool.length))];
+    let el=w.bub; if(!el){ el=w.bub=document.createElement("div"); el.className="bub"; el.style.setProperty("--bc", CHIP_SHADES[w.chips][5]); $("stage").appendChild(el); }
+    el.textContent=text; el.className="bub";
+    // anchor: the rim of the bowl on this alien's side, in stage coordinates
+    const ax=FXO[0]+CX+w.seat[0]*S*.47, ay=FXO[1]+CY+w.seat[1]*S*.47, horiz=Math.abs(w.seat[0])>Math.abs(w.seat[1]);
+    const side = horiz ? (w.seat[0]<0?"left":"right") : (w.seat[1]>0?"bottom":"top");
+    el.classList.add("t-"+side); const bw=el.offsetWidth, bh=el.offsetHeight, SW=FXS[0], SH=FXS[1];
+    let x = side==="left" ? ax+8 : side==="right" ? ax-bw-8 : ax-bw/2, y = side==="top" ? ay+8 : side==="bottom" ? ay-bh-8 : ay-bh/2;
+    x=Math.max(6,Math.min(SW-bw-6,x)); y=Math.max(54,Math.min(SH-bh-6,y));                                       // stay clear of the dealer's spot at the top
+    el.style.left=x+"px"; el.style.top=y+"px"; el.style.setProperty("--to", (horiz ? Math.max(12,Math.min(bh-12,ay-y)) : Math.max(14,Math.min(bw-14,ax-x)))+"px");
+    void el.offsetWidth; el.classList.add("show"); w.bubOn=true; clearTimeout(w.bubT);
+    w.bubT=setTimeout(()=>{ el.classList.remove("show"); w.bubOn=false; }, 1900+text.length*40); }
+  return { _who:WHO, talk, frenzy(){ const w=pick(WHO); talk(w,"frenzy",true); }, drawArms, drawChips, settle, clear, openTable, get active(){ return visits.length>0; }, get open(){ return performance.now()<openUntil; } };
 })();
 function animate(ms, fn){ return new Promise(done=>{ const t0=performance.now(); const f=now=>{ const k=Math.min(1,(now-t0)/ms); fn(k); draw(); if(k<1) requestAnimationFrame(f); else done(); }; requestAnimationFrame(f); }); }
 // text that follows a circle: each letter placed and turned along the arc. Bottom-half arcs read left-to-right along the underside.
@@ -360,6 +407,18 @@ function arcText(str, r, centre, under, col, size, maxSpan=1){
     g.save(); g.translate(x,y); g.rotate(ac*Math.PI*2 + (under?Math.PI:0)); g.fillText(ch,0,0); g.restore();
     a += under ? -step : step; });
   g.restore(); }
+// the frenzy pool: a little dish of swirling pink in the corner — bet that the next spin is a frenzy
+function drawPool(now){ const [x,y,r]=poolXY();
+  g.save(); g.shadowColor="#000"; g.shadowBlur=8; g.shadowOffsetY=3;
+  const rim=g.createLinearGradient(x-r,y-r,x+r,y+r); rim.addColorStop(0,"#a9a6bb"); rim.addColorStop(1,"#2a2838"); g.fillStyle=rim; g.beginPath(); g.arc(x,y,r,0,7); g.fill(); g.restore();
+  g.save(); g.beginPath(); g.arc(x,y,r*.82,0,7); g.clip();
+  const liq=g.createRadialGradient(x,y,0,x,y,r*.82); liq.addColorStop(0,poolWon?"#fff2fb":"#ff9ad5"); liq.addColorStop(.6,"#ff5fae"); liq.addColorStop(1,"#5a0f3d"); g.fillStyle=liq; g.fillRect(x-r,y-r,r*2,r*2);
+  g.translate(x,y); g.rotate(now*.8); for(let k=0;k<3;k++){ g.rotate(Math.PI*2/3); g.strokeStyle="#ffffff40"; g.lineWidth=r*.12; g.beginPath(); g.arc(0,0,r*.5,0,1.4); g.stroke(); }
+  g.restore();
+  if(poolWon){ g.save(); g.strokeStyle=`rgba(255,240,250,${.6+.4*Math.sin(now*9)})`; g.lineWidth=3; g.beginPath(); g.arc(x,y,r+2,0,7); g.stroke(); g.restore(); }
+  g.save(); g.fillStyle="#fff"; g.shadowColor="#5a0f3d"; g.shadowBlur=4; g.textAlign="center"; g.textBaseline="middle";
+  g.font=`400 ${Math.max(7,r*.32)}px "Bungee",Impact,sans-serif`; g.fillText("FRENZY",x,y-r*.42); g.fillText(`×${FRENZY_PAY}`,x,y+r*.46); g.restore();
+  if(bets.frenzyBet) drawChip(x,y,bets.frenzyBet,.72); }
 // chips are coloured by player; each denomination is a shade of that player's colour (light = 1 … dark = 100)
 const CHIP_SHADES = {
   you:    {1:"#ffffff", 5:"#d4cfe6", 25:"#9b96b2", 100:"#4e4a66"},
@@ -379,13 +438,15 @@ function drawChip(x,y,v,k=1,owner="you",alpha=1){ const r=S*.034*k, col=CHIP_SHA
 // ---- betting: tap the bowl ----
 function hitTest(ev){ const b=cv.getBoundingClientRect(), x=ev.clientX-b.left-CX, y=ev.clientY-b.top-CY, r=Math.hypot(x,y);
   let a=Math.atan2(x,-y)/(Math.PI*2); a=(a+1)%1;
+  { const [px,py,pr]=poolXY(), b2=cv.getBoundingClientRect(); if(Math.hypot(ev.clientX-b2.left-px, ev.clientY-b2.top-py)<pr+4) return {pool:true}; }
   if(r<R[3]) return {hole:true};
   if(r<=RB[0] && r>RB[1]) return {color:Math.floor(a*4)};
   for(let t=0;t<3;t++) if(r<=R[t] && r>R[t+1]) return {t, i:sectionAt(t,a)};
   return null; }
 cv.addEventListener("click", ev=>{
   if(spinning) return; Sound.unlock(); Music.start(); const h=hitTest(ev); if(!h) return;
-  if(h.hole){ if(addVoidBet(chip)){ SFX.chip(); say("Betting the comet hits a void."); } else broke(); }
+  if(h.pool){ if(addFrenzyBet(chip)){ SFX.chip(); say(`Frenzy pool: pays ×${FRENZY_PAY} if the next spin is a frenzy.`); } else broke(); }
+  else if(h.hole){ if(addVoidBet(chip)){ SFX.chip(); say("Betting the comet hits a void."); } else broke(); }
   else if(h.color!==undefined){ const nm=TIERS[0].label(h.color); if(addColorBet(h.color,chip)){ SFX.chip(); say(`All ${nm}: the comet stays in ${nm} on every tier. Pays ×${COLOR_PAY}.`); } else broke(); }
   else if(h.i<0){ say("That's a void sliver: the house's share. Tap the black hole to bet on voids."); return; }
   else if(addBet(h.t, h.i, chip)){ SFX.chip(); const T=TIERS[h.t]; say(`${T.name} ${T.label(h.i)} pays ×${T.pay}.`); }
@@ -401,7 +462,9 @@ function paint(){ $("credits").textContent=credits; $("bet").textContent=totalBe
   const opening=Others.open; $("go").disabled = spinning || opening || tb<=0 || tb>credits;
   $("go").querySelector("small").textContent = spinning ? "…" : opening ? "table open…" : tb<=0 ? "place a bet" : tb>credits ? "too much" : tb+" bars";
   const pb=pathBonus(); $("path").innerHTML = pb ? `PATH BONUS<br>×${pb}` : "PATH BONUS<br>bet all 3 tiers"; $("path").classList.toggle("on", pb>0); $("clear").disabled=spinning; $("undo").disabled=spinning||!history.length; draw(); }
-function say(t){ $("say").textContent=t; }
+// the dealer talks from the top of the screen; the bubble pops in, then fades after a few seconds
+function say(t){ $("say").textContent=t; const d=$("dealer"); d.querySelector("span").textContent=t; d.classList.remove("show"); void d.offsetWidth; d.classList.add("show");
+  clearTimeout(say.t); say.t=setTimeout(()=>d.classList.remove("show"), 2400+t.length*45); }
 function banner(big, small, color){ const b=$("banner"); $("bannerBig").textContent=big; $("bannerSmall").textContent=small||""; b.style.setProperty("--bc", color||"var(--gold)");
   b.classList.add("show"); clearTimeout(banner.t); banner.t=setTimeout(()=>b.classList.remove("show"), 2000); }
 function popAt(x,y,txt,col){ const st=$("stage").getBoundingClientRect(), b=cv.getBoundingClientRect(), e=document.createElement("div"); e.className="pop"; e.textContent=txt; if(col) e.style.color=col;
@@ -429,7 +492,9 @@ async function doSpin(){
   spinning=true; shown=[[],[],[]]; voidHit=[[],[],[]]; comets=[]; ghosts=[]; colorHit=-1;
   for(let k=0;k<4;k++){ const c=$("c"+k); c.classList.remove("hit","void"); c.querySelector("b").textContent=""; }
   $("win").textContent=0; paint();
-  if(res.frenzy){ banner("FRENZY!", `${res.balls.length} comets · every one pays`, "#ff5fae"); SFX.frenzy(); say("FRENZY! Three comets, one bet!"); $("app").classList.add("frenzy"); }
+  poolWon=false;
+  if(res.frenzy){ banner("FRENZY!", res.frenzyWin ? `Pool pays +${res.frenzyWin} · ${res.balls.length} comets` : `${res.balls.length} comets · every one pays`, "#ff5fae"); SFX.frenzy(); say("FRENZY! Three comets, one bet!"); setTimeout(()=>Others.frenzy(), 700); $("app").classList.add("frenzy");
+    if(res.frenzyWin){ collect(res.frenzyWin); poolWon=true; const [px,py]=poolXY(); popAt(px,py,"+"+res.frenzyWin,"#ff9ad5"); $("credits").textContent=credits; } }
   else say(pick(["Into the well…","Round and round…","Gravity always wins. Mostly.","Here it goes!"]));
   Music.spin(true, res.frenzy); SFX.armIn();
   await animate(1000, k=>{ arm.ext=k; arm.spin=k*.35; });                  // the arm swings into frame, wheels starting to turn
@@ -437,7 +502,7 @@ async function doSpin(){
   // each comet is fired GAP seconds after the last, flies its own path and settles on its own
   const GAP=.8, lastFire=(res.balls.length-1)*GAP;
   comets=res.balls.map((b,i)=>{ const F=buildFlight(b.angles); return { i, res:b, F, start:i*GAP, fired:false, visible:false, pos:[0,0], trail:[], next:0, lastSec:null, done:false }; });
-  let won=0, voids=0; const start=performance.now();
+  let won=res.frenzyWin||0, voids=0; const start=performance.now();
   await new Promise(done=>{ const frame=now=>{ const t=(now-start)/1000;
       for(const c of comets){ const tb=t-c.start; if(tb<0 || c.done) continue;
         if(!c.fired){ c.fired=true; c.visible=true; SFX.launch(); arm.glow=0; }
@@ -523,7 +588,7 @@ const Music = (()=>{ let timer=null, step=0, nextT=0, bpm=84, target=84, mode="c
 // ---- wiring ----
 $("snd").addEventListener("click",()=>{ Sound.on=!Sound.on; $("snd").setAttribute("aria-pressed",String(Sound.on)); });
 $("info").addEventListener("click",()=>{ $("paytable").innerHTML=TIERS.map(T=>`<tr><td>${T.name} · ${T.n} sections</td><td>×${T.pay}</td></tr>`).join("")+
-  `<tr><td>Path bonus · your bets hit on all 3 tiers</td><td>smallest chip × bonus</td></tr><tr><td>Colour · same colour on all 3 tiers</td><td>×${COLOR_PAY}</td></tr><tr><td>Void bet · 1 / 2 / 3 voids</td><td>×${VOID_PAY[1]} / ×${VOID_PAY[2]} / ×${VOID_PAY[3]}</td></tr>`; $("sheet").hidden=false; });
+  `<tr><td>Path bonus · your bets hit on all 3 tiers</td><td>smallest chip × bonus</td></tr><tr><td>Frenzy pool · next spin is a frenzy</td><td>×${FRENZY_PAY}</td></tr><tr><td>Colour · same colour on all 3 tiers</td><td>×${COLOR_PAY}</td></tr><tr><td>Void bet · 1 / 2 / 3 voids</td><td>×${VOID_PAY[1]} / ×${VOID_PAY[2]} / ×${VOID_PAY[3]}</td></tr>`; $("sheet").hidden=false; });
 $("close").addEventListener("click",()=>$("sheet").hidden=true);
 $("sheet").addEventListener("click",e=>{ if(e.target.id==="sheet") $("sheet").hidden=true; });
 $("fpath").addEventListener("click",()=>{ $("sheet").hidden=true; if(!pathBonus()){ say("Bet on all three tiers first."); return; } FORCE.angles=bets.tiers.map((tb,t)=>{ const [a0,a1]=sectionSpan(t,+Object.keys(tb)[0]); return (a0+a1)/2; }); });

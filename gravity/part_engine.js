@@ -18,12 +18,13 @@ const COLOR_PAY = 87;                              // colour bet: the comet stay
 const CHIPS = [1, 5, 25, 100];
 const START = 500;
 const FRENZY_CHANCE = 1 / 18, FRENZY_BALLS = 3;     // about one spin in 18 launches three comets
+const FRENZY_PAY = 16;                             // frenzy pool: bet the next spin is a frenzy (16 × 1/18 ≈ 89% payback)
 const VOID_SHIFT = VOID / 8;                       // half a sliver: centres each void on its quadrant boundary (the screen relies on this)
 const FORCE = { angles: null, frenzy: false };     // debug: force the next spin's crossing angles / a frenzy
 
 let credits = START;
 // bets: tiers[t] = { sectionIndex: amount }, colors = { quadrant: amount }, voidBet = amount
-let bets = { tiers: [{}, {}, {}], colors: {}, voidBet: 0 };
+let bets = { tiers: [{}, {}, {}], colors: {}, voidBet: 0, frenzyBet: 0 };
 let lastBets = null;
 let history = [];                                  // every chip placed, newest last, so UNDO can take it back
 
@@ -42,7 +43,7 @@ function sectionSpan(t, i, q = 0) {
 const quadrantOf = (t, i) => Math.floor(i / (TIERS[t].n / 4));     // sections share their quadrant's colour
 
 function totalBet(b = bets) {
-  let s = b.voidBet; for (const v of Object.values(b.colors || {})) s += v;
+  let s = b.voidBet + (b.frenzyBet || 0); for (const v of Object.values(b.colors || {})) s += v;
   for (const tb of b.tiers) for (const v of Object.values(tb)) s += v;
   return s;
 }
@@ -54,12 +55,13 @@ function pathBonus(b = bets) {
 
 function addBet(t, i, amt) { if (totalBet() + amt > credits) return false; bets.tiers[t][i] = (bets.tiers[t][i] || 0) + amt; history.push({ k: "tier", t, i, amt }); return true; }
 function addColorBet(q, amt) { if (totalBet() + amt > credits) return false; bets.colors[q] = (bets.colors[q] || 0) + amt; history.push({ k: "color", q, amt }); return true; }
+function addFrenzyBet(amt) { if (totalBet() + amt > credits) return false; bets.frenzyBet += amt; history.push({ k: "frenzy", amt }); return true; }
 function addVoidBet(amt) { if (totalBet() + amt > credits) return false; bets.voidBet += amt; history.push({ k: "void", amt }); return true; }
-function clearBets() { bets = { tiers: [{}, {}, {}], colors: {}, voidBet: 0 }; history = []; }
+function clearBets() { bets = { tiers: [{}, {}, {}], colors: {}, voidBet: 0, frenzyBet: 0 }; history = []; }
 // take back the last chip placed; returns what was undone (or null)
 function undoBet() { const h = history.pop(); if (!h) return null;
   const take = (obj, key) => { obj[key] -= h.amt; if (obj[key] <= 0) delete obj[key]; };
-  if (h.k === "tier") take(bets.tiers[h.t], h.i); else if (h.k === "color") take(bets.colors, h.q); else bets.voidBet = Math.max(0, bets.voidBet - h.amt);
+  if (h.k === "tier") take(bets.tiers[h.t], h.i); else if (h.k === "color") take(bets.colors, h.q); else if (h.k === "frenzy") bets.frenzyBet = Math.max(0, bets.frenzyBet - h.amt); else bets.voidBet = Math.max(0, bets.voidBet - h.amt);
   return h; }
 function rebet() { if (!lastBets || totalBet(lastBets) > credits) return false; bets = JSON.parse(JSON.stringify(lastBets)); return true; }
 
@@ -78,7 +80,7 @@ function settleBall(angles) {
 }
 // one spin: takes the stake once, rolls for FRENZY (FRENZY_BALLS comets instead of one, every one paying), and settles each comet.
 // Frenzy is a flat chance every spin, never a countdown, so there's nothing to count and no "due" moment to bet big on.
-// Returns { frenzy, balls:[settleBall…], staked, totalWin }
+// Returns { frenzy, balls:[settleBall…], frenzyWin, staked, totalWin }
 function spin() {
   const staked = totalBet(); if (staked <= 0 || staked > credits) return null;
   credits -= staked; lastBets = JSON.parse(JSON.stringify(bets));
@@ -88,7 +90,8 @@ function spin() {
     const angles = (i === 0 && FORCE.angles) || [Math.random(), Math.random(), Math.random()];
     balls.push(settleBall(angles)); }
   FORCE.angles = null;
-  return { frenzy, balls, staked, totalWin: balls.reduce((a, b) => a + b.win, 0) };
+  const frenzyWin = frenzy ? bets.frenzyBet * FRENZY_PAY : 0;          // the pool settles once per spin, not per comet
+  return { frenzy, balls, frenzyWin, staked, totalWin: balls.reduce((a, b) => a + b.win, 0) + frenzyWin };
 }
 // the screen calls this as each part of the result is revealed, so credits rise in step with the comet
 function collect(amount) { credits += amount; }
