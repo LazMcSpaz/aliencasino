@@ -1039,7 +1039,9 @@ const Sound = (()=>{
       ctx.decodeAudioData(buf.buffer).then(ab=>{ clips[k]=ab; }).catch(()=>{ delete clips[k]; }); } }
   function clip(name, {vol=1, at=0}={}){ // returns false if the clip isn't ready, so callers can fall back to synth sounds
     if(!on) return true; const c=ensure(); const ab=clips[name]; if(!c || !(ab instanceof AudioBuffer)) return false;
-    const src=c.createBufferSource(), g=c.createGain(); src.buffer=ab; g.gain.value=vol; src.connect(g).connect(master); src.start(c.currentTime+at); return true; }
+    const src=c.createBufferSource(), g=c.createGain(), t=c.currentTime+at; src.buffer=ab;
+    g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(vol,t+.005);   // 5 ms fade-in: no pop when a clip starts
+    src.connect(g).connect(master); src.start(t); return true; }
   function noise(dur, {vol=0.2, at=0, type="lowpass", freq=1200, q=0.8, attack=0.004, sweep=0, bus=null}={}){   // filtered noise burst: gunshots, tyres, crowds, scribbles
     if(!on) return; const c=ensure(); if(!c) return; if(bus==="music") attack=Math.max(attack,.01);   // no instant starts on music percussion
     const t=c.currentTime+Math.max(0,at), len=Math.max(1,Math.floor(c.sampleRate*dur)), buf=c.createBuffer(1,len,c.sampleRate), d=buf.getChannelData(0);
@@ -1530,8 +1532,8 @@ const MI = (()=>{ const T=Sound.tone, N=Sound.note, X=Sound.noise, M={bus:"music
     clap(at,v){ X(.17,{...M,at,vol:v,type:"bandpass",freq:1400,q:.9,attack:.014}); X(.07,{...M,at:at+.012,vol:v*.45,type:"bandpass",freq:2300,q:.8,attack:.012}); },
     hat(at,v,open){ X(open?.2:.075,{...M,at,vol:v*.8,type:"highpass",freq:6500,q:.5,attack:open?.02:.012}); },
     shaker(at,v){ X(.05,{...M,at,vol:v,type:"highpass",freq:6000,attack:.015}); },
-    brush(at,v){ X(.16,{...M,at,vol:v,type:"bandpass",freq:3200,q:.4,attack:.03}); },
-    ride(at,v){ X(.3,{...M,at,vol:v,type:"highpass",freq:6200,q:.5,attack:.006}); },
+    brush(at,v){ X(.18,{...M,at,vol:v*.85,type:"bandpass",freq:2600,q:.5,attack:.04}); },
+    ride(at,v){ X(.34,{...M,at,vol:v*.75,type:"bandpass",freq:4600,q:.7,attack:.028}); },   // soft start + no razor-thin top: sharp highs tick on phone speakers
     block(at,v){ T(1250,.05,{...M,at,vol:v,type:"sine"}); },
     riser(at,dur,v){ X(dur,{...M,at,vol:v,type:"highpass",freq:600,sweep:14,attack:dur*.9}); },
     bass(n,at,d,v,{type="sawtooth",lp=420,lpEnd=0}={}){ T(N(n),d,{...M,at,vol:v,type,lp,lpEnd,q:4}); },
@@ -1595,7 +1597,7 @@ const TRACKS = {
     const bar=i>>3, k=i%8, CH=["Am","Am","Dm","Dm","E7","E7","Am","E7"][bar];
     const V={Am:[4,9,12],Dm:[5,9,14],E7:[4,8,14]}[CH], R={Am:-3,Dm:2,E7:-8}[CH], nextR={Am:-3,Dm:2,E7:-8}[["Am","Am","Dm","Dm","E7","E7","Am","E7"][(bar+1)%8]];
     if(k%2===0){ const w=[R, R+(CH==="Am"||CH==="Dm"?3:4), R+7, nextR+(nextR>R?-1:1)][k>>1]; MI.upright(w-12,at,.06); }
-    if(k%2===0||k===3||k===7) MI.ride(at, k%2?.008:.012);
+    if(k%2===0||k===3||k===7) MI.ride(at, k%2?.005:.011);
     if(k===2||k===6) MI.brush(at,.02);
     if(k===3||(k===6&&bar%2)) MI.piano(V,at,.016);
     playMel(MOB_SLOW,i,(n,l)=>MI.lead(n,at,s*l*1.1,.014,1300));

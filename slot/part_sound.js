@@ -39,7 +39,9 @@ const Sound = (()=>{
       ctx.decodeAudioData(buf.buffer).then(ab=>{ clips[k]=ab; }).catch(()=>{ delete clips[k]; }); } }
   function clip(name, {vol=1, at=0}={}){ // returns false if the clip isn't ready, so callers can fall back to synth sounds
     if(!on) return true; const c=ensure(); const ab=clips[name]; if(!c || !(ab instanceof AudioBuffer)) return false;
-    const src=c.createBufferSource(), g=c.createGain(); src.buffer=ab; g.gain.value=vol; src.connect(g).connect(master); src.start(c.currentTime+at); return true; }
+    const src=c.createBufferSource(), g=c.createGain(), t=c.currentTime+at; src.buffer=ab;
+    g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(vol,t+.005);   // 5 ms fade-in: no pop when a clip starts
+    src.connect(g).connect(master); src.start(t); return true; }
   function noise(dur, {vol=0.2, at=0, type="lowpass", freq=1200, q=0.8, attack=0.004, sweep=0, bus=null}={}){   // filtered noise burst: gunshots, tyres, crowds, scribbles
     if(!on) return; const c=ensure(); if(!c) return; if(bus==="music") attack=Math.max(attack,.01);   // no instant starts on music percussion
     const t=c.currentTime+Math.max(0,at), len=Math.max(1,Math.floor(c.sampleRate*dur)), buf=c.createBuffer(1,len,c.sampleRate), d=buf.getChannelData(0);

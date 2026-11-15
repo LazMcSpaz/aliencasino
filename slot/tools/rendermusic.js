@@ -3,12 +3,12 @@ const { chromium } = require('playwright'); const fs=require('fs');
   const b=await chromium.launch(); const errs=[]; const out={};
   for(const [mach,kind] of [["food","base"],["food","bonus"],["club","base"],["club","bonus"],["mob","base"],["mob","bonus"]]){ const p=await b.newPage(); p.on('pageerror',e=>errs.push(e.message)); p.on('console',m=>{ if(m.type()==='error') errs.push(m.text()); });
   await p.addInitScript(()=>{
-    const SR=22050, LEN=12; let t0=null;
+    const SR=44100, LEN=12; let t0=null;
     class F extends OfflineAudioContext{ constructor(){ super(1,SR*LEN,SR); window.__off=this; t0=performance.now(); }
       get currentTime(){ return (performance.now()-t0)/1000; } get state(){ return "running"; } resume(){ return Promise.resolve(); } }
     window.AudioContext=F; window.webkitAudioContext=F;
   });
-  await p.goto('file://'+__dirname+'/slot.html'); await p.waitForTimeout(500);
+  await p.goto('file://'+__dirname+'/../slot.html'); await p.waitForTimeout(500);
     const r = await p.evaluate(async([mach,kind])=>{
       applyMachine(mach); Sound.unlock(); Music.stop(); Music.play(kind);
       await new Promise(r=>setTimeout(r,10500)); Music.stop();
