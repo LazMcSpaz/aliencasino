@@ -488,7 +488,8 @@ const LINES = {
                "Bet more, stack more!","Tap PLAY. You know you want to.","I've got sandstone and time."],
 };
 const lineBags = {};
-function line(key){ const pool=LINES[key]; if(!pool) return ""; let bag=lineBags[key];
+function line(key){   // NB: don't name any local variable `line` — it would hide this
+  const pool=LINES[key]; if(!pool) return ""; let bag=lineBags[key];
   if(!bag || !bag.length){ bag = lineBags[key] = pool.slice().sort(()=>Math.random()-.5);
     if(pool.length>1 && bag[bag.length-1]===line.last?.[key]) bag.unshift(bag.pop()); }        // a fresh shuffle never starts with the line just said
   const t=bag.pop(); (line.last ||= {})[key]=t; return t; }
@@ -613,7 +614,7 @@ function drawBands(){
   $("railL").replaceChildren(); $("railR").replaceChildren();
   for(const [r,b] of Object.entries(BANDS)){
     const cls=BAND_CLASS[r], yLine=rowY(+r)+(SH-STEP)*.5, yMid=rowY(+r)+(SH-STEP)+STEP/2;
-    const line=document.createElement("div"); line.className="band "+cls; line.id="band"+r; Object.assign(line.style,{top:yLine+"px",zIndex:r*2+1}); $("board").appendChild(line);
+    const bl=document.createElement("div"); bl.className="band "+cls; bl.id="band"+r; Object.assign(bl.style,{top:yLine+"px",zIndex:r*2+1}); $("board").appendChild(bl);
     const chip=document.createElement("div"); chip.className="chip "+cls; chip.style.top=yMid+"px"; chip.textContent="×"+b.mult; $("railL").appendChild(chip);
     const v=document.createElement("div"); v.className="val "+cls; v.style.top=yMid+"px"; v.innerHTML=`<small>${b.name}</small><b id="tagv${r}">—</b>`; $("railR").appendChild(v);
   }
@@ -794,7 +795,7 @@ async function doDrop(){
     busy=false; paint(); setControls("play"); return;
   }
   if(res.offer){
-    await wait(200); const o=res.offer, line=$("band"+o.row); line.classList.add("hit"); setTimeout(()=>line.classList.remove("hit"),2400); SFX.band(o.row);
+    await wait(200); const o=res.offer, bandEl=$("band"+o.row); bandEl.classList.add("hit"); setTimeout(()=>bandEl.classList.remove("hit"),2400); SFX.band(o.row);
     say(line(o.row===4 ? "band4" : "band7"), "present");
     busy=false; setControls("choice"); return;
   }
