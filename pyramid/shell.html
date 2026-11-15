@@ -456,7 +456,7 @@ async function doSkim(s){
   }
   $("stacked").textContent=climb.total; paintRisk(); paintBandValues(); paintSkimmable();
   if(climb.cracks===1) say("Cracked! Every crack makes the tower shakier.","worried");
-  else say(pick(["Easy, human…","*creeeak*","That one's gonna leave a mark.","Greedy, greedy."]),"greedy");
+  else chat(pick(["Easy, human…","*creeeak*","That one's gonna leave a mark.","Greedy, greedy."]),"greedy",.4);
 }
 function paintRisk(){ const n=document.querySelector("#stackwin .next"); if(!n||!climb) return; if(climb.beam>0) return;
   if(climb.cracks){ n.classList.add("risk"); n.textContent=`${climb.cracks} crack${climb.cracks>1?"s":""} · ${Math.round(crackRisk()*100)}% fall risk`; } }
@@ -507,7 +507,9 @@ $("cash").onclick=()=>doCash(); $("climb").onclick=()=>doClimb();
 function nextBandText(){ if(climb.beam>0) return `<span class="beamtag">BEAM DROPS LEFT: ${climb.beam}</span>`; const r=Object.keys(BANDS).map(Number).find(x=>x>climb.row); return r ? `${r-climb.row} to ${BANDS[r].name.toLowerCase()}` : ""; }
 function changeBet(d){ if(climb) return; const i=BETS.indexOf(bet)+d; if(i<0||i>=BETS.length) return; bet=BETS[i]; Sound.unlock(); Sound.tap(); setControls("play"); }
 function paint(){ $("credits").textContent=credits; paintBandValues(); }
-function say(t, pose){ $("say").textContent=t; Mascot.talk(t, pose); }
+function say(t, pose){ $("say").textContent=t; Mascot.talk(t, pose); say.last=Date.now(); }
+// small talk: routine moments only get a line now and then (and never right after another line); otherwise just a face
+function chat(t, pose, chance=.3){ if(Math.random()<chance && Date.now()-(say.last||0)>6000) say(t, pose); else Mascot.set(pose,{hold:1800}); }
 function banner(big, small, color){ const b=$("banner"); $("bannerBig").textContent=big; $("bannerSmall").textContent=small||""; b.style.setProperty("--bc", color||"var(--gold)");
   b.classList.add("show"); clearTimeout(banner.t); banner.t=setTimeout(()=>b.classList.remove("show"), 1700); }
 function countTo(el, from, to, ms=600){ if(!el) return; const t0=performance.now(); const f=now=>{ const k=Math.min(1,(now-t0)/ms); el.textContent=Math.round(from+(to-from)*k); if(k<1) requestAnimationFrame(f); }; requestAnimationFrame(f); }
@@ -518,7 +520,7 @@ async function play(){
   busy=true; clearStones(); startClimb(); paint(); setControls("busy");
   await settleRow({ row:1, kept:[0,1,2,3,4], lost:[], stones:climb.rows[0] });       // row 1 always lands as a full base of five
   countTo($("stacked"), 0, climb.total, 450); paintBandValues();
-  say(firstClimb ? "Tip: tap a stone to skim half its value — but it cracks!" : pick(["Stack 'em high, human.","Careful now. Gravity works here too.","Build me a wonder."]), firstClimb ? "point" : "happy");
+  (firstClimb ? say : chat)(firstClimb ? "Tip: tap a stone to skim half its value — but it cracks!" : pick(["Stack 'em high, human.","Careful now. Gravity works here too.","Build me a wonder."]), firstClimb ? "point" : "happy");
   firstClimb=false; busy=false; setControls("drop"); showLane(); Mascot.home();
 }
 async function doDrop(){
@@ -542,8 +544,8 @@ async function doDrop(){
     banner("GOLDEN STONE!", `${GOLD.drops} BEAM DROPS · every stone ×${GOLD.mult}`, "var(--gold)"); say("Golden! I'll hold them steady — beam drops can't fail.","excited");
     await wait(700); await setBeam(true); SFX.beam(); await wait(500);
   } else if(res.beamed){ placeBeam(); if(!res.beamLeft){ setBeam(false); say("Phew, my arms… you're on your own again.","worried"); } }
-  if(res.gold || res.beamed){} else if(res.lost.length) say(res.kept.length===1 ? "One stone left. Feeling lucky?" : pick(["Crumbly!","A little narrower now…","Mind the overhang."]), res.kept.length===1 ? "worried" : "think");
-  else say(pick(["Perfect fit!","Like it was meant to be.","Clean drop."]),"happy");
+  if(res.gold || res.beamed){} else if(res.lost.length) { if(res.kept.length===1 && climb.w===1) say("One stone left. Feeling lucky?","worried"); else chat(pick(["Crumbly!","A little narrower now…","Mind the overhang."]),"think",.25); }
+  else chat(pick(["Perfect fit!","Like it was meant to be.","Clean drop."]),"happy",.2);
   if(res.top){
     await wait(250); $("band10").classList.add("hit"); stoneEls.forEach(s=>s.el.classList.add("glow")); SFX.capstone();
     banner("CAPSTONE!", `×${BANDS[10].mult} → ${res.paid} gold bars`, "var(--cap)"); countTo($("credits"), credits-res.paid, credits, 1600);
@@ -573,7 +575,7 @@ async function collectStones(){ setBeam(false);
     return s.el.animate([{transform:"none",opacity:1},{transform:`translate(${dx*.25}px,${dy*.25-30}px) scale(.8)`,opacity:1,offset:.35},{transform:`translate(${dx}px,${dy}px) scale(.25)`,opacity:.3}],{duration:620,easing:"cubic-bezier(.5,0,.4,1)",fill:"forwards"}).finished; })));
   clearStones(); document.querySelector(".coins").animate([{transform:"scale(1)"},{transform:"scale(1.12)"},{transform:"scale(1)"}],{duration:300});
 }
-function doClimb(){ if(busy) return; keepClimbing(); SFX.climb(); say(pick(["Bold! I like bold.","No turning back now.","Higher!"]),"cheer"); setControls("drop"); showLane(); }
+function doClimb(){ if(busy) return; keepClimbing(); SFX.climb(); chat(pick(["Bold! I like bold.","No turning back now.","Higher!"]),"cheer",.5); setControls("drop"); showLane(); }
 
 // ---- sound effects (shared synth engine) ----
 const SFX = {
@@ -642,7 +644,7 @@ document.addEventListener("pointerdown",()=>Sound.unlock(),{once:true});
 addEventListener("resize",layout);
 Mascot.init(); setControls("play"); paintSound(); paint(); requestAnimationFrame(layout);
 // idle chatter when nothing's happening
-setInterval(()=>{ if(busy || document.hidden || Date.now()-lastAct<14000) return; lastAct=Date.now();
+setInterval(()=>{ if(busy || document.hidden || Date.now()-lastAct<25000 || Date.now()-(say.last||0)<25000) return; lastAct=Date.now();
   if(climb && climb.offer) say(pick(["No rush… but the gold won't wait forever.","Cash or climb? Choose, human."]),"think");
   else if(climb) say(pick(["Another drop?","Go on. Stack it.","Skim one. I won't tell. Much."]),"wink");
   else say(pick(["Step right up! Build me a pyramid.","Bigger bet, bigger stones.","The house always wi— I mean, good luck!"]),"wave"); }, 4000);
