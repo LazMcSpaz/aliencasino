@@ -1,7 +1,7 @@
 // Gravity Well: all game maths. No drawing, no timers, so Node simulations (tools/sim.js) can run it directly.
 // A comet spirals down a three-tier bowl into a black hole. Where it crosses the bottom edge of each tier decides that tier's result.
-// Angles are in turns (0..1), clockwise from the top. The bowl is split into 4 quadrants; each quadrant starts with a thin VOID
-// sliver (the house edge, like roulette's green zero) and the rest is shared equally by that tier's sections.
+// Angles are in turns (0..1), clockwise from the top. The bowl is split into 4 quadrants; a thin VOID sliver (the house edge, like
+// roulette's green zero) sits centred on each quadrant boundary, and the rest is shared equally by that tier's sections.
 // Every tier pays back 1 − VOID (94%). PATH BONUS (automatic, no extra stake): if the comet passes through one of your bets on all
 // three tiers, your smallest winning chip is multiplied by the path bonus. The bonus is PATH_K ÷ (chance of hitting a covered path),
 // so covering fewer sections means a bigger bonus, and covering everything can't farm it: it adds at most PATH_K/3 to payback.
@@ -17,6 +17,7 @@ const VOID_PAY = { 1: 4, 2: 25, 3: 250 };
 const COLOR_PAY = 73;                             // colour bet: the comet stays in that colour's quadrant on all three tiers          // void side bet: how many tiers the comet crossed in a void
 const CHIPS = [1, 5, 25, 100];
 const START = 500;
+const VOID_SHIFT = VOID / 8;                       // half a sliver: centres each void on its quadrant boundary (the screen relies on this)
 const FORCE = { angles: null };                    // debug: force the next spin's crossing angles
 
 let credits = START;
@@ -26,15 +27,15 @@ let lastBets = null;
 
 // which section an angle falls in on tier t (−1 = void sliver)
 function sectionAt(t, a) {
-  a = ((a % 1) + 1) % 1; const q = Math.floor(a * 4), f = a * 4 - q;
+  a = (((a + VOID_SHIFT) % 1) + 1) % 1; const q = Math.floor(a * 4), f = a * 4 - q;
   if (f < VOID) return -1;
   const per = TIERS[t].n / 4; return q * per + Math.min(per - 1, Math.floor((f - VOID) / (1 - VOID) * per));
 }
 // the angular span [from, to] of a section (or of quadrant q's void sliver if i = −1)
 function sectionSpan(t, i, q = 0) {
-  if (i < 0) return [q / 4, (q + VOID) / 4];
+  if (i < 0) return [q / 4 - VOID_SHIFT, (q + VOID) / 4 - VOID_SHIFT];
   const per = TIERS[t].n / 4, qq = Math.floor(i / per), k = i % per, w = (1 - VOID) / per;
-  return [(qq + VOID + k * w) / 4, (qq + VOID + (k + 1) * w) / 4];
+  return [(qq + VOID + k * w) / 4 - VOID_SHIFT, (qq + VOID + (k + 1) * w) / 4 - VOID_SHIFT];
 }
 const quadrantOf = (t, i) => Math.floor(i / (TIERS[t].n / 4));     // sections share their quadrant's colour
 

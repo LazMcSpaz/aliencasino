@@ -45,6 +45,7 @@ body{margin:0;background:radial-gradient(90% 55% at 50% 45%,#2a1658 0%,var(--voi
 .cell.voidc{min-width:58px}
 .stage{position:relative;min-height:0;display:grid;place-items:center}
 canvas{display:block;touch-action:manipulation}
+#fx{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:4}
 .say{position:absolute;left:50%;top:6px;transform:translateX(-50%);max-width:92%;text-align:center;font:600 .82rem var(--f-tech);color:#e3dbff;pointer-events:none;text-shadow:0 1px 3px #000}
 .pop{position:absolute;pointer-events:none;font:700 1.15rem var(--f-tech);color:#fff2b0;text-shadow:0 0 8px #ffb84a,0 1px 2px #000;transform:translate(-50%,-50%);z-index:5}
 .banner{position:absolute;left:50%;top:44%;z-index:9;transform:translate(-50%,-50%) scale(.7);opacity:0;pointer-events:none;transition:transform .32s cubic-bezier(.3,1.6,.5,1),opacity .22s;
@@ -98,6 +99,7 @@ canvas{display:block;touch-action:manipulation}
     <div class="cell chrome voidc" id="c3"><span>VOIDS</span><b></b></div>
   </div>
   <section class="stage" id="stage">
+    <canvas id="fx" aria-hidden="true"></canvas>
     <canvas id="bowl" aria-label="The gravity well: tap a section to bet on it, tap the black hole to bet on the void"></canvas>
     <p class="say" id="say" aria-live="polite">Tap the bowl to place chips.</p>
     <div class="banner chrome" id="banner"><strong id="bannerBig"></strong><em id="bannerSmall"></em></div>
@@ -140,14 +142,16 @@ document.documentElement.style.setProperty("--bar", `url(${ART.bar})`);
 const QCOL = ["#ff4d6d","#4fd8ff","#ffc845","#7dff7a"];
 
 // ---- bowl geometry: outer rim → three tiers → black hole. Radii as a share of the canvas half-size ----
-const cv=$("bowl"), g=cv.getContext("2d");
+const cv=$("bowl"); let g=cv.getContext("2d"); const fxc=$("fx"), fxg=fxc.getContext("2d"); let FXO=[0,0], FXS=[0,0];   // fx layer: the arm, over the whole play area
 let S=300, CX=150, CY=150, R=[0,0,0,0], RB=[0,0];          // R[0] rim edge, R[1..3] the bottom edge of tiers 1..3 (R[3] = hole edge)
 const RK=[.86,.67,.49,.32], BAND=[.99,.875];        // tiers, and the outer colour-bet band (outer, inner)
 const LAUNCH_A=.125;                                  // where the arm fires the comet in (turns, clockwise from the top)
 function layout(){
   const st=$("stage").getBoundingClientRect(); S=Math.floor(Math.min(st.width, st.height, 460));
   const dpr=Math.min(3,devicePixelRatio||1); cv.width=S*dpr; cv.height=S*dpr; cv.style.width=cv.style.height=S+"px"; g.setTransform(dpr,0,0,dpr,0,0);
-  CX=CY=S/2; R=RK.map(k=>k*S/2); RB=BAND.map(k=>k*S/2); draw();
+  CX=CY=S/2; R=RK.map(k=>k*S/2); RB=BAND.map(k=>k*S/2);
+  const cb=cv.getBoundingClientRect(); FXO=[cb.left-st.left, cb.top-st.top]; FXS=[st.width, st.height];
+  fxc.width=st.width*dpr; fxc.height=st.height*dpr; fxg.setTransform(dpr,0,0,dpr,0,0); draw();
 }
 const P = (r,a) => [CX + r*Math.sin(a*Math.PI*2), CY - r*Math.cos(a*Math.PI*2)];   // angle in turns, clockwise from the top
 function arcBand(r0,r1,a0,a1){ const A0=(a0-.25)*Math.PI*2, A1=(a1-.25)*Math.PI*2; g.beginPath(); g.arc(CX,CY,r0,A0,A1); g.arc(CX,CY,r1,A1,A0,true); g.closePath(); }
@@ -155,7 +159,7 @@ const shade = (hex,k) => { const n=parseInt(hex.slice(1),16), f=c=>Math.max(0,Ma
 
 // ---- what's on screen right now ----
 let spinning=false, shown=[null,null,null], ball=null, trail=[], pulse=[], ghosts=[], chip=5, t0=performance.now(), colorHit=-1;
-let arm={ext:0, glow:0};                              // the launcher arm: 0 = out of frame, 1 = nozzle over the rim
+let arm={ext:0, glow:0, spin:0};                              // the launcher arm: 0 = out of frame, 1 = nozzle over the rim
 function draw(){
   if(!R[0]) return;                                    // not laid out yet
   const now=performance.now()/1000; g.clearRect(0,0,S,S);
@@ -163,13 +167,11 @@ function draw(){
   const lip=g.createRadialGradient(CX,CY,R[0]*.9,CX,CY,S/2); lip.addColorStop(0,"#2a2350"); lip.addColorStop(1,"#0c0a1c");
   g.fillStyle=lip; g.beginPath(); g.arc(CX,CY,S/2-1,0,7); g.fill();
   // colour bets: one arc per quadrant around the outside — "the comet stays in this colour on every tier"
-  for(let q=0;q<4;q++){ const a0=q/4+.006, a1=(q+1)/4-.006, col=QCOL[q], won=colorHit===q;
+  for(let q=0;q<4;q++){ const a0=q/4+VOID_SHIFT, a1=(q+1)/4-VOID_SHIFT, col=QCOL[q], won=colorHit===q;   // gaps line up with the void slivers
     const gb=g.createRadialGradient(CX,CY,RB[1],CX,CY,RB[0]); gb.addColorStop(0,shade(col,.22)); gb.addColorStop(1,shade(col,.42));
     g.fillStyle=won?`rgba(255,255,255,${.5+.3*Math.sin(now*8)})`:gb; arcBand(RB[0],RB[1],a0,a1); g.fill();
     g.save(); g.strokeStyle=col; g.lineWidth=1.5; g.shadowColor=col; g.shadowBlur=6; arcBand(RB[0]-.5,RB[1]+.5,a0,a1); g.stroke(); g.restore();
-    const am=(q+.5)/4, [lx,ly]=P((RB[0]+RB[1])/2,am); g.save(); g.translate(lx,ly); g.rotate(am*Math.PI*2+(q===1||q===2?Math.PI:0));
-    g.fillStyle=col; g.font=`700 ${Math.max(8,S*.026)}px "Chakra Petch",system-ui`; g.textAlign="center"; g.textBaseline="middle";
-    g.fillText(`ALL ${TIERS[0].label(q)} ×${COLOR_PAY}`,0,.5); g.restore(); }
+    arcText(`ALL ${TIERS[0].label(q)} ×${COLOR_PAY}`, (RB[0]+RB[1])/2, (q+.5)/4 - .022, q===1||q===2, won?"#1a1030":shade(col,1.15), (RB[0]-RB[1])*.68); }
   for(let t=0;t<3;t++){ const r0=R[t], r1=R[t+1], T=TIERS[t], depth=1-t*.16;
     for(let i=0;i<T.n;i++){ const [a0,a1]=sectionSpan(t,i), q=quadrantOf(t,i), base=QCOL[q], alt=(i%2)?.62:.82;
       const gr=g.createRadialGradient(CX,CY,r1,CX,CY,r0); gr.addColorStop(0,shade(base,alt*.45*depth)); gr.addColorStop(1,shade(base,alt*depth));
@@ -200,7 +202,7 @@ function draw(){
   if(!bets.voidBet && !spinning){ g.fillStyle="#9a92c7"; g.font=`600 ${Math.max(9,S*.03)}px "Chakra Petch",system-ui`; g.textAlign="center"; g.textBaseline="middle"; g.fillText("VOID BET",CX,CY); }
   // chips on the table
   for(let t=0;t<3;t++) for(const [i,v] of Object.entries(bets.tiers[t])){ const [a0,a1]=sectionSpan(t,+i); drawChip(...P((R[t]+R[t+1])/2+(t===0?S*.03:0),(a0+a1)/2), v, t===2?.78:1); }
-  for(const [q,v] of Object.entries(bets.colors)) drawChip(...P((RB[0]+RB[1])/2,(+q+.5)/4+.085), v, .8);
+  for(const [q,v] of Object.entries(bets.colors)) drawChip(...P((RB[0]+RB[1])/2,(+q+.5)/4+.1), v, .8);
   if(bets.voidBet) drawChip(CX,CY,bets.voidBet,1.1,"#b45cff");
   // ghosts: a faint comet left where the ball crossed each tier's edge
   for(const gh of ghosts){ const [x,y]=P(gh.r,gh.a), k=.7+.15*Math.sin(now*3+gh.r);
@@ -208,7 +210,8 @@ function draw(){
     g.fillStyle=gg; g.beginPath(); g.arc(x,y,S*.045,0,7); g.fill();
     g.strokeStyle=`rgba(${gh.c},${k})`; g.lineWidth=2; g.setLineDash([3,3]); g.beginPath(); g.arc(x,y,S*.03,0,7); g.stroke(); g.setLineDash([]); }
   if(ghosts.length>1){ g.save(); g.strokeStyle="#ffffff40"; g.lineWidth=1; g.setLineDash([3,4]); g.beginPath(); ghosts.forEach((gh,i)=>{ const [x,y]=P(gh.r,gh.a); i?g.lineTo(x,y):g.moveTo(x,y); }); g.stroke(); g.restore(); }
-  if(arm.ext>0) drawArm(now);
+  fxg.clearRect(0,0,FXS[0],FXS[1]);
+  if(arm.ext>0){ const g0=g; g=fxg; g.save(); g.translate(FXO[0],FXO[1]); drawArm(now); g.restore(); g=g0; }   // drawn in bowl coordinates on the fx layer
   // the comet and its trail
   if(ball){ for(let i=0;i<trail.length;i++){ const [x,y]=trail[i], k=i/trail.length; g.fillStyle=`rgba(190,240,255,${k*.5})`; g.beginPath(); g.arc(x,y,1+k*S*.012,0,7); g.fill(); }
     if(ball.visible){ const [x,y]=ball.pos; const cg=g.createRadialGradient(x,y,0,x,y,S*.03); cg.addColorStop(0,"#fff"); cg.addColorStop(.35,"#bdf4ff"); cg.addColorStop(1,"#4fd8ff00");
@@ -216,24 +219,53 @@ function draw(){
   // ring pulses when a tier is decided
   pulse=pulse.filter(p=>{ const k=(now-p.t)/.7; if(k>1) return false; g.strokeStyle=`rgba(${p.c},${1-k})`; g.lineWidth=3*(1-k)+1; g.beginPath(); g.arc(CX,CY,p.r+k*8,0,7); g.stroke(); return true; });
 }
-// ---- the launcher arm (stand-in drawn in code until the sprite arrives): swings in from the top-right corner, nozzle over the rim ----
-function armTip(){ const [tx,ty]=P(R[0]*.93,LAUNCH_A), bx=S*1.02, by=-S*.02, k=arm.ext; const e=1-Math.pow(1-k,3);
-  return [bx+(tx-bx)*e, by+(ty-by)*e, bx, by]; }
-function drawArm(now){ const [tx,ty,bx,by]=armTip(), L=Math.hypot(tx-bx,ty-by), L1=S*.3, L2=S*.27;
-  // simple two-joint reach: the elbow sits off the straight line by however much the arm is folded
-  const d=Math.min(L,L1+L2-1), ang=Math.atan2(ty-by,tx-bx), cosA=(L1*L1+d*d-L2*L2)/(2*L1*d), elA=ang-Math.acos(Math.max(-1,Math.min(1,cosA)));
-  const ex=bx+Math.cos(elA)*L1, ey=by+Math.sin(elA)*L1;
+// ---- the launcher: a two-wheel pitching machine (sprite) hung from a robot arm that swings in from the top-right corner ----
+// The comet shoots out of the bottom of the sprite's channel, heading clockwise round the rim. Wheel spots are fractions of the sprite.
+const LAUNCHER = new Image(); LAUNCHER.src = ART.launcher;
+const WHEELS = [[.21,.543,.13],[.79,.543,.13],[.346,.814,.045],[.648,.814,.045]];   // x, y, radius (radius as a share of sprite height)
+const RING = [.5,.052];
+function launchPoint(){ return P(R[0]*.92, LAUNCH_A); }
+function drawArm(now){
+  const k=1-Math.pow(1-arm.ext,3), [lx,ly]=launchPoint(), H=S*.36, W=H*(LAUNCHER.naturalWidth||358)/(LAUNCHER.naturalHeight||420);
+  const rot=LAUNCH_A*Math.PI*2-Math.PI/2;                                  // turns the sprite so its channel points along the rim
+  const cornerX=FXS[0]-FXO[0], cornerY=-FXO[1];                          // the play area's top-right corner, in bowl coordinates
+  const ox=cornerX+S*.25, oy=cornerY-S*.2, ax=ox+(lx-ox)*k, ay=oy+(ly-oy)*k;   // the exit point slides in from off the corner
+  const up=[Math.sin(rot)*H, -Math.cos(rot)*H];                            // from the exit (bottom-centre) back up to the top of the sprite
+  const ringX=ax+up[0]*(1-RING[1]), ringY=ay+up[1]*(1-RING[1]);
+  // the arm: shoulder off-screen at the top-right, elbow, then down to the ring
+  const bx=cornerX+S*.02, by=cornerY-S*.02, L1=S*.3, L2=S*.28, d=Math.min(Math.hypot(ringX-bx,ringY-by),L1+L2-1), ang=Math.atan2(ringY-by,ringX-bx);
+  const elA=ang+Math.acos(Math.max(-1,Math.min(1,(L1*L1+d*d-L2*L2)/(2*L1*d)))), ex=bx+Math.cos(elA)*L1, ey=by+Math.sin(elA)*L1;
   const seg=(x0,y0,x1,y1,w)=>{ g.strokeStyle="#0c0a18"; g.lineWidth=w+4; g.lineCap="round"; g.beginPath(); g.moveTo(x0,y0); g.lineTo(x1,y1); g.stroke();
-    const gr=g.createLinearGradient(x0,y0-w,x0,y0+w); gr.addColorStop(0,"#d7deea"); gr.addColorStop(.5,"#7d8699"); gr.addColorStop(1,"#3a4052");
+    const gr=g.createLinearGradient(x0-w,y0-w,x0+w,y0+w); gr.addColorStop(0,"#cfd3df"); gr.addColorStop(.5,"#7a7f93"); gr.addColorStop(1,"#3c3f52");
     g.strokeStyle=gr; g.lineWidth=w; g.beginPath(); g.moveTo(x0,y0); g.lineTo(x1,y1); g.stroke(); };
-  g.save(); g.shadowColor="#000a"; g.shadowBlur=10; seg(bx,by,ex,ey,S*.05); seg(ex,ey,tx,ty,S*.04); g.restore();
-  for(const [x,y,r] of [[ex,ey,S*.032],[bx,by,S*.05]]){ g.fillStyle="#2a2f40"; g.beginPath(); g.arc(x,y,r,0,7); g.fill(); g.strokeStyle="#ffc845"; g.lineWidth=2; g.beginPath(); g.arc(x,y,r*.6,0,7); g.stroke(); }
-  // launcher head pointing along the rim (clockwise), with a glowing barrel
-  const dir=(LAUNCH_A+.25)*Math.PI*2; g.save(); g.translate(tx,ty); g.rotate(dir);
-  g.fillStyle="#3a4052"; g.strokeStyle="#c9d2e0"; g.lineWidth=1.5; g.beginPath(); g.roundRect(-S*.05,-S*.028,S*.085,S*.056,S*.012); g.fill(); g.stroke();
-  const gl=arm.glow; g.fillStyle=`rgba(125,255,240,${.35+.65*gl})`; g.shadowColor="#7dfff0"; g.shadowBlur=8+gl*18; g.beginPath(); g.roundRect(S*.03,-S*.014,S*.03,S*.028,S*.008); g.fill();
+  g.save(); g.shadowColor="#000a"; g.shadowBlur=10; seg(bx,by,ex,ey,S*.045); seg(ex,ey,ringX,ringY,S*.034); g.restore();
+  for(const [x,y,r] of [[ex,ey,S*.03],[bx,by,S*.05]]){ g.fillStyle="#2c2a3c"; g.beginPath(); g.arc(x,y,r,0,7); g.fill(); g.strokeStyle="#9b5cff"; g.lineWidth=2; g.beginPath(); g.arc(x,y,r*.6,0,7); g.stroke(); }
+  // the launcher itself
+  g.save(); g.translate(ax,ay); g.rotate(rot); g.translate(-W/2,-H);
+  g.shadowColor="#000c"; g.shadowBlur=12; if(LAUNCHER.complete) g.drawImage(LAUNCHER,0,0,W,H); g.shadowBlur=0;
+  // spinning wheels: curved motion streaks sweeping round each wheel, faster and brighter as it charges
+  const sp=arm.spin; if(sp>0){ const t=now*(6+sp*22);
+    WHEELS.forEach(([fx,fy,fr],wi)=>{ const cx=fx*W, cy=fy*H, r=fr*H, dirn = wi%2 ? -1 : 1;           // the pair spin opposite ways, like a pitching machine
+      for(let j=0;j<3;j++){ const a0=dirn*t + j*Math.PI*2/3;
+        for(const [rk,lw,al] of [[1.1,3,1],[.8,2.2,.75],[.55,1.6,.5]]){ g.strokeStyle=`rgba(${wi<2?"215,170,255":"240,230,255"},${al*sp})`; g.lineWidth=lw; g.lineCap="round";
+          g.beginPath(); g.arc(cx,cy,r*rk,a0,a0+dirn*(.9+sp*.6),dirn<0); g.stroke(); } }
+      g.fillStyle=`rgba(180,92,255,${.25*sp})`; g.beginPath(); g.arc(cx,cy,r*.45,0,7); g.fill(); }); }
+  // charge glow at the mouth of the channel
+  if(arm.glow>0){ const gl=g.createRadialGradient(W/2,H,0,W/2,H,H*.22); gl.addColorStop(0,`rgba(200,255,250,${arm.glow})`); gl.addColorStop(1,"rgba(125,255,240,0)"); g.fillStyle=gl; g.beginPath(); g.arc(W/2,H,H*.22,0,7); g.fill(); }
   g.restore(); }
 function animate(ms, fn){ return new Promise(done=>{ const t0=performance.now(); const f=now=>{ const k=Math.min(1,(now-t0)/ms); fn(k); draw(); if(k<1) requestAnimationFrame(f); else done(); }; requestAnimationFrame(f); }); }
+// text that follows a circle: each letter placed and turned along the arc. Bottom-half arcs read left-to-right along the underside.
+function arcText(str, r, centre, under, col, size){
+  g.save(); g.font=`400 ${size}px "Bungee",Impact,sans-serif`; g.fillStyle=col; g.textAlign="center"; g.textBaseline="middle";
+  g.shadowColor="#0008"; g.shadowBlur=3;
+  const track=size*.12, widths=[...str].map(ch=>g.measureText(ch).width+track), total=widths.reduce((a,b)=>a+b,0)-track;
+  const rr = under ? r - size*.04 : r + size*.04;
+  let a = centre + (under ? 1 : -1) * total/2/(rr*Math.PI*2);
+  [...str].forEach((ch,i)=>{ const w=widths[i], half=(w-track)/2/(rr*Math.PI*2), step=w/(rr*Math.PI*2);
+    const ac = a + (under ? -half : half), [x,y]=P(rr,ac);
+    g.save(); g.translate(x,y); g.rotate(ac*Math.PI*2 + (under?Math.PI:0)); g.fillText(ch,0,0); g.restore();
+    a += under ? -step : step; });
+  g.restore(); }
 function drawChip(x,y,v,k=1,col){ const r=S*.034*k; col=col||(v>=100?"#1d1b2a":v>=25?"#2fae5f":v>=5?"#ff4d6d":"#4fd8ff");
   g.save(); g.shadowColor="#000a"; g.shadowBlur=4; g.shadowOffsetY=2; g.fillStyle=col; g.beginPath(); g.arc(x,y,r,0,7); g.fill(); g.restore();
   g.strokeStyle="#fff"; g.lineWidth=1.5; g.setLineDash([3,3]); g.beginPath(); g.arc(x,y,r*.78,0,7); g.stroke(); g.setLineDash([]);
@@ -273,7 +305,7 @@ function countTo(el,from,to,ms=600){ const t0=performance.now(); const f=n=>{ co
 // ---- the spin: the comet's path is built so it crosses each tier's edge exactly at the angle the engine chose ----
 // θ (turns, unwrapped) and r follow smooth curves through keyframes; between crossings the comet makes whole laps plus the gap.
 function buildFlight(angles){
-  const KT=[0, 4.8, 7.5, 9.6, 10.25], KR=[R[0]*.985, R[1], R[2], R[3], 0], KV=[1.6, 1.0, .85, .8, 1.45];   // times (s), radii, angular speed (turns/s)
+  const KT=[0, 4.8, 7.5, 9.6, 10.25], KR=[R[0]*.92, R[1], R[2], R[3], 0], KV=[1.6, 1.0, .85, .8, 1.45];   // times (s), radii, angular speed (turns/s)
   const th=[LAUNCH_A]; for(let i=1;i<KT.length;i++){ const want=(KV[i-1]+KV[i])/2*(KT[i]-KT[i-1]);
     if(i<=3){ const a=angles[i-1]; let k=Math.round(th[i-1]+want-a); th.push(a+k); } else th.push(th[i-1]+want); }
   return { KT, KR, KV, th, cross:angles };
@@ -291,8 +323,8 @@ async function doSpin(){
   for(let k=0;k<4;k++){ const c=$("c"+k); c.classList.remove("hit","void"); c.querySelector("b").textContent=""; }
   $("win").textContent=0; paint(); say(pick(["Into the well…","Round and round…","Gravity always wins. Mostly.","Here it goes!"]));
   Music.spin(true); SFX.armIn();
-  await animate(1000, k=>{ arm.ext=k; });                                   // the arm swings into frame
-  SFX.charge(); await animate(450, k=>{ arm.glow=k; });                     // the barrel charges up
+  await animate(1000, k=>{ arm.ext=k; arm.spin=k*.35; });                  // the arm swings into frame, wheels starting to turn
+  SFX.charge(); await animate(500, k=>{ arm.glow=k; arm.spin=.35+k*.65; });  // the wheels spin up to full speed
   SFX.launch(); arm.glow=0;
   const F=buildFlight(res.angles); ball={visible:true, pos:[0,0], cross:F.th.slice(1,4)};
   let won=0, nextTier=0, lastSec=null; const start=performance.now();
@@ -302,7 +334,7 @@ async function doSpin(){
       const tier=r>R[1]?0:r>R[2]?1:r>R[3]?2:-1; if(tier>=0){ const sec=tier+":"+sectionAt(tier,a); if(sec!==lastSec){ lastSec=sec; SFX.tick(tier); } }
       while(nextTier<3 && t>=F.KT[nextTier+1]){ reveal(nextTier, res, F); won+=res.tierWins[nextTier]; nextTier++; }
       if(t>=F.KT[4]-.05) ball.visible=false;
-      arm.ext = Math.max(0, 1 - t/0.8);                                       // the arm pulls back out of frame as the comet flies
+      arm.ext = t<.35 ? 1 : Math.max(0, 1 - (t-.35)/0.8); arm.spin = Math.max(0, 1 - t/1.1);   // wheels wind down as the arm pulls back out
       draw(); if(t<F.KT[4]+.35) requestAnimationFrame(frame); else done(); };
     requestAnimationFrame(frame); });
   SFX.swallow(); trail=[]; Music.spin(false);
@@ -380,4 +412,5 @@ document.addEventListener("pointerdown",()=>Sound.unlock(),{once:true});
 addEventListener("resize",layout);
 (function idle(){ if(!spinning) draw(); requestAnimationFrame(idle); })();
 paint(); requestAnimationFrame(layout);
+document.fonts && document.fonts.load('20px "Bungee"').then(()=>draw()).catch(()=>{});
 </script>

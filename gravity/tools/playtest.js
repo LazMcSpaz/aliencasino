@@ -11,7 +11,7 @@ const fonts=ff("Bungee","bungee/files/bungee-latin-400-normal.woff2")+ff("Monoto
  await tap(0,.13); await tap(0,.13); await tap(1,.40); await tap(2,.77); await tap(-1,0); await tap(9,.13);
  const before=await p.evaluate(()=>({credits, bet:totalBet(), bonus:pathBonus(), label:document.getElementById('path').textContent, tiers:JSON.stringify(bets.tiers), colors:JSON.stringify(bets.colors), voidBet:bets.voidBet}));
  await p.waitForTimeout(300); await p.screenshot({path:OUT+'/g1_bets.png'});
- await p.click('#go'); await p.waitForTimeout(1250); await p.screenshot({path:OUT+'/g1b_arm.png'}); await p.waitForTimeout(6500); await p.screenshot({path:OUT+'/g2_mid.png'});
+ await p.click('#go'); await p.waitForTimeout(1250); await p.screenshot({path:OUT+'/g1b_arm.png'}); await p.waitForTimeout(600); await p.screenshot({path:OUT+'/g1c_fire.png'}); await p.waitForTimeout(5900); await p.screenshot({path:OUT+'/g2_mid.png'});
  await p.waitForFunction(()=>!spinning,null,{timeout:20000}); await p.waitForTimeout(400); await p.screenshot({path:OUT+'/g3_done.png'});
  const after=await p.evaluate(()=>({credits, strip:[0,1,2,3].map(k=>document.querySelector('#c'+k+' b').textContent)}));
  // path jackpot through the debug force
