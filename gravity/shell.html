@@ -47,7 +47,10 @@ body{margin:0;background:radial-gradient(90% 55% at 50% 45%,#2a1658 0%,var(--voi
 .app.frenzy .stage::before{content:"";position:absolute;inset:-4%;border-radius:50%;pointer-events:none;background:radial-gradient(closest-side,#ff5fae33,transparent 72%);animation:frz .5s ease-in-out infinite alternate}
 @keyframes frz{to{opacity:.35}}
 canvas{display:block;touch-action:manipulation}
-#fx{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:4}
+#fx{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:4;
+  /* arms fade out toward the play area's edges, so their cut ends are never seen */
+  -webkit-mask-image:linear-gradient(to right,transparent 0,#000 34px,#000 calc(100% - 34px),transparent 100%),linear-gradient(to bottom,transparent 0,#000 40px,#000 calc(100% - 40px),transparent 100%);
+  -webkit-mask-composite:source-in;mask-image:linear-gradient(to right,transparent 0,#000 34px,#000 calc(100% - 34px),transparent 100%),linear-gradient(to bottom,transparent 0,#000 40px,#000 calc(100% - 40px),transparent 100%);mask-composite:intersect}
 .say{position:absolute;left:50%;top:6px;transform:translateX(-50%);max-width:92%;text-align:center;font:600 .82rem var(--f-tech);color:#e3dbff;pointer-events:none;text-shadow:0 1px 3px #000}
 .pop{position:absolute;pointer-events:none;font:700 1.15rem var(--f-tech);color:#fff2b0;text-shadow:0 0 8px #ffb84a,0 1px 2px #000;transform:translate(-50%,-50%);z-index:5}
 .banner{position:absolute;left:50%;top:44%;z-index:9;transform:translate(-50%,-50%) scale(.7);opacity:0;pointer-events:none;transition:transform .32s cubic-bezier(.3,1.6,.5,1),opacity .22s;
@@ -314,8 +317,10 @@ const Others = (()=>{
     visits=visits.filter(v=>{ const s=(T-v.t0)/1000, w=v.w, [IN,HOLD,OUT]=v.pace; if(s>IN+HOLD+OUT) return false;
       if(!v.dropped && s>=IN+HOLD*.5){ v.dropped=true; if(!spinning){ chips.push({ w, ...v.spot, x:v.x, y:v.y, res:null }); SFX.chip(); } }
       const e = s<IN ? 1-Math.pow(1-s/IN,3) : s<IN+HOLD ? 1 : 1-Math.pow((s-IN-HOLD)/OUT,2);
-      const L=Math.max(S*.68, toEdge(v.x,v.y,v.d)+S*.12), back=L*1.15*(1-e), tx=v.x+v.d[0]*back, ty=v.y+v.d[1]*back;
-      const im=w.im, H=420, W=H*(im.naturalWidth||100)/(im.naturalHeight||420), k=L/(H*Math.abs(w.base[1]-w.tip[1])*1.02);
+      const im=w.im, H=420, W=H*(im.naturalWidth||100)/(im.naturalHeight||420), span=H*Math.abs(w.base[1]-w.tip[1]);
+      // long enough that the cut end, sideways width included, is always beyond the play area's edge (where the fade hides it)
+      const reach=toEdge(v.x,v.y,v.d), endW=W*.75/span;                          // cut-end width per unit of arm length
+      const L=Math.max(S*.68, (reach+S*.08)/(1-endW*.6)), back=L*1.15*(1-e), tx=v.x+v.d[0]*back, ty=v.y+v.d[1]*back, k=L/span;
       const vx=(w.base[0]-w.tip[0])*W, vy=(w.base[1]-w.tip[1])*H, rot=Math.atan2(v.d[1],v.d[0])-Math.atan2(vy,vx);
       if(w.holds && !v.dropped) drawChip(tx,ty,v.spot.amt,.74,w.chips);           // the chip under the curl / between the fingers (drawn first, so the arm covers it)
       g.save(); g.translate(tx,ty); g.rotate(rot); g.scale(k,k); g.shadowColor="#000b"; g.shadowBlur=14/k; g.shadowOffsetY=6/k;
