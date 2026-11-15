@@ -1,4 +1,5 @@
 # Cuts the mascot heads and bodies out of art/mascot/sheet.png and records each piece's neck anchor. Run from pyramid/: python3 tools/cutmascot.py
+# Then run tools/fixanchors.py to correct the neck points.
 import numpy as np
 from PIL import Image
 from scipy import ndimage as nd
