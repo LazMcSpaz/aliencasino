@@ -1,8 +1,8 @@
 // Renders one machine's music with only one instrument playing at a time, to hunt clicks. Usage (from slot/): node tools/renderparts.js mob base
 const { chromium } = require('playwright'); const fs=require('fs'); const OUT='/tmp/claude-0/-home-claude/ec4c4efc-38ac-5fe2-a0fc-cbb2a3d619e4/scratchpad/';
-const [mach,kind]=process.argv.slice(2);
+const [mach,kind,list]=process.argv.slice(2);
 (async()=>{ const b=await chromium.launch();
-  for(const only of ["upright","ride","brush","piano","lead","kick","snare","hat","stab","block","bass"]){ const p=await b.newPage();
+  for(const only of (list ? list.split(",") : ["upright","ride","brush","piano","lead","kick","snare","hat","stab","block","bass"])){ const p=await b.newPage();
     await p.addInitScript(()=>{ const SR=44100, LEN=8; let t0=null;
       class F extends OfflineAudioContext{ constructor(){ super(1,SR*LEN,SR); window.__off=this; t0=performance.now(); } get currentTime(){ return (performance.now()-t0)/1000; } get state(){ return "running"; } resume(){ return Promise.resolve(); } }
       window.AudioContext=F; window.webkitAudioContext=F; });

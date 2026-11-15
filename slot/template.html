@@ -1530,7 +1530,7 @@ const MI = (()=>{ const T=Sound.tone, N=Sound.note, X=Sound.noise, M={bus:"music
     kick(at,v){ T(170,.17,{...M,at,vol:v*.8,slide:.55,attack:.01,lp:400}); },
     snare(at,v){ X(.14,{...M,at,vol:v,type:"bandpass",freq:1900,q:.6}); T(190,.07,{...M,at,vol:v*.5,type:"triangle"}); },
     clap(at,v){ X(.17,{...M,at,vol:v,type:"bandpass",freq:1400,q:.9,attack:.014}); X(.07,{...M,at:at+.012,vol:v*.45,type:"bandpass",freq:2300,q:.8,attack:.012}); },
-    hat(at,v,open){ X(open?.2:.075,{...M,at,vol:v*.8,type:"highpass",freq:6500,q:.5,attack:open?.02:.012}); },
+    hat(at,v,open){ X(open?.2:.09,{...M,at,vol:v*.7,type:"bandpass",freq:5200,q:.6,attack:open?.03:.022}); },   // soft-edged: razor-thin highs tick on phone speakers
     shaker(at,v){ X(.05,{...M,at,vol:v,type:"highpass",freq:6000,attack:.015}); },
     brush(at,v){ X(.18,{...M,at,vol:v*.85,type:"bandpass",freq:2600,q:.5,attack:.04}); },
     ride(at,v){ X(.34,{...M,at,vol:v*.75,type:"bandpass",freq:4600,q:.7,attack:.028}); },   // soft start + no razor-thin top: sharp highs tick on phone speakers
