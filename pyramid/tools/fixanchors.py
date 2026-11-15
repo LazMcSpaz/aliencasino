@@ -7,7 +7,7 @@ Corrects the neck points in art/mascot/anchors.json so any head sits on any body
 from PIL import Image; import numpy as np, json
 from scipy import ndimage as nd
 D="art/mascot/"; M=json.load(open(D+"anchors.json"))
-OVERRIDE={"body_hurt":(60.5,8)}
+OVERRIDE={"body_hurt":(88,26)}   # neck hidden under a tentacle; placed on the torso by eye
 for k in [k for k in M if k.startswith("body_")]:
     im=np.array(Image.open(D+k+".png")).astype(int); r,g,b,a=im[...,0],im[...,1],im[...,2],im[...,3]
     skin=(a>200)&(r>225)&(g>185)&(b>120)&(b<225)&(r-b>25)&(g-b>10)

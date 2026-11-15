@@ -260,7 +260,7 @@ const POSES = {
   present:["excited","present"], wave:["happy","wave"], point:["wink","point"], watch:["neutral","crossed"], beam:["happy","present"],
 };
 const Mascot = (()=>{
-  const NX=120, NY=140, OV=10, K=.44;               // neck point on the 240×330 rig; head chin overlaps the neck by OV
+  const NX=120, NY=140, OV=4, K=.44;                // neck point on the 240×330 rig; head chin overlaps the neck by OV
   let el, rig, head, body, bub, side=1, at={x:0,y:0}, pose="idle", tilt=0, tBack, tBub, beaming=false, perched=false;
   const W=()=>240*K, H=()=>330*K;
   function init(){
