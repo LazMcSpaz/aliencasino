@@ -185,12 +185,12 @@ const ART = {"sandstone": "data:image/webp;base64,UklGRkpJAABXRUJQVlA4WAoAAAAQAA
 // CRACK_RISK to the chance that the next drop — and every drop after — brings the whole tower down. And each skim itself has a
 // SHATTER chance that the crack spreads and the tower falls on the spot (the skimmed gold is still kept).
 const COLS = 5, ROWS = 10;
-const BANDS = { 4:{ mult:1.5, name:"MINOR" }, 7:{ mult:5.5, name:"MAJOR" }, 10:{ mult:40, name:"CAPSTONE" } };
+const BANDS = { 4:{ mult:1.5, name:"MINOR" }, 7:{ mult:5, name:"MAJOR" }, 10:{ mult:30, name:"CAPSTONE" } };
 const BETS = [20, 40, 100, 200, 400];                       // stone values scale with the bet (see UNIT_DIV)
 const STONE_VALUES = [[1, 56], [2, 30], [3, 10], [5, 4]];  // [value in units, how common]
 // Landing odds per row: hit = chance the row lands perfectly on top; otherwise it lands 1, 2, 3… columns off,
 // each extra column `spread` times as likely as the last. Landing a full width off (or more) = collapse.
-const DROP = { hit:r => .32, spread:.66 };   // tuned with tools/tune.js (TARGET=.79): every cash-out strategy pays ~79%
+const DROP = { hit:r => .34, spread:.66 };   // tuned with tools/tune.js (TARGET=.83): every cash-out strategy pays ~83%
 const CRACK_RISK = .04;                                    // added collapse chance per cracked stone, on every drop
 const SHATTER = .04;                                       // chance a skim's crack spreads and the tower falls right then
 const START = 400;
