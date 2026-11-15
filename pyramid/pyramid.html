@@ -494,9 +494,9 @@ const Mascot = (()=>{
     el.dataset.crowded = crowded ? 1 : "";
     moveTo(x,y,snap); }
   // perch on top of a panel (the band choice), presenting it
-  function perch(panel){ if(!el) return; const s=$("stage").getBoundingClientRect(), r=panel.getBoundingClientRect(); perched=true; side=1;
+  function perch(panel){ if(!el || beaming) return; const s=$("stage").getBoundingClientRect(), r=panel.getBoundingClientRect(); perched=true; side=1;
     moveTo(r.left-s.left+30, r.top-s.top-H()+16); }
-  function unperch(){ if(perched){ perched=false; home(); } }
+  function unperch(){ if(perched){ perched=false; if(!beaming) home(); } }
   // beam: hover over the stack's centre; the ray starts at the hands
   function beamTop(cx){ if(!el) return -6; const B=boardBox(); const y=Math.max(-H()*.15, B.y - H()*.62);
     if(beaming) moveTo(B.x+cx, y); return y + H()*.62 - B.y; }
@@ -505,7 +505,7 @@ const Mascot = (()=>{
   function talk(t, p){ if(!el) return; bub.textContent=t; fitBubble(); bub.classList.add("show"); clearTimeout(tBub);
     tBub=setTimeout(()=>bub.classList.remove("show"), 1800 + t.length*45);
     if(p) set(p,{hold:2600, look: beaming?16:0}); }
-  function dim(on){ el?.classList.toggle("dim", on && !!el.dataset.crowded); }
+  function dim(on){ el?.classList.toggle("dim", on && !beaming && !!el.dataset.crowded); }
   return { init, set, talk, home, perch, unperch, beam, beamTop, dim };
 })();
 document.documentElement.style.setProperty("--stone", `url(${ART.sandstone})`);
@@ -538,7 +538,10 @@ function placeBeam(){
   f.style.left = cx+"px"; f.style.top = top+"px";
   f.style.setProperty("--rw", Math.max(90, (climb ? climb.w : COLS)*CW + 30)+"px"); f.style.setProperty("--rh", Math.max(30, rowY(topRow+1) + SH - 20 - top)+"px");
 }
-function setBeam(on){ $("app").classList.toggle("beam", on); Mascot.beam(on); Music.beam(on); if(!on) Music.platform(climb?.w); placeBeam(); }
+async function setBeam(on){
+  if(on){ Mascot.beam(true); placeBeam(); await wait(1050);            // the mascot flies over the stack (1s glide)…
+    $("app").classList.add("beam"); Music.beam(true); return; }       // …then the beam comes on and stays for every beam drop
+  $("app").classList.remove("beam"); Mascot.beam(false); Music.beam(false); Music.platform(climb?.w); placeBeam(); }
 // ---- golden stone fireworks: a flash, light rays behind the stone, a sparkle burst, and a gold glint across the board ----
 function goldBurst(res){
   const f=document.createElement("div"); f.className="goldflash"; $("app").appendChild(f); setTimeout(()=>f.remove(),900);
@@ -733,7 +736,7 @@ async function doDrop(){
   if(res.gold){   // golden stone: big moment, then the mascot's beam locks on
     SFX.gold(); $("app").classList.add("shake"); setTimeout(()=>$("app").classList.remove("shake"),460); goldBurst(res);
     banner("GOLDEN STONE!", `${GOLD.drops} BEAM DROPS · every stone ×${GOLD.mult}`, "var(--gold)"); say("Golden! I'll hold them steady — beam drops can't fail.","excited");
-    await wait(900); setBeam(true); SFX.beam(); await wait(900);
+    await wait(700); await setBeam(true); SFX.beam(); await wait(500);
   } else if(res.beamed){ placeBeam(); if(!res.beamLeft){ setBeam(false); say("Phew, my arms… you're on your own again.","worried"); } }
   if(res.gold || res.beamed){} else if(res.lost.length) say(res.kept.length===1 ? "One stone left. Feeling lucky?" : pick(["Crumbly!","A little narrower now…","Mind the overhang."]), res.kept.length===1 ? "worried" : "think");
   else say(pick(["Perfect fit!","Like it was meant to be.","Clean drop."]),"happy");
