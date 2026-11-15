@@ -29,6 +29,9 @@ model3d/     the walking slot-machine robot
   capture.js       screenshots the real game to make the robot's screen textures
   cap/             those screen textures (top sign, face per mood, reels, controls)
   out/             slot_bot.glb (for Godot) + the five mood face images
+  pyramid_model.js       the Pyramid Scheme robot: beefy cabinet, one continuous curved screen, squat legs, no arms
+  pyramid_viewer.src.html / build_pyramid3d.py → pyramid_bot.html (its 3D viewer)
+  capture_pyramid.js     screenshots the real Pyramid game for its curved screen → cap/pyr_screen.webp
 ```
 
 ## How to rebuild
