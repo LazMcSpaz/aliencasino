@@ -10,15 +10,18 @@
 // ANCHOR: once per climb, between drops, pay ANCHOR_COST × bet (rounded) to set an anchor stone right beside either end of the
 // top row (if there's room). It's worth nothing and doesn't change how many stones drop next — it just gives the next row one more
 // stone of support to land on, so less of it falls off. It can't hold a row up on its own: some of that row must rest on real stone.
+// GOLDEN STONE: now and then a stone in a landing row comes out gold (worth GOLD.value units). It calls the UFO beam:
+// the next GOLD.drops drops land perfectly — nothing crumbles, no collapse (cracks included) — and every stone in them is worth GOLD.mult×.
+const GOLD = { chance:.003, value:8, drops:3, mult:2 };
 const COLS = 5, ROWS = 10;
 const ANCHOR_COST = .2;
-const BANDS = { 4:{ mult:1, name:"MINOR" }, 7:{ mult:3, name:"MAJOR" }, 10:{ mult:33, name:"CAPSTONE" } };
+const BANDS = { 4:{ mult:1, name:"MINOR" }, 7:{ mult:3, name:"MAJOR" }, 10:{ mult:25, name:"CAPSTONE" } };
 const BETS = [20, 40, 100, 200, 400];                       // stone values scale with the bet (see UNIT_DIV)
 const STONE_VALUES = [[1, 56], [2, 30], [3, 10], [5, 4]];  // [value in units, how common]
 // Landing odds per row: hit = chance the row lands perfectly on top; otherwise it lands 1, 2, 3… columns off,
 // each extra column `spread` times as likely as the last. Landing a full width off (or more) = collapse.
-// early rows are gentle (52% perfect at row 2), later rows harder (down to 22%) — tuned with tools/tune.js (TARGET=.84)
-const DROP = { hit:r => Math.max(.22, .52 - .05*(r-2)), spread:.66 };
+// early rows are gentle (52% perfect at row 2), later rows harder (down to 20%) — tuned with tools/tune.js (TARGET=.84), golden stone included
+const DROP = { hit:r => Math.max(.2, .52 - .065*(r-2)), spread:.66 };
 const CRACK_RISK = .04;                                    // added collapse chance per cracked stone, on every drop
 const SHATTER = .04;                                       // chance a skim's crack spreads and the tower falls right then
 const START = 400;
@@ -31,10 +34,10 @@ function startClimb(){
   if(climb || credits < bet) return null;
   credits -= bet;
   const row = [0,1,2,3,4].map(c=>({ col:c, val:rollValue()*unit() }));
-  climb = { row:1, a:0, w:COLS, rows:[row], total:row.reduce((s,x)=>s+x.val,0), bet, skimmed:0, cracks:0, anchorUsed:false, extra:0 };
+  climb = { row:1, a:0, w:COLS, rows:[row], total:row.reduce((s,x)=>s+x.val,0), bet, skimmed:0, cracks:0, anchorUsed:false, extra:0, beam:0 };
   return climb;
 }
-const FORCE = { perfect:false, collapse:false };   // debug only: next drop lands perfectly / collapses
+const FORCE = { perfect:false, collapse:false, gold:false };   // debug only: next drop lands perfectly / collapses
 function pickShift(w, r){   // how many columns off the new row lands (w or more = collapse)
   if(FORCE.collapse){ FORCE.collapse=false; return w; }
   if(FORCE.perfect) return 0;
@@ -45,9 +48,10 @@ function pickShift(w, r){   // how many columns off the new row lands (w or more
 // One drop. Returns what happened so the screen can animate it.
 function drop(){
   if(!climb || climb.offer) return null;
-  if(climb.cracks && Math.random() < crackRisk()){   // the cracks give way under the new row
+  const beaming = climb.beam > 0;                    // UFO beam: perfect landing, no collapse, double-value stones
+  if(!beaming && climb.cracks && Math.random() < crackRisk()){   // the cracks give way under the new row
     const res = { row:climb.row+1, start:climb.a, w:climb.w, kept:[], lost:[], stones:[], collapsed:true, cracked:true, paid:0 }; climb = null; return res; }
-  const r = climb.row + 1, k = pickShift(climb.w, r);
+  const r = climb.row + 1, k = beaming ? 0 : pickShift(climb.w, r);
   // the row always lands at least partly on the board (start between -(w-1) and COLS-1): try the other direction, then clamp
   const okStart = x => x >= -(climb.w-1) && x <= COLS-1;
   let dir = Math.random()<.5 ? -1 : 1; if(!okStart(climb.a + dir*k)) dir = -dir;
@@ -57,8 +61,13 @@ function drop(){
   // the anchor only extends a row: it holds a stone only if the same row also has stones resting on real stone
   const kept = cols.some(onStone) ? cols.filter(c=> onStone(c) || c===climb.anchorCol) : [];
   const lost = cols.filter(c=> !kept.includes(c));
-  const stones = kept.map(c=>({ col:c, val:rollValue()*unit() }));
-  const res = { row:r, start, w:climb.w, kept, lost, stones, collapsed: kept.length===0 };
+  const stones = kept.map(c=>({ col:c, val:rollValue()*unit()*(beaming ? GOLD.mult : 1) }));
+  let gold = false;
+  if(!beaming && stones.length && (FORCE.gold || Math.random() < 1-Math.pow(1-GOLD.chance, stones.length))){   // at most one gold stone per row
+    FORCE.gold = false; const g = stones[Math.floor(Math.random()*stones.length)]; g.gold = true; g.val = GOLD.value*unit(); gold = true; }
+  if(beaming) climb.beam--;
+  if(gold) climb.beam = GOLD.drops;
+  const res = { row:r, start, w:climb.w, kept, lost, stones, collapsed: kept.length===0, gold, beamed:beaming, beamLeft:climb.beam };
   if(res.collapsed){ res.paid = 0; climb = null; return res; }
   climb.rows.push(stones); climb.row = r; climb.a = kept[0]; climb.w = kept.length; climb.anchorCol = null;
   climb.total += stones.reduce((s,x)=>s+x.val,0);
