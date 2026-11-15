@@ -18,5 +18,5 @@ const fonts=ff("Bungee","bungee/files/bungee-latin-400-normal.woff2")+ff("Monoto
  await p.evaluate(()=>{ FORCE.angles=[.13,.13,.13]; });   // red on every tier, through the rim bet; belt/core bets elsewhere
  const c0=await p.evaluate(()=>credits); await p.click('#go'); await p.waitForFunction(()=>!spinning,null,{timeout:20000});
  const jack=await p.evaluate(()=>credits); await p.screenshot({path:OUT+'/g4_jackpot.png'});
- console.log('before',JSON.stringify(before),'\nafter',JSON.stringify(after),'\npath jackpot spin: credits',c0,'→',jack,'(expect: −30 stake, +40 rim, +5×73=365 colour; results', await p.evaluate(()=>[0,1,2].map(t=>sectionAt(t,.13))), ')','\nerrors',errs);
+ console.log('before',JSON.stringify(before),'\nafter',JSON.stringify(after),'\npath jackpot spin: credits',c0,'→',jack,'(expect: −30 stake, +40 rim, +5×87=435 colour; results', await p.evaluate(()=>[0,1,2].map(t=>sectionAt(t,.13))), ')','\nerrors',errs);
  await b.close(); })();

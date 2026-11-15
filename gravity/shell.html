@@ -44,6 +44,8 @@ body{margin:0;background:radial-gradient(90% 55% at 50% 45%,#2a1658 0%,var(--voi
 .cell.hit{--ehi:var(--alien)}.cell.void{--ehi:var(--hole)}
 .cell.voidc{min-width:58px}
 .stage{position:relative;min-height:0;display:grid;place-items:center}
+.app.frenzy .stage::before{content:"";position:absolute;inset:-4%;border-radius:50%;pointer-events:none;background:radial-gradient(closest-side,#ff5fae33,transparent 72%);animation:frz .5s ease-in-out infinite alternate}
+@keyframes frz{to{opacity:.35}}
 canvas{display:block;touch-action:manipulation}
 #fx{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:4}
 .say{position:absolute;left:50%;top:6px;transform:translateX(-50%);max-width:92%;text-align:center;font:600 .82rem var(--f-tech);color:#e3dbff;pointer-events:none;text-shadow:0 1px 3px #000}
@@ -126,10 +128,11 @@ canvas{display:block;touch-action:manipulation}
   <p>Tap a section of the bowl to put a chip on it. Then <b>SPIN</b>: the comet circles the rim and spirals down into the black hole.</p>
   <p>Each time it drops over the bottom edge of a tier, the section it crosses is that tier's result, and bets on it pay straight away. The thin dark slivers are <b>voids</b>: if the comet crosses one, that tier's bets lose.</p>
   <p><b>Path bonus:</b> if the comet passes through one of your bets on <i>every</i> tier, your smallest winning chip is multiplied by the path bonus, on top of your normal wins. The fewer sections you cover, the bigger the bonus (shown next to the chips).</p>
+  <p><b>Frenzy:</b> every so often (about one spin in 18, completely at random) the launcher fires three comets instead of one. Every comet pays on your bets, for the price of one spin.</p>
   <p><b>Colour bets:</b> tap the coloured band around the outside. You win if the comet stays in that colour on all three tiers.</p>
   <p><b>Void bet:</b> tap the black hole to bet that the comet crosses a void.</p>
   <table id="paytable"></table>
-  <div class="dbg"><button class="chrome" id="fpath">Debug: hit my bets on every tier</button><button class="chrome" id="fvoid">Debug: 3 voids</button><button class="chrome" id="close">Close</button></div>
+  <div class="dbg"><button class="chrome" id="fpath">Debug: hit my bets on every tier</button><button class="chrome" id="fvoid">Debug: 3 voids</button><button class="chrome" id="ffrenzy">Debug: frenzy next</button><button class="chrome" id="close">Close</button></div>
 </div></div>
 
 <script>
@@ -159,7 +162,8 @@ function arcBand(r0,r1,a0,a1){ const A0=(a0-.25)*Math.PI*2, A1=(a1-.25)*Math.PI*
 const shade = (hex,k) => { const n=parseInt(hex.slice(1),16), f=c=>Math.max(0,Math.min(255,Math.round(c*k))); return `rgb(${f(n>>16)},${f(n>>8&255)},${f(n&255)})`; };
 
 // ---- what's on screen right now ----
-let spinning=false, shown=[null,null,null], ball=null, trail=[], pulse=[], ghosts=[], chip=5, t0=performance.now(), colorHit=-1;
+let spinning=false, shown=[[],[],[]], voidHit=[[],[],[]], comets=[], pulse=[], ghosts=[], chip=5, t0=performance.now(), colorHit=-1;
+const COMET_COL=[["#bdf4ff","190,240,255"],["#ffb3e6","255,140,215"],["#ffe9a8","255,215,120"]];   // each frenzy comet has its own tint
 let arm={ext:0, glow:0, spin:0};                              // the launcher arm: 0 = out of frame, 1 = nozzle over the rim
 function draw(){
   if(!R[0]) return;                                    // not laid out yet
@@ -187,7 +191,7 @@ function draw(){
     for(let i=0;i<T.n;i++){ const [a0,a1]=sectionSpan(t,i), q=quadrantOf(t,i), base=QCOL[q], alt=(i%2)?.62:.82;
       const gr=g.createRadialGradient(CX,CY,r1,CX,CY,r0); gr.addColorStop(0,shade(base,alt*.45*depth)); gr.addColorStop(1,shade(base,alt*1.0*depth));
       g.fillStyle=gr; arcBand(r0,r1,a0,a1); g.fill();
-      const hit = shown[t]===i;
+      const hit = shown[t].includes(i);
       if(hit){ g.fillStyle=`rgba(255,255,255,${.35+.25*Math.sin(now*8)})`; arcBand(r0,r1,a0,a1); g.fill(); }
       g.strokeStyle="#0a081888"; g.lineWidth=1; arcBand(r0,r1,a0,a1); g.stroke();
       // labels
@@ -195,7 +199,7 @@ function draw(){
       if(t>0){ g.save(); g.translate(lx,ly); g.rotate(am*Math.PI*2); g.fillStyle="#0d0b1ccc"; g.font=`700 ${t===1?Math.max(10,S*.036):Math.max(8,S*.026)}px "Chakra Petch",system-ui`; g.textAlign="center"; g.textBaseline="middle"; g.fillText(T.label(i),0,0); g.restore(); }
     }
     // void slivers: deep violet with a faint glow
-    for(let q=0;q<4;q++){ const [a0,a1]=sectionSpan(t,-1,q), hit=shown[t]===-1 && ball && Math.floor(((ball.cross[t]%1+1)%1)*4)===q;
+    for(let q=0;q<4;q++){ const [a0,a1]=sectionSpan(t,-1,q), hit=voidHit[t].includes(q);
       g.fillStyle=hit?`rgba(200,140,255,${.7+.3*Math.sin(now*10)})`:"#120726"; arcBand(r0,r1,a0,a1); g.fill();
       g.strokeStyle="#7a3fc488"; g.lineWidth=1; arcBand(r0,r1,a0,a1); g.stroke(); }
     // the step down at the top of this tier casts a soft shadow onto it; its lower edge gets a worn highlight
@@ -226,13 +230,15 @@ function draw(){
   for(const gh of ghosts){ const [x,y]=P(gh.r,gh.a), k=.7+.15*Math.sin(now*3+gh.r);
     const gg=g.createRadialGradient(x,y,0,x,y,S*.045); gg.addColorStop(0,`rgba(255,255,255,${k})`); gg.addColorStop(.4,`rgba(${gh.c},${k*.6})`); gg.addColorStop(1,`rgba(${gh.c},0)`);
     g.fillStyle=gg; g.beginPath(); g.arc(x,y,S*.045,0,7); g.fill();
-    g.strokeStyle=`rgba(${gh.c},${k})`; g.lineWidth=2; g.setLineDash([3,3]); g.beginPath(); g.arc(x,y,S*.03,0,7); g.stroke(); g.setLineDash([]); }
-  if(ghosts.length>1){ g.save(); g.strokeStyle="#ffffff40"; g.lineWidth=1; g.setLineDash([3,4]); g.beginPath(); ghosts.forEach((gh,i)=>{ const [x,y]=P(gh.r,gh.a); i?g.lineTo(x,y):g.moveTo(x,y); }); g.stroke(); g.restore(); }
+    g.strokeStyle=`rgba(${gh.ring||gh.c},${k})`; g.lineWidth=2; g.setLineDash([3,3]); g.beginPath(); g.arc(x,y,S*.03,0,7); g.stroke(); g.setLineDash([]); }
+  for(let i=0;i<3;i++){ const gs=ghosts.filter(gh=>gh.ball===i); if(gs.length<2) continue;      // a dotted route per comet
+    g.save(); g.strokeStyle=`rgba(${COMET_COL[i][1]},.35)`; g.lineWidth=1; g.setLineDash([3,4]); g.beginPath(); gs.forEach((gh,k)=>{ const [x,y]=P(gh.r,gh.a); k?g.lineTo(x,y):g.moveTo(x,y); }); g.stroke(); g.restore(); }
   fxg.clearRect(0,0,FXS[0],FXS[1]);
   if(arm.ext>0){ const g0=g; g=fxg; g.save(); g.translate(FXO[0],FXO[1]); drawArm(now); g.restore(); g=g0; }   // drawn in bowl coordinates on the fx layer
   // the comet and its trail
-  if(ball){ for(let i=0;i<trail.length;i++){ const [x,y]=trail[i], k=i/trail.length; g.fillStyle=`rgba(190,240,255,${k*.5})`; g.beginPath(); g.arc(x,y,1+k*S*.012,0,7); g.fill(); }
-    if(ball.visible){ const [x,y]=ball.pos; const cg=g.createRadialGradient(x,y,0,x,y,S*.03); cg.addColorStop(0,"#fff"); cg.addColorStop(.35,"#bdf4ff"); cg.addColorStop(1,"#4fd8ff00");
+  for(const c of comets){ const [hex,rgb]=COMET_COL[c.i];
+    for(let i=0;i<c.trail.length;i++){ const [x,y]=c.trail[i], k=i/c.trail.length; g.fillStyle=`rgba(${rgb},${k*.5})`; g.beginPath(); g.arc(x,y,1+k*S*.012,0,7); g.fill(); }
+    if(c.visible){ const [x,y]=c.pos; const cg=g.createRadialGradient(x,y,0,x,y,S*.03); cg.addColorStop(0,"#fff"); cg.addColorStop(.35,hex); cg.addColorStop(1,`rgba(${rgb},0)`);
       g.fillStyle=cg; g.beginPath(); g.arc(x,y,S*.03,0,7); g.fill(); } }
   // ring pulses when a tier is decided
   pulse=pulse.filter(p=>{ const k=(now-p.t)/.7; if(k>1) return false; g.strokeStyle=`rgba(${p.c},${1-k})`; g.lineWidth=3*(1-k)+1; g.beginPath(); g.arc(CX,CY,p.r+k*8,0,7); g.stroke(); return true; });
@@ -339,42 +345,52 @@ function flightAt(F,t){ const {KT,KR,KV,th}=F; let i=0; while(i<KT.length-2 && t
 
 async function doSpin(){
   if(spinning) return; const res=spin(); if(!res){ broke(); return; }
-  spinning=true; shown=[null,null,null]; trail=[]; ghosts=[]; colorHit=-1;
+  spinning=true; shown=[[],[],[]]; voidHit=[[],[],[]]; comets=[]; ghosts=[]; colorHit=-1;
   for(let k=0;k<4;k++){ const c=$("c"+k); c.classList.remove("hit","void"); c.querySelector("b").textContent=""; }
-  $("win").textContent=0; paint(); say(pick(["Into the well…","Round and round…","Gravity always wins. Mostly.","Here it goes!"]));
-  Music.spin(true); SFX.armIn();
+  $("win").textContent=0; paint();
+  if(res.frenzy){ banner("FRENZY!", `${res.balls.length} comets · every one pays`, "#ff5fae"); SFX.frenzy(); say("FRENZY! Three comets, one bet!"); $("app").classList.add("frenzy"); }
+  else say(pick(["Into the well…","Round and round…","Gravity always wins. Mostly.","Here it goes!"]));
+  Music.spin(true, res.frenzy); SFX.armIn();
   await animate(1000, k=>{ arm.ext=k; arm.spin=k*.35; });                  // the arm swings into frame, wheels starting to turn
   SFX.charge(); await animate(500, k=>{ arm.glow=k; arm.spin=.35+k*.65; });  // the wheels spin up to full speed
-  SFX.launch(); arm.glow=0;
-  const F=buildFlight(res.angles); ball={visible:true, pos:[0,0], cross:F.th.slice(1,4)};
-  let won=0, nextTier=0, lastSec=null; const start=performance.now();
-  await new Promise(done=>{ const frame=now=>{ const t=(now-start)/1000, {a,r}=flightAt(F,Math.min(t,F.KT[4]));
-      ball.pos=P(r,a); trail.push(ball.pos); if(trail.length>22) trail.shift();
-      // ticks as the comet rattles over section dividers
-      const tier=r>R[1]?0:r>R[2]?1:r>R[3]?2:-1; if(tier>=0){ const sec=tier+":"+sectionAt(tier,a); if(sec!==lastSec){ lastSec=sec; SFX.tick(tier); } }
-      while(nextTier<3 && t>=F.KT[nextTier+1]){ reveal(nextTier, res, F); won+=res.tierWins[nextTier]; nextTier++; }
-      if(t>=F.KT[4]-.05) ball.visible=false;
-      arm.ext = t<.35 ? 1 : Math.max(0, 1 - (t-.35)/0.8); arm.spin = Math.max(0, 1 - t/1.1);   // wheels wind down as the arm pulls back out
-      draw(); if(t<F.KT[4]+.35) requestAnimationFrame(frame); else done(); };
+  // each comet is fired GAP seconds after the last, flies its own path and settles on its own
+  const GAP=.8, lastFire=(res.balls.length-1)*GAP;
+  comets=res.balls.map((b,i)=>{ const F=buildFlight(b.angles); return { i, res:b, F, start:i*GAP, fired:false, visible:false, pos:[0,0], trail:[], next:0, lastSec:null, done:false }; });
+  let won=0, voids=0; const start=performance.now();
+  await new Promise(done=>{ const frame=now=>{ const t=(now-start)/1000;
+      for(const c of comets){ const tb=t-c.start; if(tb<0 || c.done) continue;
+        if(!c.fired){ c.fired=true; c.visible=true; SFX.launch(); arm.glow=0; }
+        const {a,r}=flightAt(c.F,Math.min(tb,c.F.KT[4])); c.pos=P(r,a); c.trail.push(c.pos); if(c.trail.length>22) c.trail.shift();
+        const tier=r>R[1]?0:r>R[2]?1:r>R[3]?2:-1; if(tier>=0){ const sec=tier+":"+sectionAt(tier,a); if(sec!==c.lastSec){ c.lastSec=sec; SFX.tick(tier); } }
+        while(c.next<3 && tb>=c.F.KT[c.next+1]){ reveal(c, c.next); won+=c.res.tierWins[c.next]; c.next++; }
+        if(tb>=c.F.KT[4]-.05) c.visible=false;
+        if(tb>=c.F.KT[4]){ c.done=true; c.trail=[]; SFX.swallow(); won+=settleExtras(c); voids+=c.res.voidCount; $("c3").querySelector("b").textContent=voids; if(voids) $("c3").classList.add("void"); } }
+      // the arm holds while it's still firing (re-charging between shots), then pulls back out
+      const sinceLast=t-lastFire, between = t<lastFire ? (t%GAP)/GAP : 1;
+      if(t<lastFire) arm.glow = between>.5 ? (between-.5)*2 : 0;
+      arm.ext = sinceLast<.35 ? 1 : Math.max(0, 1 - (sinceLast-.35)/0.8); arm.spin = t<lastFire ? 1 : Math.max(0, 1 - sinceLast/1.1);
+      draw(); if(!comets.every(c=>c.done) || t<lastFire+comets[0].F.KT[4]+.35) requestAnimationFrame(frame); else done(); };
     requestAnimationFrame(frame); });
-  SFX.swallow(); trail=[]; Music.spin(false);
-  // path and void settle once the comet is swallowed
-  const c3=$("c3"); c3.querySelector("b").textContent=res.voidCount; if(res.voidCount) c3.classList.add("void");
-  if(res.voidWin){ collect(res.voidWin); won+=res.voidWin; popAt(CX,CY,"+"+res.voidWin); SFX.win(1); banner(`VOID ×${VOID_PAY[res.voidCount]}`, `${res.voidCount} void${res.voidCount>1?"s":""} crossed · +${res.voidWin}`, "var(--hole)"); }
-  if(res.colorWin){ collect(res.colorWin); won+=res.colorWin; colorHit=res.colorQ; SFX.jackpot(); const nm=TIERS[0].label(res.colorQ); banner(`ALL ${nm} ×${COLOR_PAY}`, `${nm} on every tier · +${res.colorWin}`, QCOL[res.colorQ]); if(res.pathWin) await wait(1600); }
-  if(res.pathWin){ collect(res.pathWin); won+=res.pathWin; SFX.jackpot(); banner(`PATH BONUS ×${res.pathMult}`, `Through your bets on every tier · +${res.pathWin}`, "var(--gold)"); }
+  Music.spin(false); $("app").classList.remove("frenzy");
   countTo($("win"),0,won,700); countTo($("credits"),credits-res.totalWin,credits,700);
   say(won>res.staked ? pick(["Ooh, nice landing!","The well provides!","Cosmic!"]) : won>0 ? "Some of it came back." : pick(["The well takes all.","Swallowed whole.","Gravity: undefeated."]));
-  await wait(500); ball=null; spinning=false; paint();
+  await wait(500); comets=[]; spinning=false; paint();
 }
-function reveal(t, res, F){
-  const r=res.results[t], T=TIERS[t], c=$("c"+t), b=c.querySelector("b"); shown[t]=r;
-  ghosts.push({r:R[t+1], a:F.th[t+1], c: r<0 ? "180,92,255" : res.tierWins[t] ? "125,255,122" : "190,240,255"});
-  pulse.push({r:R[t+1], t:performance.now()/1000, c: r<0 ? "180,92,255" : "255,255,255"});
-  if(r<0){ b.textContent="VOID"; c.classList.add("void"); SFX.void(); return; }
-  b.textContent=T.label(r); b.style.color=QCOL[quadrantOf(t,r)];
+// once a comet is swallowed: its void, colour and path bets settle (returns what it paid)
+function settleExtras(c){ const r=c.res; let paid=0;
+  if(r.voidWin){ collect(r.voidWin); paid+=r.voidWin; popAt(CX,CY,"+"+r.voidWin); SFX.win(1); banner(`VOID ×${VOID_PAY[r.voidCount]}`, `${r.voidCount} void${r.voidCount>1?"s":""} crossed · +${r.voidWin}`, "var(--hole)"); }
+  if(r.colorWin){ collect(r.colorWin); paid+=r.colorWin; colorHit=r.colorQ; SFX.jackpot(); const nm=TIERS[0].label(r.colorQ); banner(`ALL ${nm} ×${COLOR_PAY}`, `${nm} on every tier · +${r.colorWin}`, QCOL[r.colorQ]); }
+  if(r.pathWin){ collect(r.pathWin); paid+=r.pathWin; SFX.jackpot(); setTimeout(()=>banner(`PATH BONUS ×${r.pathMult}`, `Through your bets on every tier · +${r.pathWin}`, "var(--gold)"), r.colorWin?1500:0); }
+  if(paid) $("credits").textContent=credits;
+  return paid; }
+function reveal(c, t){
+  const res=c.res, r=res.results[t], T=TIERS[t], cell=$("c"+t), b=cell.querySelector("b");
+  ghosts.push({ball:c.i, r:R[t+1], a:c.F.th[t+1], ring:COMET_COL[c.i][1], c: r<0 ? "180,92,255" : res.tierWins[t] ? "125,255,122" : "190,240,255"});
+  pulse.push({r:R[t+1], t:performance.now()/1000, c: r<0 ? "180,92,255" : COMET_COL[c.i][1]});
+  if(r<0){ voidHit[t].push(Math.floor(((c.F.th[t+1]+VOID_SHIFT)%1+1)%1*4)); b.textContent="VOID"; b.style.color=""; cell.classList.add("void"); SFX.void(); return; }
+  shown[t].push(r); b.textContent=T.label(r); b.style.color=QCOL[quadrantOf(t,r)];
   const w=res.tierWins[t]; SFX.reveal(t);
-  if(w){ collect(w); c.classList.add("hit"); const [a0,a1]=sectionSpan(t,r); popAt(...P((R[t]+R[t+1])/2,(a0+a1)/2),"+"+w); SFX.win(t); $("credits").textContent=credits; }
+  if(w){ collect(w); cell.classList.add("hit"); const [a0,a1]=sectionSpan(t,r); popAt(...P((R[t]+R[t+1])/2,(a0+a1)/2),"+"+w); SFX.win(t); $("credits").textContent=credits; }
 }
 $("go").onclick=()=>{ Sound.unlock(); Music.start(); doSpin(); };
 
@@ -384,6 +400,7 @@ const SFX = {
   chip(){ Sound.tone(2200,.03,{type:"triangle",vol:.05}); Sound.tone(1600,.05,{type:"triangle",vol:.04,at:.03}); },
   pick(t){ Sound.tone(Sound.note(12+t*4),.15,{type:"sine",vol:.06}); },
   no(){ Sound.tone(220,.15,{type:"square",vol:.03,lp:900}); },
+  frenzy(){ [0,3,7,10,12,15,19,24].forEach((v,i)=>Sound.tone(Sound.note(v+5),.16,{type:"square",vol:.04,lp:2600,at:i*.05})); Sound.noise(.8,{vol:.06,type:"bandpass",freq:3000,sweep:3,attack:.05}); },
   armIn(){ Sound.tone(140,.9,{type:"sawtooth",vol:.025,slide:1.6,lp:700}); Sound.noise(.9,{vol:.02,type:"bandpass",freq:2400,q:3,attack:.05}); },
   charge(){ Sound.tone(400,.45,{type:"square",vol:.025,slide:3,lp:2600}); },
   launch(){ Sound.noise(.8,{vol:.07,type:"bandpass",freq:900,sweep:2.5,attack:.08}); Sound.tone(300,.6,{type:"sine",vol:.05,slide:1.8}); },
@@ -415,7 +432,7 @@ const Music = (()=>{ let timer=null, step=0, nextT=0, bpm=84, target=84, mode="c
       step++; nextT+=sd; } }
   return {
     start(){ if(!timer){ nextT=(Sound.now()||0)+.1; timer=setInterval(tick,25); } },
-    spin(on){ mode = on ? "spin" : "calm"; target = on ? 128 : 84;
+    spin(on, hot){ mode = on ? "spin" : "calm"; target = on ? (hot ? 142 : 128) : 84;
       if(on && Sound.on && Sound.musicOn) Sound.noise(1.4,{vol:.05,type:"highpass",freq:700,sweep:9,attack:1.2,bus:"music"}); },   // a riser while the arm swings in
   };
 })();
@@ -428,6 +445,7 @@ $("close").addEventListener("click",()=>$("sheet").hidden=true);
 $("sheet").addEventListener("click",e=>{ if(e.target.id==="sheet") $("sheet").hidden=true; });
 $("fpath").addEventListener("click",()=>{ $("sheet").hidden=true; if(!pathBonus()){ say("Bet on all three tiers first."); return; } FORCE.angles=bets.tiers.map((tb,t)=>{ const [a0,a1]=sectionSpan(t,+Object.keys(tb)[0]); return (a0+a1)/2; }); });
 $("fvoid").addEventListener("click",()=>{ FORCE.angles=[.003,.253,.503]; $("sheet").hidden=true; });
+$("ffrenzy").addEventListener("click",()=>{ FORCE.frenzy=true; $("sheet").hidden=true; say("Next spin: FRENZY."); });
 document.addEventListener("pointerdown",()=>Sound.unlock(),{once:true});
 addEventListener("resize",layout);
 (function idle(){ if(!spinning) draw(); requestAnimationFrame(idle); })();

@@ -1,7 +1,7 @@
 // Payback check: runs the real engine for many spins per betting style. Usage (from gravity/): node tools/sim.js
 const fs=require('fs'); const E=new Function(fs.readFileSync(__dirname+'/../part_engine.js','utf8')+`
 function run(N, place){ let paid=0, staked=0, paths=0;
-  for(let i=0;i<N;i++){ credits=1e9; clearBets(); place(); const r=spin(); collect(r.totalWin); paid+=r.totalWin; staked+=r.staked; if(r.pathWin) paths++; }
+  for(let i=0;i<N;i++){ credits=1e9; clearBets(); place(); const r=spin(); collect(r.totalWin); paid+=r.totalWin; staked+=r.staked; if(r.balls.some(b=>b.pathWin)) paths++; }
   return [paid/staked, paths/N, pathBonus()]; }
 return { run, addBet, addVoidBet, addColorBet, pathBonus, clearBets };`)();
 const N=+process.env.N||1500000, R=n=>Math.floor(Math.random()*n);

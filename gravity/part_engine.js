@@ -11,14 +11,15 @@ const TIERS = [
   { n: 12, pay: 12, name: "BELT", label: i => String(i + 1) },
   { n: 24, pay: 24, name: "CORE", label: i => String(i + 1) },
 ];
-const VOID = .06;                                  // share of every tier taken by the four void slivers
-const PATH_K = .09;                                // path bonus strength (see above)
-const VOID_PAY = { 1: 4, 2: 25, 3: 250 };
-const COLOR_PAY = 73;                             // colour bet: the comet stays in that colour's quadrant on all three tiers          // void side bet: how many tiers the comet crossed in a void
+const VOID = .145;                                 // share of every tier taken by the four void slivers (wide enough to pay for frenzy)
+const PATH_K = .06;                                // path bonus strength (see above)
+const VOID_PAY = { 1: 2, 2: 3, 3: 15 };           // void side bet: how many tiers the comet crossed in a void
+const COLOR_PAY = 87;                              // colour bet: the comet stays in that colour's quadrant on all three tiers
 const CHIPS = [1, 5, 25, 100];
 const START = 500;
+const FRENZY_CHANCE = 1 / 18, FRENZY_BALLS = 3;     // about one spin in 18 launches three comets
 const VOID_SHIFT = VOID / 8;                       // half a sliver: centres each void on its quadrant boundary (the screen relies on this)
-const FORCE = { angles: null };                    // debug: force the next spin's crossing angles
+const FORCE = { angles: null, frenzy: false };     // debug: force the next spin's crossing angles / a frenzy
 
 let credits = START;
 // bets: tiers[t] = { sectionIndex: amount }, colors = { quadrant: amount }, voidBet = amount
@@ -62,12 +63,8 @@ function undoBet() { const h = history.pop(); if (!h) return null;
   return h; }
 function rebet() { if (!lastBets || totalBet(lastBets) > credits) return false; bets = JSON.parse(JSON.stringify(lastBets)); return true; }
 
-// one spin: the engine picks the three crossing angles, takes the stake, and works out every payout.
-// Returns { angles, results, tierWins[3] (amount paid per tier), pathWin, voidCount, voidWin, staked, totalWin }
-function spin() {
-  const staked = totalBet(); if (staked <= 0 || staked > credits) return null;
-  credits -= staked; lastBets = JSON.parse(JSON.stringify(bets));
-  const angles = FORCE.angles || [Math.random(), Math.random(), Math.random()]; FORCE.angles = null;
+// settle one comet's flight against the bets on the table
+function settleBall(angles) {
   const results = angles.map((a, t) => sectionAt(t, a));
   const tierWins = results.map((r, t) => r < 0 ? 0 : (bets.tiers[t][r] || 0) * TIERS[t].pay);
   const hits = results.map((r, t) => r < 0 ? 0 : (bets.tiers[t][r] || 0)), mult = pathBonus();
@@ -76,8 +73,22 @@ function spin() {
   const q0 = results[0] < 0 ? -1 : quadrantOf(0, results[0]);
   const colorQ = q0 >= 0 && results.every((r, t) => r >= 0 && quadrantOf(t, r) === q0) ? q0 : -1;
   const colorWin = colorQ >= 0 ? (bets.colors[colorQ] || 0) * COLOR_PAY : 0;
-  const totalWin = tierWins.reduce((a, b) => a + b, 0) + pathWin + voidWin + colorWin;
-  return { angles, results, tierWins, pathWin, pathMult: mult, voidCount, voidWin, colorQ, colorWin, staked, totalWin };
+  const win = tierWins.reduce((a, b) => a + b, 0) + pathWin + voidWin + colorWin;
+  return { angles, results, tierWins, pathWin, pathMult: mult, voidCount, voidWin, colorQ, colorWin, win };
+}
+// one spin: takes the stake once, rolls for FRENZY (FRENZY_BALLS comets instead of one, every one paying), and settles each comet.
+// Frenzy is a flat chance every spin, never a countdown, so there's nothing to count and no "due" moment to bet big on.
+// Returns { frenzy, balls:[settleBall…], staked, totalWin }
+function spin() {
+  const staked = totalBet(); if (staked <= 0 || staked > credits) return null;
+  credits -= staked; lastBets = JSON.parse(JSON.stringify(bets));
+  const frenzy = FORCE.frenzy || Math.random() < FRENZY_CHANCE; FORCE.frenzy = false;
+  const balls = [];
+  for (let i = 0; i < (frenzy ? FRENZY_BALLS : 1); i++) {
+    const angles = (i === 0 && FORCE.angles) || [Math.random(), Math.random(), Math.random()];
+    balls.push(settleBall(angles)); }
+  FORCE.angles = null;
+  return { frenzy, balls, staked, totalWin: balls.reduce((a, b) => a + b.win, 0) };
 }
 // the screen calls this as each part of the result is revealed, so credits rise in step with the comet
 function collect(amount) { credits += amount; }
