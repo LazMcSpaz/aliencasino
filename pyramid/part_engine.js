@@ -1,0 +1,58 @@
+// ---- Pyramid Scheme engine: pure game maths, no drawing. (Shared with tools/sim.js, which runs it in Node.) ----
+// The player pays one bet to climb. Row 1 starts as 5 stones. Each DROP, the UFO lets go of a row as wide as the top of the stack;
+// where it lands is chance. Stones with nothing beneath them crumble away, so the stack can only stay as wide or narrow.
+// Reaching a band offers: cash out (band multiplier × value of every stone stacked) or keep climbing.
+// Keep climbing and collapse = nothing. Reaching the top pays the capstone multiplier automatically.
+const COLS = 5, ROWS = 10;
+const BANDS = { 4:{ mult:1.5, name:"MINOR" }, 7:{ mult:5, name:"MAJOR" }, 10:{ mult:35, name:"CAPSTONE" } };
+const BETS = [20, 40, 100, 200, 400];                       // stone values scale with the bet (see UNIT_DIV)
+const STONE_VALUES = [[1, 56], [2, 30], [3, 10], [5, 4]];  // [value in units, how common]
+// Landing odds per row: hit = chance the row lands perfectly on top; otherwise it lands 1, 2, 3… columns off,
+// each extra column `spread` times as likely as the last. Landing a full width off (or more) = collapse.
+const DROP = { hit:r => Math.max(.2, .37 - .006*r), spread:.66 };   // tuned with tools/tune.js: every cash-out strategy pays ~87%
+const START = 400;
+let credits = START, bet = 20, climb = null;
+
+let UNIT_DIV = 20;                                   // 1 stone-value unit = bet ÷ UNIT_DIV
+const unit = () => bet / UNIT_DIV;
+function rollValue(){ let t = Math.random()*STONE_VALUES.reduce((a,v)=>a+v[1],0); for(const [v,w] of STONE_VALUES){ if((t-=w)<0) return v; } return 1; }
+function startClimb(){
+  if(climb || credits < bet) return null;
+  credits -= bet;
+  const row = [0,1,2,3,4].map(c=>({ col:c, val:rollValue()*unit() }));
+  climb = { row:1, a:0, w:COLS, rows:[row], total:row.reduce((s,x)=>s+x.val,0), bet };
+  return climb;
+}
+const FORCE = { perfect:false, collapse:false };   // debug only: next drop lands perfectly / collapses
+function pickShift(w, r){   // how many columns off the new row lands (w or more = collapse)
+  if(FORCE.collapse){ FORCE.collapse=false; return w; }
+  if(FORCE.perfect) return 0;
+  if(Math.random() < DROP.hit(r)) return 0;
+  let k = 1; while(k < w && Math.random() < DROP.spread) k++;
+  return k;
+}
+// One drop. Returns what happened so the screen can animate it.
+function drop(){
+  if(!climb || climb.offer) return null;
+  const r = climb.row + 1, k = pickShift(climb.w, r), dir = Math.random()<.5 ? -1 : 1;
+  const start = climb.a + dir*k;                                 // where the left edge of the falling row lands
+  const cols = Array.from({length:climb.w}, (_,i)=>start+i);
+  const kept = cols.filter(c=> c>=climb.a && c<climb.a+climb.w && c>=0 && c<COLS);
+  const lost = cols.filter(c=> !kept.includes(c));
+  const stones = kept.map(c=>({ col:c, val:rollValue()*unit() }));
+  const res = { row:r, start, w:climb.w, kept, lost, stones, collapsed: kept.length===0 };
+  if(res.collapsed){ res.paid = 0; climb = null; return res; }
+  climb.rows.push(stones); climb.row = r; climb.a = kept[0]; climb.w = kept.length;
+  climb.total += stones.reduce((s,x)=>s+x.val,0);
+  res.total = climb.total;
+  const band = BANDS[r];
+  if(band){
+    const amount = Math.round(band.mult * climb.total);
+    if(r === ROWS){ credits += amount; res.paid = amount; res.top = true; climb = null; }
+    else { climb.offer = { row:r, mult:band.mult, amount, name:band.name }; res.offer = climb.offer; }
+  }
+  return res;
+}
+function cashOut(){ if(!climb?.offer) return 0; const a = climb.offer.amount; credits += a; climb = null; return a; }
+function keepClimbing(){ if(climb?.offer) climb.offer = null; }
+function bandValue(r){ return climb && BANDS[r] ? Math.round(BANDS[r].mult * climb.total) : 0; }   // what a band would pay right now

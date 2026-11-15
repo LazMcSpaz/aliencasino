@@ -1,0 +1,360 @@
+<!-- Pyramid Scheme: page layout, styles and screen logic. build.py adds the engine, the shared sound engine and the art, and writes pyramid.html.
+     May use: part_engine.js (all game maths), Sound (shared synth). Must not: decide outcomes or change credits itself; the engine does that. -->
+<title>Pyramid Scheme</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Bungee+Shade&family=Chakra+Petch:wght@500;600;700&display=swap">
+<style>
+:root{--sky1:#060313;--sky2:#1d0f3d;--sky3:#5a2a5e;--sand:#d9a35a;--sand2:#8a5a2b;--gold:#ffc845;--alien:#7dff7a;--ink:#f3ecff;--dim:#a99ccc;--panel:#120b24;--edge:#ffffff1f;
+  --f-ui:"Chakra Petch",system-ui,sans-serif;--f-sign:Bungee,Impact,sans-serif;color-scheme:dark}
+html,body{height:100%}
+body{margin:0;background:var(--sky1);color:var(--ink);font:500 14px var(--f-ui);overflow:hidden;-webkit-tap-highlight-color:transparent;user-select:none}
+[hidden]{display:none!important}
+.app{position:relative;height:100dvh;max-width:460px;margin:0 auto;display:grid;grid-template-rows:auto auto 1fr auto;
+  padding:calc(8px + env(safe-area-inset-top,0px)) max(14px,env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) max(14px,env(safe-area-inset-left,0px));box-sizing:border-box;gap:6px}
+/* night desert */
+.sky{position:fixed;inset:0;z-index:-2;background:radial-gradient(120% 70% at 50% 100%,var(--sky3),var(--sky2) 45%,var(--sky1) 80%)}
+.stars{position:fixed;inset:0 0 35% 0;z-index:-2;background-image:radial-gradient(1px 1px at 12% 18%,#fff,transparent),radial-gradient(1px 1px at 33% 8%,#fffa,transparent),radial-gradient(1.5px 1.5px at 58% 22%,#fff,transparent),
+  radial-gradient(1px 1px at 78% 12%,#fffc,transparent),radial-gradient(1px 1px at 88% 30%,#fff8,transparent),radial-gradient(1px 1px at 22% 38%,#fff9,transparent),radial-gradient(1.5px 1.5px at 47% 44%,#fffb,transparent),radial-gradient(1px 1px at 67% 36%,#fff8,transparent),radial-gradient(1px 1px at 6% 52%,#fff7,transparent),radial-gradient(1px 1px at 93% 55%,#fff9,transparent);animation:twinkle 4s ease-in-out infinite alternate}
+@keyframes twinkle{to{opacity:.6}}
+.moon{position:fixed;right:12%;top:9%;z-index:-2;width:54px;height:54px;border-radius:50%;background:radial-gradient(circle at 38% 35%,#fff8e0,#e8d9a8 60%,#b9a06a);box-shadow:0 0 40px 8px #ffe9a833}
+.dunes{position:fixed;left:0;right:0;bottom:0;height:30%;z-index:-1;background:
+  radial-gradient(140% 90% at 20% 100%,#7a4a22 40%,transparent 41%),radial-gradient(120% 80% at 85% 100%,#8f5a2a 42%,transparent 43%),linear-gradient(transparent 30%,#5e381a)}
+.far{position:fixed;left:0;right:0;bottom:24%;height:70px;z-index:-1;opacity:.55;background:
+  conic-gradient(from 135deg at 18% 0%,transparent 0 90deg,#2a1838 90deg 180deg,transparent 0) 0 0/100% 100% no-repeat}
+.far::before,.far::after{content:"";position:absolute;bottom:0;width:0;height:0;border-left:44px solid transparent;border-right:44px solid transparent;border-bottom:52px solid #2b1a3d}
+.far::before{left:8%}.far::after{right:14%;border-left-width:30px;border-right-width:30px;border-bottom-width:36px;border-bottom-color:#25162f}
+/* header */
+.hud{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px}
+.coins{display:flex;align-items:center;gap:7px;justify-self:start;padding:5px 12px 5px 7px;background:#0b0714cc;border:1px solid var(--edge);font:700 16px var(--f-ui);
+  clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px)}
+.coins i{width:24px;height:18px;background:var(--bar) center/contain no-repeat}
+.title{justify-self:center;text-align:center;line-height:.95}
+.title b{display:block;font:400 25px/1 "Bungee Shade",var(--f-sign);color:var(--gold);letter-spacing:.02em;text-shadow:0 0 14px #ff9a2a88}
+.title small{display:block;font:700 10px var(--f-ui);letter-spacing:.42em;color:var(--alien);text-shadow:0 0 8px var(--alien);margin-top:3px}
+.icons{justify-self:end;display:flex;gap:6px}
+.icon{width:36px;height:36px;display:grid;place-items:center;background:#0b0714cc;border:1px solid var(--edge);color:var(--ink);cursor:pointer;padding:0;
+  clip-path:polygon(7px 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%,0 7px)}
+.icon svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+.icon[aria-pressed="false"] .on{display:none}.icon[aria-pressed="true"] .off{display:none}
+.say{min-height:20px;text-align:center;font:600 13px var(--f-ui);color:#e9dcff;text-shadow:0 1px 3px #000}
+/* the tower */
+.stage{position:relative;display:grid;place-items:end center;min-height:0}
+.towerwrap{position:relative;display:grid;grid-template-columns:auto 58px;align-items:end}
+.tower{position:relative}
+.ground{position:absolute;left:-14px;right:-14px;bottom:-10px;height:22px;border-radius:50%;background:radial-gradient(closest-side,#00000088,transparent)}
+.grid{position:absolute;inset:0;pointer-events:none}
+.slot{position:absolute;border:1px dashed #ffffff14;border-radius:6px;box-sizing:border-box}
+.stone{position:absolute;background:var(--stone) center/100% 100% no-repeat;filter:drop-shadow(0 3px 2px #0008)}
+.stone b{position:absolute;left:0;right:0;bottom:22%;text-align:center;font:400 calc(var(--cw) * .27)/1 var(--f-sign);color:#4a2a0e;text-shadow:0 1px 0 #ffd99a88,0 -1px 0 #2a150588}
+.stone.fresh b{animation:reveal .35s cubic-bezier(.3,1.7,.5,1)}
+@keyframes reveal{from{transform:scale(.2);opacity:0}}
+.stone.land{animation:land .28s ease-out}
+@keyframes land{30%{transform:translateY(2px) scaleY(.94)}}
+.stone.glow{filter:drop-shadow(0 0 10px #ffd36b) drop-shadow(0 3px 2px #0008)}
+/* bands */
+.band{position:absolute;left:0;height:2px;pointer-events:none;background:linear-gradient(90deg,transparent,var(--bc) 12%,var(--bc) 88%,transparent);box-shadow:0 0 10px var(--bc);opacity:.8}
+.band.minor{--bc:#7dd3ff}.band.major{--bc:#ff7ad9}.band.cap{--bc:var(--gold)}
+.band.hit{animation:bandHit .9s ease-out 2}
+@keyframes bandHit{50%{opacity:1;box-shadow:0 0 22px 3px var(--bc)}}
+.tag{position:absolute;right:0;width:56px;font-size:8.5px!important;letter-spacing:.04em!important;transform:translateY(-50%);text-align:center;padding:4px 0;background:#0b0714e6;border:1px solid var(--bc);font:700 10px var(--f-ui);letter-spacing:.08em;color:var(--dim);
+  clip-path:polygon(0 50%,8px 0,100% 0,100% 100%,8px 100%);padding-left:6px;box-sizing:border-box}
+.tag strong{display:block;font:400 15px/1.1 var(--f-sign);color:var(--bc);letter-spacing:0}
+.tag em{display:block;font-style:normal;font:700 12px var(--f-ui);color:var(--ink)}
+.tag.minor{--bc:#7dd3ff}.tag.major{--bc:#ff7ad9}.tag.cap{--bc:var(--gold)}
+/* UFO */
+.ufo{position:absolute;z-index:60;pointer-events:none;transform:translateX(-50%)}
+.saucer{position:relative;width:var(--uw);height:26px;margin:0 auto}
+.saucer::before{content:"";position:absolute;left:28%;right:28%;top:-13px;height:22px;border-radius:50% 50% 30% 30%;background:radial-gradient(circle at 40% 35%,#d7fff0,#55e0a6 55%,#1a6b52);box-shadow:0 0 14px #7dff7a88}
+.saucer::after{content:"";position:absolute;inset:4px 0 0;border-radius:50%;background:linear-gradient(#e9eef8,#8c97ad 55%,#4c5468);box-shadow:inset 0 -4px 6px #0006,0 4px 10px #0008}
+.lights{position:absolute;left:10%;right:10%;top:14px;z-index:2;display:flex;justify-content:space-between}
+.lights i{width:5px;height:5px;border-radius:50%;background:#ffd36b;box-shadow:0 0 6px #ffd36b;animation:blink .6s steps(2) infinite}
+.lights i:nth-child(2n){animation-delay:.3s;background:#7dff7a;box-shadow:0 0 6px #7dff7a}
+@keyframes blink{50%{opacity:.25}}
+.beam{position:absolute;left:50%;top:22px;transform:translateX(-50%);width:calc(var(--bw) + 16px);height:var(--bh);opacity:.85;
+  background:linear-gradient(#b9ffcf66,#7dff7a22 70%,transparent);clip-path:polygon(32% 0,68% 0,100% 100%,0 100%);animation:beamFlick .18s steps(2) infinite}
+@keyframes beamFlick{50%{opacity:.65}}
+.ufo.off .beam{display:none}
+.carry{position:absolute;left:50%;transform:translateX(-50%)}
+/* bottom deck */
+.deck{display:grid;gap:8px}
+.readouts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.readout{background:#0b0714d9;border:1px solid var(--edge);padding:6px 10px;clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px)}
+.readout span{display:block;font:700 10px var(--f-ui);letter-spacing:.16em;color:var(--dim);text-transform:uppercase}
+.readout b{font:700 20px var(--f-ui)}
+.betrow{display:flex;align-items:center;justify-content:space-between}
+.betrow button{width:30px;height:30px;font:700 18px var(--f-ui);color:var(--ink);background:#ffffff12;border:1px solid var(--edge);border-radius:6px;cursor:pointer}
+.betrow button:disabled{opacity:.3}
+.actions{display:grid;grid-template-columns:1fr;gap:8px}
+.actions.choice{grid-template-columns:1fr 1fr}
+.btn{height:58px;border:0;cursor:pointer;font:400 19px var(--f-sign);letter-spacing:.04em;color:#1a0f02;background:linear-gradient(#ffe08a,#f2a531);box-shadow:0 0 22px -4px #ffb84aaa;
+  clip-path:polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px);display:grid;place-content:center;line-height:1}
+.btn small{display:block;font:700 11px var(--f-ui);letter-spacing:.1em;margin-top:3px;opacity:.8}
+.btn.alt{background:linear-gradient(#a6ffb0,#2fbf5c);box-shadow:0 0 22px -4px #7dff7aaa}
+.btn:disabled{filter:grayscale(.8) brightness(.6);cursor:default}
+.btn:not(:disabled):active{transform:translateY(2px)}
+/* overlays */
+.banner{position:absolute;left:50%;top:38%;z-index:80;transform:translate(-50%,-50%) scale(.6);opacity:0;pointer-events:none;text-align:center;transition:transform .35s cubic-bezier(.3,1.6,.5,1),opacity .25s}
+.banner.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+.banner strong{display:block;font:400 32px/1 "Bungee Shade",var(--f-sign);color:var(--bc,var(--gold));text-shadow:0 0 22px var(--bc,#ff9a2a)}
+.banner em{display:block;font:700 15px var(--f-ui);font-style:normal;color:#fff;margin-top:6px;text-shadow:0 1px 4px #000}
+.dust{position:absolute;width:6px;height:6px;border-radius:50%;background:#e7b56c;pointer-events:none;z-index:70}
+.app.shake{animation:shake .45s}
+@keyframes shake{20%{transform:translate(-5px,2px)}40%{transform:translate(5px,-2px)}60%{transform:translate(-3px,1px)}80%{transform:translate(2px,0)}}
+.sheet{position:fixed;inset:0;z-index:90;display:grid;place-items:center;background:#000a;padding:16px}
+.card{max-width:360px;background:var(--panel);border:1px solid var(--edge);padding:16px 18px;font:500 14px/1.45 var(--f-ui);clip-path:polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px)}
+.card h2{margin:0 0 8px;font:400 20px var(--f-sign);color:var(--gold)}
+.card table{width:100%;border-collapse:collapse;margin:8px 0}.card td{padding:3px 0;border-bottom:1px solid var(--edge)}.card td:last-child{text-align:right}
+.card .dbg{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.card button{font:600 12px var(--f-ui);color:var(--ink);background:#ffffff12;border:1px solid var(--edge);padding:6px 10px;cursor:pointer}
+@media (prefers-reduced-motion:reduce){.stars,.beam,.lights i{animation:none}}
+</style>
+
+<div class="sky"></div><div class="stars"></div><div class="moon"></div><div class="far"></div><div class="dunes"></div>
+<div class="app" id="app">
+  <header class="hud">
+    <div class="coins"><i aria-hidden="true"></i><span id="credits">400</span></div>
+    <div class="title"><b>PYRAMID</b><small>SCHEME</small></div>
+    <div class="icons">
+      <button class="icon" id="snd" aria-pressed="true" aria-label="Sound"><svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="on" d="M17 9a4 4 0 0 1 0 6"/><path class="off" d="M17 9l4 6M21 9l-4 6"/></svg></button>
+      <button class="icon" id="info" aria-label="How to play"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg></button>
+    </div>
+  </header>
+  <p class="say" id="say" aria-live="polite">The pyramids won't build themselves, human.</p>
+  <section class="stage" id="stage">
+    <div class="towerwrap">
+      <div class="tower" id="tower"><div class="ground"></div><div class="grid" id="grid"></div></div>
+      <div class="tags" id="tags" style="position:relative;height:100%"></div>
+    </div>
+    <div class="banner" id="banner"><strong id="bannerBig"></strong><em id="bannerSmall"></em></div>
+  </section>
+  <section class="deck">
+    <div class="readouts">
+      <div class="readout"><span>Bet</span><div class="betrow"><button id="betdown" aria-label="Lower bet">−</button><b id="bet">20</b><button id="betup" aria-label="Raise bet">+</button></div></div>
+      <div class="readout"><span>Stacked</span><b id="stacked">0</b></div>
+    </div>
+    <div class="actions" id="actions">
+      <button class="btn" id="play">PLAY<small id="playsub">20 a climb</small></button>
+    </div>
+  </section>
+</div>
+<div class="sheet" id="sheet" hidden><div class="card" role="dialog" aria-label="How to play">
+  <h2>How to play</h2>
+  <p>Pay your bet to start a climb. Tap <b>DROP</b> and the UFO lets go of a row of stones. Stones with nothing under them crumble.</p>
+  <p>Reach a band to <b>cash out</b> (band × everything stacked) or <b>keep climbing</b>. Keep climbing and collapse, and you get nothing.</p>
+  <table id="paytable"></table>
+  <div class="dbg"><button id="fperfect">Debug: perfect drops</button><button id="fcollapse">Debug: collapse next</button><button id="close">Close</button></div>
+</div></div>
+
+<script>
+const ART = /*{{ART}}*/;
+/*{{ENGINE}}*/
+/*{{SOUND}}*/
+const $ = id => document.getElementById(id);
+const wait = ms => new Promise(r=>setTimeout(r,ms));
+document.documentElement.style.setProperty("--stone", `url(${ART.sandstone})`);
+document.documentElement.style.setProperty("--bar", `url(${ART.bar})`);
+
+// ---- layout: a 5×10 grid of stones; each row sits on the top face of the one below ----
+const ASPECT = 234/360, STEP_K = .64;                  // stone image height/width, and how much of it a row adds
+let CW=60, SH=39, STEP=25, TOP=80;
+const rowY = r => TOP + (ROWS - r)*STEP;               // top edge of a stone image in row r (1 = bottom)
+const colX = c => c*CW;
+function layout(){
+  const stage=$("stage").getBoundingClientRect(), wmax=Math.min(stage.width-58, 330);
+  CW = Math.floor(wmax/COLS);
+  // fill the height: stones may be drawn up to ~30% taller than the art's own shape so the tower uses the screen
+  const hFit = Math.floor((stage.height - 16) / (ROWS + 2.6 + (1-STEP_K)/STEP_K));
+  STEP = Math.min(hFit, Math.round(CW*ASPECT*1.3*STEP_K)); SH = Math.round(STEP/STEP_K);
+  TOP = Math.round(STEP*2.6);
+  const t=$("tower"); t.style.width=CW*COLS+"px"; t.style.height=(TOP+ROWS*STEP+(SH-STEP))+"px"; t.style.setProperty("--cw", CW+"px");
+  $("grid").replaceChildren(...Array.from({length:ROWS*COLS},(_,i)=>{ const r=Math.floor(i/COLS)+1, c=i%COLS, d=document.createElement("i");
+    d.className="slot"; Object.assign(d.style,{left:colX(c)+2+"px", top:rowY(r)+(SH-STEP)+"px", width:CW-4+"px", height:STEP-2+"px"}); return d; }));
+  drawBands(); redrawStones();
+}
+// ---- stones on screen ----
+let stoneEls=[];                                       // [{el,row,col,val}]
+function makeStone(row,col,val){ const e=document.createElement("div"); e.className="stone"; Object.assign(e.style,{width:CW+"px",height:SH+"px",left:colX(col)+"px",top:rowY(row)+"px",zIndex:row*2});
+  if(val!=null) e.innerHTML=`<b>${val}</b>`; return e; }
+function redrawStones(){ stoneEls.forEach(s=>Object.assign(s.el.style,{width:CW+"px",height:SH+"px",left:colX(s.col)+"px",top:rowY(s.row)+"px"})); }
+function clearStones(){ stoneEls.forEach(s=>s.el.remove()); stoneEls=[]; }
+// ---- bands ----
+const BAND_CLASS = { 4:"minor", 7:"major", 10:"cap" };
+function drawBands(){
+  $("tower").querySelectorAll(".band").forEach(b=>b.remove()); $("tags").replaceChildren();
+  for(const [r,b] of Object.entries(BANDS)){
+    // the line runs along the top of row r: drawn over row r's stones, tucked behind row r+1
+    const y=rowY(+r)+(SH-STEP)*.5, line=document.createElement("div"); line.className="band "+BAND_CLASS[r]; line.id="band"+r;
+    Object.assign(line.style,{top:y+"px", width:CW*COLS+"px", zIndex:r*2+1}); $("tower").appendChild(line);
+    const tag=document.createElement("div"); tag.className="tag "+BAND_CLASS[r]; tag.id="tag"+r; tag.style.top=(y+ ($("tags").offsetHeight - $("tower").offsetHeight))+"px";
+    tag.innerHTML=`${b.name}<strong>×${b.mult}</strong><em id="tagv${r}">—</em>`; $("tags").appendChild(tag);
+  }
+  paintBandValues();
+}
+function paintBandValues(){ for(const r of Object.keys(BANDS)){ const e=$("tagv"+r); if(e) e.textContent = climb ? bandValue(+r) : "—"; } }
+
+// ---- UFO ----
+let ufo=null;
+function makeUfo(w){
+  const u=document.createElement("div"); u.className="ufo";
+  const uw=Math.max(84, w*CW*.62); u.style.setProperty("--uw", uw+"px"); u.style.setProperty("--bw", w*CW+"px");
+  u.innerHTML=`<div class="beam"></div><div class="saucer"><div class="lights"><i></i><i></i><i></i><i></i><i></i></div></div><div class="carry"></div>`;
+  const carry=u.querySelector(".carry"); carry.style.width=w*CW+"px"; carry.style.height=SH+"px";
+  for(let i=0;i<w;i++){ const s=makeStone(0,i,null); s.style.top="0px"; s.style.zIndex=1; carry.appendChild(s); }
+  $("tower").appendChild(u); return u;
+}
+function placeUfo(u, startCol, w, row){   // UFO hovers above `row`, carrying stones that cover columns startCol..startCol+w-1
+  const carryTop = rowY(row) - STEP*1.9, uy = carryTop - 46;
+  u.style.left = colX(startCol) + w*CW/2 + "px"; u.style.top = uy + "px";
+  u.querySelector(".carry").style.top = "46px"; u.querySelector(".beam").style.setProperty("--bh", (SH+30)+"px");
+}
+// slide back and forth across the grid, then settle on the landing column (the engine already decided it)
+async function ufoSlide(u, w, row, from, to){
+  const lo = -(w-1), hi = COLS-1, pts = [from];
+  let edge = Math.random()<.5 ? hi : lo; pts.push(edge); pts.push(edge===hi ? lo : hi);
+  pts.push(to);
+  let x = from; SFX.hum(1.6);
+  for(let i=1;i<pts.length;i++){
+    const a=pts[i-1], b=pts[i], last=i===pts.length-1, dur = Math.max(160, Math.abs(b-a)*(last?170:95));
+    const t0=performance.now();
+    await new Promise(res=>{ const f=now=>{ let k=Math.min(1,(now-t0)/dur); const e = last ? 1-Math.pow(1-k,3) : k<.5 ? 2*k*k : 1-Math.pow(-2*k+2,2)/2;
+      x = a+(b-a)*e; placeUfo(u, x, w, row); if(k<1) requestAnimationFrame(f); else res(); }; requestAnimationFrame(f); });
+  }
+  placeUfo(u, to, w, row);
+}
+
+// ---- dropping: kept stones land and show their value; the rest tumble off and crumble on the sand ----
+async function animateDrop(res, u){
+  u.classList.add("off"); SFX.release();
+  const carryRect = u.querySelector(".carry").getBoundingClientRect(), tr=$("tower").getBoundingClientRect(), y0 = carryRect.top - tr.top;
+  u.querySelector(".carry").replaceChildren();
+  const groundY = TOP + ROWS*STEP + (SH-STEP) - SH*.4;
+  const falls = [];
+  res.kept.forEach((c,i)=>{ const st=res.stones[i], e=makeStone(res.row,c,null); e.style.top=y0+"px"; $("tower").appendChild(e);
+    const s={el:e,row:res.row,col:c,val:st.val}; stoneEls.push(s);
+    falls.push(e.animate([{top:y0+"px"},{top:rowY(res.row)+"px"}],{duration:260,easing:"cubic-bezier(.5,0,1,1)",fill:"forwards"}).finished.then(()=>{
+      e.style.top=rowY(res.row)+"px"; e.classList.add("land","fresh"); e.innerHTML=`<b>${st.val}</b>`; SFX.land(i); })); });
+  res.lost.forEach((c,i)=>{ const e=makeStone(res.row,c,null); e.style.top=y0+"px"; e.style.zIndex=50; $("tower").appendChild(e);
+    const spin=(c<COLS/2?-1:1)*(40+Math.random()*60), dx=(c<0?-1:c>=COLS?1:(Math.random()-.5))*CW*.5;
+    falls.push(e.animate([{top:y0+"px",transform:"none"},{top:groundY+"px",transform:`translateX(${dx}px) rotate(${spin}deg)`}],{duration:520+Math.random()*120,easing:"cubic-bezier(.5,0,1,1)",fill:"forwards"}).finished.then(()=>{
+      crumble(colX(c)+CW/2+dx, groundY+SH*.6); e.remove(); SFX.crumble(); })); });
+  await Promise.all(falls); u.remove();
+}
+function crumble(x,y){ for(let i=0;i<10;i++){ const d=document.createElement("i"); d.className="dust"; d.style.left=x+"px"; d.style.top=y+"px"; d.style.background=["#e7b56c","#c98d45","#f3cf8f"][i%3];
+  $("tower").appendChild(d); const a=Math.random()*Math.PI, v=20+Math.random()*30;
+  d.animate([{transform:"translate(0,0)",opacity:1},{transform:`translate(${Math.cos(a)*v*(Math.random()<.5?-1:1)}px,${-Math.sin(a)*v}px) scale(.4)`,opacity:0}],{duration:600,easing:"ease-out"}).finished.then(()=>d.remove()); } }
+async function collapseTower(){   // the whole stack shakes and crumbles away
+  $("app").classList.add("shake"); SFX.collapse(); setTimeout(()=>$("app").classList.remove("shake"),460);
+  const groundY = TOP + ROWS*STEP + (SH-STEP) - SH*.4;
+  await Promise.all(stoneEls.slice().reverse().map((s,i)=>wait(i*25).then(()=>s.el.animate([{transform:"none",opacity:1},{transform:`translateY(${groundY-rowY(s.row)}px) rotate(${(Math.random()-.5)*80}deg)`,opacity:.2}],{duration:500,easing:"cubic-bezier(.5,0,1,1)",fill:"forwards"}).finished.then(()=>{ crumble(colX(s.col)+CW/2, groundY+SH*.5); }))));
+  clearStones();
+}
+
+// ---- deck: play / drop / cash out / keep climbing ----
+let busy=false;
+function setActions(mode){
+  const a=$("actions"); a.className="actions"+(mode==="choice"?" choice":"");
+  if(mode==="play") a.innerHTML=`<button class="btn" id="play">PLAY<small>${bet} a climb</small></button>`;
+  if(mode==="drop") a.innerHTML=`<button class="btn" id="drop">DROP<small>row ${climb.row+1} of ${ROWS}</small></button>`;
+  if(mode==="choice"){ const o=climb.offer, next=Object.keys(BANDS).map(Number).find(r=>r>o.row);
+    a.innerHTML=`<button class="btn" id="cash">CASH OUT<small>take ${o.amount}</small></button><button class="btn alt" id="climb">KEEP CLIMBING<small>next band ×${BANDS[next].mult}</small></button>`; }
+  $("play")?.addEventListener("click",play); $("drop")?.addEventListener("click",doDrop);
+  $("cash")?.addEventListener("click",doCash); $("climb")?.addEventListener("click",doClimb);
+  const idle = mode==="play"; $("betdown").disabled = !idle || bet===BETS[0]; $("betup").disabled = !idle || bet===BETS.at(-1);
+}
+function paint(){ $("credits").textContent=credits; $("bet").textContent=bet; $("stacked").textContent=climb?climb.total:0; paintBandValues(); }
+function say(t){ $("say").textContent=t; }
+function banner(big, small, color){ const b=$("banner"); $("bannerBig").textContent=big; $("bannerSmall").textContent=small||""; b.style.setProperty("--bc", color||"var(--gold)");
+  b.classList.add("show"); clearTimeout(banner.t); banner.t=setTimeout(()=>b.classList.remove("show"), 1700); }
+function countTo(el, from, to, ms=700){ const t0=performance.now(); const f=now=>{ const k=Math.min(1,(now-t0)/ms); el.textContent=Math.round(from+(to-from)*k); if(k<1) requestAnimationFrame(f); }; requestAnimationFrame(f); }
+
+async function play(){
+  if(busy || climb) return; Sound.unlock(); Music.start();
+  if(credits < bet){ say("Not enough gold bars for that bet. Try a smaller one."); return; }
+  busy=true; clearStones(); startClimb(); paint(); setActions("busy");
+  // row 1: the UFO lays a full row of five
+  const u=makeUfo(COLS); placeUfo(u, 0, COLS, 1); SFX.hum(.6); await wait(450);
+  await animateDrop({ row:1, kept:[0,1,2,3,4], lost:[], stones:climb.rows[0] }, u);
+  countTo($("stacked"), 0, climb.total, 500); paintBandValues();
+  say(pick(["Stack 'em high, human.","Careful now. Gravity works here too.","Build me a wonder."]));
+  busy=false; setActions("drop");
+}
+async function doDrop(){
+  if(busy || !climb || climb.offer) return; busy=true; setActions("busy");
+  const w=climb.w, from=climb.a, prevTotal=climb.total, r=climb.row+1;
+  const res=drop();                                     // the engine decides where it lands
+  const u=makeUfo(w); placeUfo(u, from, w, r);
+  await ufoSlide(u, w, r, from, res.start);
+  await animateDrop(res, u);
+  if(res.collapsed){
+    await wait(200); await collapseTower(); paint();
+    banner("COLLAPSE!", r>4 ? "You kept climbing… and lost it all." : "Nothing reached a band.", "#ff6a3d");
+    say(pick(["Ooh. That's going to need a permit.","The desert reclaims all.","Gravity: 1, human: 0."]));
+    await wait(1200); busy=false; setActions("play"); return;
+  }
+  countTo($("stacked"), prevTotal, res.total, 500); paintBandValues();
+  if(res.lost.length) say(res.kept.length===1 ? "One stone left. Feeling lucky?" : pick(["Crumbly!","A little narrower now…","Mind the overhang."]));
+  else say(pick(["Perfect fit!","Like it was meant to be.","Clean drop."]));
+  if(res.top){
+    await wait(300); $("band10").classList.add("hit"); stoneEls.forEach(s=>s.el.classList.add("glow")); SFX.capstone();
+    banner("CAPSTONE!", `×${BANDS[10].mult} → ${res.paid} gold bars`, "var(--gold)"); countTo($("credits"), credits-res.paid, credits, 1600);
+    say("You built a wonder of the galaxy!"); await wait(2600); stoneEls.forEach(s=>s.el.classList.remove("glow"));
+    busy=false; setActions("play"); paint(); return;
+  }
+  if(res.offer){
+    await wait(250); const o=res.offer; $("band"+o.row).classList.add("hit"); setTimeout(()=>$("band"+o.row).classList.remove("hit"),1900); SFX.band(o.row);
+    banner(`${o.name} BAND!`, `Cash out ${o.amount}, or keep climbing?`, getComputedStyle($("band"+o.row)).getPropertyValue("--bc"));
+    say(o.row===4 ? "Take the gold… or reach for the stars?" : "Higher still? The capstone glitters…");
+    busy=false; setActions("choice"); return;
+  }
+  busy=false; setActions("drop");
+}
+async function doCash(){
+  if(busy || !climb?.offer) return; busy=true;
+  const amt=cashOut(); SFX.cash(); stoneEls.forEach(s=>s.el.classList.add("glow")); countTo($("credits"), credits-amt, credits, 900);
+  banner("CASHED OUT", `+${amt} gold bars`, "var(--alien)"); say(pick(["A sensible human. How boring.","Gold in hand. Smart.","Wise. The desert is fickle."]));
+  await wait(1500); stoneEls.forEach(s=>s.el.classList.remove("glow")); paint(); busy=false; setActions("play");
+}
+function doClimb(){ if(busy) return; keepClimbing(); SFX.climb(); say(pick(["Bold! I like bold.","No turning back now.","Higher!"])); setActions("drop"); }
+const pick = a => a[Math.floor(Math.random()*a.length)];
+
+// ---- sound effects (shared synth engine) ----
+const SFX = {
+  hum(sec){ Sound.tone(70,sec,{type:"sawtooth",vol:.035,lp:500,vib:.02}); Sound.tone(140,sec,{type:"sine",vol:.03,vib:.015}); },
+  release(){ Sound.tone(900,.25,{type:"triangle",vol:.06,slide:.3}); },
+  land(i){ Sound.thud(.35,220); Sound.tone(180-i*12,.12,{type:"sine",vol:.12,slide:.6,at:.01}); },
+  crumble(){ Sound.noise(.35,{vol:.12,type:"lowpass",freq:900,sweep:.4}); Sound.thud(.18,160); },
+  collapse(){ Sound.noise(1.1,{vol:.22,type:"lowpass",freq:500,sweep:.25}); Sound.tone(90,.9,{type:"sawtooth",vol:.06,slide:.4,lp:400}); },
+  band(r){ const n=r===4?[0,4,7,12]:[0,4,7,12,16,19]; n.forEach((v,i)=>Sound.tone(Sound.note(v+5),.25,{type:"triangle",vol:.09,at:i*.07})); },
+  cash(){ for(let i=0;i<10;i++) Sound.tone(1700+i*90,.05,{type:"triangle",vol:.05,at:i*.05}); Sound.tone(Sound.note(17),.4,{type:"sine",vol:.07,at:.5}); },
+  climb(){ Sound.tone(300,.3,{type:"sawtooth",vol:.04,slide:2.2,lp:1500}); },
+  capstone(){ [0,4,7,12,16,19,24].forEach((v,i)=>Sound.tone(Sound.note(v+5),.4,{type:"square",vol:.05,lp:2400,at:i*.09})); [0,7,12].forEach(v=>Sound.tone(Sound.note(v+5),1.6,{type:"triangle",vol:.06,at:.7})); },
+};
+// ---- music: a slow desert groove (hijaz scale), synthesized live on the music channel ----
+const Music = (()=>{ let timer=null, step=0, nextT=0;
+  const SC=[0,1,4,5,7,8,10,12], BASS=[0,0,5,0, 0,0,8,7], MEL=[7,-1,8,7, 5,-1,4,-1, 5,7,8,-1, 7,5,4,1];
+  function tick(){ if(!Sound.ready()) return; const now=Sound.now(), sd=60/92/2; if(nextT<now-.25) nextT=now+.05;
+    while(nextT<now+.12){ const at=nextT-now, k=step%16;
+      if(Sound.on && Sound.musicOn){ const M={bus:"music"};
+        if(k%2===0) Sound.tone(Sound.note(BASS[(k/2)%8]-19),sd*1.8,{...M,at,type:"triangle",vol:.06,lp:600});
+        if(k%4===0) Sound.tone(150,.14,{...M,at,vol:.07,slide:.4});
+        if(k%4===2) Sound.noise(.06,{...M,at,vol:.025,type:"bandpass",freq:3200});
+        const m=MEL[k]; if(m>=0 && step%32>=16) Sound.tone(Sound.note(m+5),sd*1.6,{...M,at,type:"sine",vol:.035,vib:.008,attack:.02}); }
+      step++; nextT+=sd; } }
+  return { start(){ if(!timer){ nextT=(Sound.now()||0)+.1; timer=setInterval(tick,25); } } };
+})();
+
+// ---- wiring ----
+function paintSound(){ $("snd").setAttribute("aria-pressed", String(Sound.on)); }
+$("snd").addEventListener("click",()=>{ Sound.on=!Sound.on; paintSound(); });
+$("betdown").addEventListener("click",()=>{ if(climb) return; const i=BETS.indexOf(bet); if(i>0){ bet=BETS[i-1]; paint(); setActions("play"); Sound.unlock(); Sound.tap(); } });
+$("betup").addEventListener("click",()=>{ if(climb) return; const i=BETS.indexOf(bet); if(i<BETS.length-1){ bet=BETS[i+1]; paint(); setActions("play"); Sound.unlock(); Sound.tap(); } });
+$("info").addEventListener("click",()=>{ $("paytable").innerHTML=Object.entries(BANDS).map(([r,b])=>`<tr><td>Row ${r} · ${b.name}</td><td>×${b.mult} everything stacked</td></tr>`).join(""); $("sheet").hidden=false; });
+$("close").addEventListener("click",()=>$("sheet").hidden=true);
+$("sheet").addEventListener("click",e=>{ if(e.target.id==="sheet") $("sheet").hidden=true; });
+$("fperfect").addEventListener("click",e=>{ FORCE.perfect=!FORCE.perfect; e.target.textContent = FORCE.perfect ? "Debug: perfect drops ✓" : "Debug: perfect drops"; });
+$("fcollapse").addEventListener("click",()=>{ FORCE.collapse=true; $("sheet").hidden=true; });
+document.addEventListener("pointerdown",()=>Sound.unlock(),{once:true});
+addEventListener("resize",()=>{ layout(); });
+paintSound(); layout(); paint(); setActions("play");
+</script>
