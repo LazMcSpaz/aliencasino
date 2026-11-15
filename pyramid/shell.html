@@ -71,9 +71,12 @@ body{margin:0;background:radial-gradient(100% 50% at 50% 0%,#2b1d4f 0%,var(--voi
 /* anchor: an alien-tech stone set beside the top row */
 .stone.anchor{filter:hue-rotate(120deg) saturate(1.3) brightness(1.05) drop-shadow(0 0 8px #4fffd8) drop-shadow(0 3px 2px #000a)}
 .stone.anchor b{color:#03302a;font-size:calc(var(--cw) * .3)}
-.spot{position:absolute;z-index:70;box-sizing:border-box;border:2px dashed #4fffd8;border-radius:8px;background:#4fffd822;cursor:pointer;display:grid;place-items:center;
-  font:700 .7rem var(--f-tech);color:#bffff1;letter-spacing:.08em;animation:spotPulse .8s ease-in-out infinite alternate}
-@keyframes spotPulse{to{background:#4fffd844;box-shadow:0 0 14px #4fffd8}}
+/* ghost anchor: a see-through anchor stone wherever one can be set — tap it to set it */
+.ghost{position:absolute;padding:0;border:0;cursor:pointer;background:var(--stone) center/100% 100% no-repeat;opacity:.38;
+  filter:hue-rotate(120deg) saturate(1.3) drop-shadow(0 0 6px #4fffd8);animation:ghostPulse 1.2s ease-in-out infinite alternate}
+.ghost b{position:absolute;left:0;right:0;bottom:21%;text-align:center;font:400 calc(var(--cw) * .27)/1 var(--f-sign);color:#03302a}
+.ghost i{position:absolute;left:50%;top:-4px;transform:translate(-50%,-100%);font:700 .62rem var(--f-tech);font-style:normal;color:#bffff1;background:#06302acc;padding:1px 6px;border-radius:4px;white-space:nowrap;filter:hue-rotate(-120deg)}
+@keyframes ghostPulse{to{opacity:.7}}
 .anchorbtn{--k:6px;width:100%;height:30px;margin-top:6px;border:0;cursor:pointer;font:700 .7rem var(--f-tech);letter-spacing:.08em;color:#bffff1;--ehi:#4fffd8;--elo:#4fffd833}
 .anchorbtn:disabled{opacity:.3;cursor:default}
 .anchorbtn.on{--elo:#4fffd877;color:#fff}
@@ -177,7 +180,7 @@ body{margin:0;background:radial-gradient(100% 50% at 50% 0%,#2b1d4f 0%,var(--voi
   <h2>How to play</h2>
   <p>Pay your bet to start a climb. Each <b>DROP</b> spins the next row sideways like a reel. Stones that stop over thin air crumble.</p>
   <p><b>Skim:</b> between drops, tap a stone worth 2 or more to pocket half its value right away. It cracks, and every crack adds to the chance the tower falls on each drop — and a skim can shatter the tower on the spot.</p>
-  <p><b>Anchor:</b> once per climb, pay 20% of your bet to set an anchor beside the top row. It gives the next row a wider base to land on (it can't hold a stone up on its own).</p>
+  <p><b>Anchor:</b> once per climb, tap a ghost anchor beside the top row to set it for 20% of your bet. It gives the next row a wider base to land on (it can't hold a stone up on its own).</p>
   <p>Reach a band to <b>cash out</b> (band × everything stacked) or <b>keep climbing</b>. Keep climbing and collapse, and you get nothing.</p>
   <table id="paytable"></table>
   <div class="dbg"><button class="chrome" id="fperfect">Debug: perfect drops</button><button class="chrome" id="fcollapse">Debug: collapse next</button><button class="chrome" id="close">Close</button></div>
@@ -210,7 +213,7 @@ function layout(){
   b.querySelectorAll(".slot,.band,.lane").forEach(e=>e.remove());
   for(let r=1;r<=ROWS;r++) for(let c=0;c<COLS;c++){ const d=document.createElement("i"); d.className="slot";
     Object.assign(d.style,{left:colX(c)+2+"px", top:rowY(r)+(SH-STEP)+1+"px", width:CW-4+"px", height:STEP-2+"px"}); b.appendChild(d); }
-  drawBands(); redrawStones(); if(!busy) showLane();
+  drawBands(); redrawStones(); if(!busy){ showLane(); paintSkimmable(); }
 }
 // ---- stones ----
 let stoneEls=[];                                      // [{el,row,col,val}]
@@ -285,6 +288,7 @@ async function collapseTower(){
 
 // ---- skim: tap a stone between drops to pocket half its value; it cracks and the tower gets shakier ----
 function paintSkimmable(){
+  paintGhosts();
   const can = new Set(!busy && climb && !climb.offer ? skimmable().map(s=>s.row+":"+s.col) : []);
   stoneEls.forEach((s,i)=>{ s.el.classList.toggle("skimmable", can.has(s.row+":"+s.col)); s.el.style.setProperty("--d", i%7); });
 }
@@ -310,15 +314,14 @@ async function doSkim(s){
 function paintRisk(){ const n=document.querySelector("#stackwin .next"); if(!n||!climb) return;
   if(climb.cracks){ n.classList.add("risk"); n.textContent=`${climb.cracks} crack${climb.cracks>1?"s":""} · ${Math.round(crackRisk()*100)}% fall risk`; } }
 
-// ---- anchor: pay 20% of the bet, then tap a glowing spot beside the top row ----
-function clearSpots(){ $("board").querySelectorAll(".spot").forEach(e=>e.remove()); $("anchorbtn")?.classList.remove("on"); }
-function toggleAnchor(){
-  if(busy) return; if($("board").querySelector(".spot")){ clearSpots(); return; }
-  const spots=anchorSpots(); if(!spots.length) return; $("anchorbtn").classList.add("on"); Sound.tap();
-  spots.forEach(sp=>{ const d=document.createElement("button"); d.className="spot"; d.textContent="⚓";
-    Object.assign(d.style,{left:colX(sp.col)+3+"px", top:rowY(climb.row)+(SH-STEP)+"px", width:CW-6+"px", height:STEP+"px"});
-    d.onclick=e=>{ e.stopPropagation(); placeAnchor(sp.side); }; $("board").appendChild(d); });
-  say(`Pick a side · anchor costs ${anchorCost()}`);
+// ---- anchor: wherever one can be set, a ghost anchor stone shows; tap it to pay 20% of the bet and set it ----
+function clearSpots(){ $("board").querySelectorAll(".ghost").forEach(e=>e.remove()); }
+function paintGhosts(){
+  clearSpots(); if(busy) return;
+  anchorSpots().forEach(sp=>{ const g=document.createElement("button"); g.className="ghost"; g.setAttribute("aria-label",`Set an anchor stone for ${anchorCost()}`);
+    g.innerHTML=`<b>⚓</b><i>⚓ ${anchorCost()}</i>`;
+    Object.assign(g.style,{left:colX(sp.col)+"px", top:rowY(climb.row)+"px", width:CW+"px", height:SH+"px", zIndex:climb.row*2});
+    g.onclick=e=>{ e.stopPropagation(); placeAnchor(sp.side); }; $("board").appendChild(g); });
 }
 async function placeAnchor(side){
   clearSpots(); const res=setAnchor(side); if(!res) return;
@@ -338,7 +341,7 @@ function setControls(mode){
   const idle = mode==="play";
   box.innerHTML=`<div class="deck">
     <div class="readout chrome betbox"><span>Bet</span><b id="bet">${bet}</b>
-      ${climb ? `<button class="anchorbtn chrome" id="anchorbtn">${climb.anchorUsed ? "ANCHOR USED" : "⚓ ANCHOR · "+anchorCost()}</button>`
+      ${climb ? `<div class="anchorbtn chrome" id="anchorbtn" style="display:grid;place-items:center">${climb.anchorUsed ? "ANCHOR USED" : "⚓ ANCHOR · "+anchorCost()}</div>`
               : `<div class="stepper"><button class="chrome" id="betdown" aria-label="Lower bet">−</button><button class="chrome" id="betup" aria-label="Raise bet">+</button></div>`}</div>
     <div class="center"><button class="go" id="go">${idle ? "PLAY" : "DROP"}<small>${idle || !climb ? bet+" a climb" : "row "+Math.min(ROWS,climb.row+1)+"/"+ROWS}</small></button></div>
     <div class="readout chrome" id="stackwin"><span>Stacked</span><b id="stacked">${climb?climb.total:0}</b><span class="next">${climb ? nextBandText() : Object.values(BANDS).map(b=>"×"+b.mult).join(" · ")}</span></div></div>`;
@@ -346,7 +349,7 @@ function setControls(mode){
   paintRisk(); setTimeout(paintSkimmable);
   if($("betdown")){ $("betdown").disabled = !idle || bet===BETS[0]; $("betup").disabled = !idle || bet===BETS.at(-1);
     $("betdown").onclick=()=>changeBet(-1); $("betup").onclick=()=>changeBet(1); }
-  if($("anchorbtn")){ $("anchorbtn").disabled = mode==="busy" || !anchorSpots().length; $("anchorbtn").onclick=toggleAnchor; }
+  if($("anchorbtn")) $("anchorbtn").style.opacity = (climb.anchorUsed || !anchorSpots().length) ? .35 : 1;
 }
 function nextBandText(){ const r=Object.keys(BANDS).map(Number).find(x=>x>climb.row); return r ? `${r-climb.row} to ${BANDS[r].name.toLowerCase()}` : ""; }
 function changeBet(d){ if(climb) return; const i=BETS.indexOf(bet)+d; if(i<0||i>=BETS.length) return; bet=BETS[i]; Sound.unlock(); Sound.tap(); setControls("play"); }

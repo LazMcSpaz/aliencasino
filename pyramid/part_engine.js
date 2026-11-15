@@ -12,12 +12,13 @@
 // stone of support to land on, so less of it falls off. It can't hold a row up on its own: some of that row must rest on real stone.
 const COLS = 5, ROWS = 10;
 const ANCHOR_COST = .2;
-const BANDS = { 4:{ mult:1.5, name:"MINOR" }, 7:{ mult:5, name:"MAJOR" }, 10:{ mult:30, name:"CAPSTONE" } };
+const BANDS = { 4:{ mult:1, name:"MINOR" }, 7:{ mult:3, name:"MAJOR" }, 10:{ mult:33, name:"CAPSTONE" } };
 const BETS = [20, 40, 100, 200, 400];                       // stone values scale with the bet (see UNIT_DIV)
 const STONE_VALUES = [[1, 56], [2, 30], [3, 10], [5, 4]];  // [value in units, how common]
 // Landing odds per row: hit = chance the row lands perfectly on top; otherwise it lands 1, 2, 3… columns off,
 // each extra column `spread` times as likely as the last. Landing a full width off (or more) = collapse.
-const DROP = { hit:r => .34, spread:.66 };   // tuned with tools/tune.js (TARGET=.83): every cash-out strategy pays ~83%
+// early rows are gentle (52% perfect at row 2), later rows harder (down to 22%) — tuned with tools/tune.js (TARGET=.84)
+const DROP = { hit:r => Math.max(.22, .52 - .05*(r-2)), spread:.66 };
 const CRACK_RISK = .04;                                    // added collapse chance per cracked stone, on every drop
 const SHATTER = .04;                                       // chance a skim's crack spreads and the tower falls right then
 const START = 400;
@@ -46,8 +47,11 @@ function drop(){
   if(!climb || climb.offer) return null;
   if(climb.cracks && Math.random() < crackRisk()){   // the cracks give way under the new row
     const res = { row:climb.row+1, start:climb.a, w:climb.w, kept:[], lost:[], stones:[], collapsed:true, cracked:true, paid:0 }; climb = null; return res; }
-  const r = climb.row + 1, k = pickShift(climb.w, r), dir = Math.random()<.5 ? -1 : 1;
-  const start = climb.a + dir*k;                                 // where the left edge of the falling row lands
+  const r = climb.row + 1, k = pickShift(climb.w, r);
+  // the row always lands at least partly on the board (start between -(w-1) and COLS-1): try the other direction, then clamp
+  const okStart = x => x >= -(climb.w-1) && x <= COLS-1;
+  let dir = Math.random()<.5 ? -1 : 1; if(!okStart(climb.a + dir*k)) dir = -dir;
+  const start = Math.max(-(climb.w-1), Math.min(COLS-1, climb.a + dir*k));   // where the left edge of the falling row lands
   const cols = Array.from({length:climb.w}, (_,i)=>start+i);
   const onStone = c => c>=climb.a && c<climb.a+climb.w && c>=0 && c<COLS;
   // the anchor only extends a row: it holds a stone only if the same row also has stones resting on real stone
