@@ -313,7 +313,7 @@ function setControls(mode){
     <div class="readout chrome betbox"><span>Bet</span><b id="bet">${bet}</b>
       <div class="stepper"><button class="chrome" id="betdown" aria-label="Lower bet">−</button><button class="chrome" id="betup" aria-label="Raise bet">+</button></div></div>
     <div class="center"><button class="go" id="go">${idle ? "PLAY" : "DROP"}<small>${idle || !climb ? bet+" a climb" : "row "+Math.min(ROWS,climb.row+1)+"/"+ROWS}</small></button></div>
-    <div class="readout chrome" id="stackwin"><span>Stacked</span><b id="stacked">${climb?climb.total:0}</b><span class="next">${climb ? nextBandText() : "×1.5 · ×5 · ×35"}</span></div></div>`;
+    <div class="readout chrome" id="stackwin"><span>Stacked</span><b id="stacked">${climb?climb.total:0}</b><span class="next">${climb ? nextBandText() : Object.values(BANDS).map(b=>"×"+b.mult).join(" · ")}</span></div></div>`;
   $("go").onclick = idle ? play : doDrop; $("go").disabled = mode==="busy";
   paintRisk(); setTimeout(paintSkimmable);
   $("betdown").disabled = !idle || bet===BETS[0]; $("betup").disabled = !idle || bet===BETS.at(-1);
