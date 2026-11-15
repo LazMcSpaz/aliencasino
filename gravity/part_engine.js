@@ -24,6 +24,7 @@ let credits = START;
 // bets: tiers[t] = { sectionIndex: amount }, colors = { quadrant: amount }, voidBet = amount
 let bets = { tiers: [{}, {}, {}], colors: {}, voidBet: 0 };
 let lastBets = null;
+let history = [];                                  // every chip placed, newest last, so UNDO can take it back
 
 // which section an angle falls in on tier t (−1 = void sliver)
 function sectionAt(t, a) {
@@ -50,10 +51,15 @@ function pathBonus(b = bets) {
   return Math.max(1, Math.round(PATH_K / p));
 }
 
-function addBet(t, i, amt) { if (totalBet() + amt > credits) return false; bets.tiers[t][i] = (bets.tiers[t][i] || 0) + amt; return true; }
-function addColorBet(q, amt) { if (totalBet() + amt > credits) return false; bets.colors[q] = (bets.colors[q] || 0) + amt; return true; }
-function addVoidBet(amt) { if (totalBet() + amt > credits) return false; bets.voidBet += amt; return true; }
-function clearBets() { bets = { tiers: [{}, {}, {}], colors: {}, voidBet: 0 }; }
+function addBet(t, i, amt) { if (totalBet() + amt > credits) return false; bets.tiers[t][i] = (bets.tiers[t][i] || 0) + amt; history.push({ k: "tier", t, i, amt }); return true; }
+function addColorBet(q, amt) { if (totalBet() + amt > credits) return false; bets.colors[q] = (bets.colors[q] || 0) + amt; history.push({ k: "color", q, amt }); return true; }
+function addVoidBet(amt) { if (totalBet() + amt > credits) return false; bets.voidBet += amt; history.push({ k: "void", amt }); return true; }
+function clearBets() { bets = { tiers: [{}, {}, {}], colors: {}, voidBet: 0 }; history = []; }
+// take back the last chip placed; returns what was undone (or null)
+function undoBet() { const h = history.pop(); if (!h) return null;
+  const take = (obj, key) => { obj[key] -= h.amt; if (obj[key] <= 0) delete obj[key]; };
+  if (h.k === "tier") take(bets.tiers[h.t], h.i); else if (h.k === "color") take(bets.colors, h.q); else bets.voidBet = Math.max(0, bets.voidBet - h.amt);
+  return h; }
 function rebet() { if (!lastBets || totalBet(lastBets) > credits) return false; bets = JSON.parse(JSON.stringify(lastBets)); return true; }
 
 // one spin: the engine picks the three crossing angles, takes the stake, and works out every payout.
