@@ -7,16 +7,16 @@ const fonts=ff("Bungee","bungee/files/bungee-latin-400-normal.woff2")+ff("Monoto
  await p.setContent('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>'+fs.readFileSync('gravity.html','utf8').replace('<style>','<style>'+fonts)+'</body></html>');
  await p.waitForTimeout(800);
  // tap a point on the bowl at (tier mid-radius, angle in turns)
- const tap=async(t,a)=>{ const xy=await p.evaluate(([t,a])=>{ const b=cv.getBoundingClientRect(); const r=t<0?0:(R[t]+R[t+1])/2; const [x,y]=P(r,a); return [b.left+x,b.top+y]; },[t,a]); await p.mouse.click(...xy); };
- await tap(0,.13); await tap(0,.13); await tap(1,.40); await tap(2,.77); await tap(-1,0);
- const before=await p.evaluate(()=>({credits, bet:totalBet(), bonus:pathBonus(), label:document.getElementById('path').textContent, tiers:JSON.stringify(bets.tiers), voidBet:bets.voidBet}));
+ const tap=async(t,a)=>{ const xy=await p.evaluate(([t,a])=>{ const b=cv.getBoundingClientRect(); const r=t===9?(RB[0]+RB[1])/2:t<0?0:(R[t]+R[t+1])/2; const [x,y]=P(r,a); return [b.left+x,b.top+y]; },[t,a]); await p.mouse.click(...xy); };
+ await tap(0,.13); await tap(0,.13); await tap(1,.40); await tap(2,.77); await tap(-1,0); await tap(9,.13);
+ const before=await p.evaluate(()=>({credits, bet:totalBet(), bonus:pathBonus(), label:document.getElementById('path').textContent, tiers:JSON.stringify(bets.tiers), colors:JSON.stringify(bets.colors), voidBet:bets.voidBet}));
  await p.waitForTimeout(300); await p.screenshot({path:OUT+'/g1_bets.png'});
- await p.click('#go'); await p.waitForTimeout(8300); await p.screenshot({path:OUT+'/g2_mid.png'});
+ await p.click('#go'); await p.waitForTimeout(1250); await p.screenshot({path:OUT+'/g1b_arm.png'}); await p.waitForTimeout(6500); await p.screenshot({path:OUT+'/g2_mid.png'});
  await p.waitForFunction(()=>!spinning,null,{timeout:20000}); await p.waitForTimeout(400); await p.screenshot({path:OUT+'/g3_done.png'});
  const after=await p.evaluate(()=>({credits, strip:[0,1,2,3].map(k=>document.querySelector('#c'+k+' b').textContent)}));
  // path jackpot through the debug force
- await p.evaluate(()=>{ FORCE.angles=bets.tiers.map((tb,t)=>{ const [a0,a1]=sectionSpan(t,+Object.keys(tb)[0]); return (a0+a1)/2; }); });
+ await p.evaluate(()=>{ FORCE.angles=[.13,.13,.13]; });   // red on every tier, through the rim bet; belt/core bets elsewhere
  const c0=await p.evaluate(()=>credits); await p.click('#go'); await p.waitForFunction(()=>!spinning,null,{timeout:20000});
  const jack=await p.evaluate(()=>credits); await p.screenshot({path:OUT+'/g4_jackpot.png'});
- console.log('before',JSON.stringify(before),'\nafter',JSON.stringify(after),'\npath jackpot spin: credits',c0,'→',jack,'(expect: −30 stake, +40 rim +60 belt +120 core, +5 × bonus', await p.evaluate(()=>pathBonus()), ')','\nerrors',errs);
+ console.log('before',JSON.stringify(before),'\nafter',JSON.stringify(after),'\npath jackpot spin: credits',c0,'→',jack,'(expect: −30 stake, +40 rim, +5×73=365 colour; results', await p.evaluate(()=>[0,1,2].map(t=>sectionAt(t,.13))), ')','\nerrors',errs);
  await b.close(); })();

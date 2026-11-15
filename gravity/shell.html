@@ -123,6 +123,7 @@ canvas{display:block;touch-action:manipulation}
   <p>Tap a section of the bowl to put a chip on it. Then <b>SPIN</b>: the comet circles the rim and spirals down into the black hole.</p>
   <p>Each time it drops over the bottom edge of a tier, the section it crosses is that tier's result, and bets on it pay straight away. The thin dark slivers are <b>voids</b>: if the comet crosses one, that tier's bets lose.</p>
   <p><b>Path bonus:</b> if the comet passes through one of your bets on <i>every</i> tier, your smallest winning chip is multiplied by the path bonus, on top of your normal wins. The fewer sections you cover, the bigger the bonus (shown next to the chips).</p>
+  <p><b>Colour bets:</b> tap the coloured band around the outside. You win if the comet stays in that colour on all three tiers.</p>
   <p><b>Void bet:</b> tap the black hole to bet that the comet crosses a void.</p>
   <table id="paytable"></table>
   <div class="dbg"><button class="chrome" id="fpath">Debug: hit my bets on every tier</button><button class="chrome" id="fvoid">Debug: 3 voids</button><button class="chrome" id="close">Close</button></div>
@@ -140,24 +141,35 @@ const QCOL = ["#ff4d6d","#4fd8ff","#ffc845","#7dff7a"];
 
 // ---- bowl geometry: outer rim → three tiers → black hole. Radii as a share of the canvas half-size ----
 const cv=$("bowl"), g=cv.getContext("2d");
-let S=300, CX=150, CY=150, R=[0,0,0,0];          // R[0] rim edge, R[1..3] the bottom edge of tiers 1..3 (R[3] = hole edge)
-const RK=[.97,.76,.555,.36];
+let S=300, CX=150, CY=150, R=[0,0,0,0], RB=[0,0];          // R[0] rim edge, R[1..3] the bottom edge of tiers 1..3 (R[3] = hole edge)
+const RK=[.86,.67,.49,.32], BAND=[.99,.875];        // tiers, and the outer colour-bet band (outer, inner)
+const LAUNCH_A=.125;                                  // where the arm fires the comet in (turns, clockwise from the top)
 function layout(){
   const st=$("stage").getBoundingClientRect(); S=Math.floor(Math.min(st.width, st.height, 460));
   const dpr=Math.min(3,devicePixelRatio||1); cv.width=S*dpr; cv.height=S*dpr; cv.style.width=cv.style.height=S+"px"; g.setTransform(dpr,0,0,dpr,0,0);
-  CX=CY=S/2; R=RK.map(k=>k*S/2); draw();
+  CX=CY=S/2; R=RK.map(k=>k*S/2); RB=BAND.map(k=>k*S/2); draw();
 }
 const P = (r,a) => [CX + r*Math.sin(a*Math.PI*2), CY - r*Math.cos(a*Math.PI*2)];   // angle in turns, clockwise from the top
 function arcBand(r0,r1,a0,a1){ const A0=(a0-.25)*Math.PI*2, A1=(a1-.25)*Math.PI*2; g.beginPath(); g.arc(CX,CY,r0,A0,A1); g.arc(CX,CY,r1,A1,A0,true); g.closePath(); }
 const shade = (hex,k) => { const n=parseInt(hex.slice(1),16), f=c=>Math.max(0,Math.min(255,Math.round(c*k))); return `rgb(${f(n>>16)},${f(n>>8&255)},${f(n&255)})`; };
 
 // ---- what's on screen right now ----
-let spinning=false, shown=[null,null,null], ball=null, trail=[], pulse=[], ghosts=[], chip=5, t0=performance.now();
+let spinning=false, shown=[null,null,null], ball=null, trail=[], pulse=[], ghosts=[], chip=5, t0=performance.now(), colorHit=-1;
+let arm={ext:0, glow:0};                              // the launcher arm: 0 = out of frame, 1 = nozzle over the rim
 function draw(){
+  if(!R[0]) return;                                    // not laid out yet
   const now=performance.now()/1000; g.clearRect(0,0,S,S);
   // outer lip
   const lip=g.createRadialGradient(CX,CY,R[0]*.9,CX,CY,S/2); lip.addColorStop(0,"#2a2350"); lip.addColorStop(1,"#0c0a1c");
   g.fillStyle=lip; g.beginPath(); g.arc(CX,CY,S/2-1,0,7); g.fill();
+  // colour bets: one arc per quadrant around the outside — "the comet stays in this colour on every tier"
+  for(let q=0;q<4;q++){ const a0=q/4+.006, a1=(q+1)/4-.006, col=QCOL[q], won=colorHit===q;
+    const gb=g.createRadialGradient(CX,CY,RB[1],CX,CY,RB[0]); gb.addColorStop(0,shade(col,.22)); gb.addColorStop(1,shade(col,.42));
+    g.fillStyle=won?`rgba(255,255,255,${.5+.3*Math.sin(now*8)})`:gb; arcBand(RB[0],RB[1],a0,a1); g.fill();
+    g.save(); g.strokeStyle=col; g.lineWidth=1.5; g.shadowColor=col; g.shadowBlur=6; arcBand(RB[0]-.5,RB[1]+.5,a0,a1); g.stroke(); g.restore();
+    const am=(q+.5)/4, [lx,ly]=P((RB[0]+RB[1])/2,am); g.save(); g.translate(lx,ly); g.rotate(am*Math.PI*2+(q===1||q===2?Math.PI:0));
+    g.fillStyle=col; g.font=`700 ${Math.max(8,S*.026)}px "Chakra Petch",system-ui`; g.textAlign="center"; g.textBaseline="middle";
+    g.fillText(`ALL ${TIERS[0].label(q)} ×${COLOR_PAY}`,0,.5); g.restore(); }
   for(let t=0;t<3;t++){ const r0=R[t], r1=R[t+1], T=TIERS[t], depth=1-t*.16;
     for(let i=0;i<T.n;i++){ const [a0,a1]=sectionSpan(t,i), q=quadrantOf(t,i), base=QCOL[q], alt=(i%2)?.62:.82;
       const gr=g.createRadialGradient(CX,CY,r1,CX,CY,r0); gr.addColorStop(0,shade(base,alt*.45*depth)); gr.addColorStop(1,shade(base,alt*depth));
@@ -188,6 +200,7 @@ function draw(){
   if(!bets.voidBet && !spinning){ g.fillStyle="#9a92c7"; g.font=`600 ${Math.max(9,S*.03)}px "Chakra Petch",system-ui`; g.textAlign="center"; g.textBaseline="middle"; g.fillText("VOID BET",CX,CY); }
   // chips on the table
   for(let t=0;t<3;t++) for(const [i,v] of Object.entries(bets.tiers[t])){ const [a0,a1]=sectionSpan(t,+i); drawChip(...P((R[t]+R[t+1])/2+(t===0?S*.03:0),(a0+a1)/2), v, t===2?.78:1); }
+  for(const [q,v] of Object.entries(bets.colors)) drawChip(...P((RB[0]+RB[1])/2,(+q+.5)/4+.085), v, .8);
   if(bets.voidBet) drawChip(CX,CY,bets.voidBet,1.1,"#b45cff");
   // ghosts: a faint comet left where the ball crossed each tier's edge
   for(const gh of ghosts){ const [x,y]=P(gh.r,gh.a), k=.7+.15*Math.sin(now*3+gh.r);
@@ -195,6 +208,7 @@ function draw(){
     g.fillStyle=gg; g.beginPath(); g.arc(x,y,S*.045,0,7); g.fill();
     g.strokeStyle=`rgba(${gh.c},${k})`; g.lineWidth=2; g.setLineDash([3,3]); g.beginPath(); g.arc(x,y,S*.03,0,7); g.stroke(); g.setLineDash([]); }
   if(ghosts.length>1){ g.save(); g.strokeStyle="#ffffff40"; g.lineWidth=1; g.setLineDash([3,4]); g.beginPath(); ghosts.forEach((gh,i)=>{ const [x,y]=P(gh.r,gh.a); i?g.lineTo(x,y):g.moveTo(x,y); }); g.stroke(); g.restore(); }
+  if(arm.ext>0) drawArm(now);
   // the comet and its trail
   if(ball){ for(let i=0;i<trail.length;i++){ const [x,y]=trail[i], k=i/trail.length; g.fillStyle=`rgba(190,240,255,${k*.5})`; g.beginPath(); g.arc(x,y,1+k*S*.012,0,7); g.fill(); }
     if(ball.visible){ const [x,y]=ball.pos; const cg=g.createRadialGradient(x,y,0,x,y,S*.03); cg.addColorStop(0,"#fff"); cg.addColorStop(.35,"#bdf4ff"); cg.addColorStop(1,"#4fd8ff00");
@@ -202,6 +216,24 @@ function draw(){
   // ring pulses when a tier is decided
   pulse=pulse.filter(p=>{ const k=(now-p.t)/.7; if(k>1) return false; g.strokeStyle=`rgba(${p.c},${1-k})`; g.lineWidth=3*(1-k)+1; g.beginPath(); g.arc(CX,CY,p.r+k*8,0,7); g.stroke(); return true; });
 }
+// ---- the launcher arm (stand-in drawn in code until the sprite arrives): swings in from the top-right corner, nozzle over the rim ----
+function armTip(){ const [tx,ty]=P(R[0]*.93,LAUNCH_A), bx=S*1.02, by=-S*.02, k=arm.ext; const e=1-Math.pow(1-k,3);
+  return [bx+(tx-bx)*e, by+(ty-by)*e, bx, by]; }
+function drawArm(now){ const [tx,ty,bx,by]=armTip(), L=Math.hypot(tx-bx,ty-by), L1=S*.3, L2=S*.27;
+  // simple two-joint reach: the elbow sits off the straight line by however much the arm is folded
+  const d=Math.min(L,L1+L2-1), ang=Math.atan2(ty-by,tx-bx), cosA=(L1*L1+d*d-L2*L2)/(2*L1*d), elA=ang-Math.acos(Math.max(-1,Math.min(1,cosA)));
+  const ex=bx+Math.cos(elA)*L1, ey=by+Math.sin(elA)*L1;
+  const seg=(x0,y0,x1,y1,w)=>{ g.strokeStyle="#0c0a18"; g.lineWidth=w+4; g.lineCap="round"; g.beginPath(); g.moveTo(x0,y0); g.lineTo(x1,y1); g.stroke();
+    const gr=g.createLinearGradient(x0,y0-w,x0,y0+w); gr.addColorStop(0,"#d7deea"); gr.addColorStop(.5,"#7d8699"); gr.addColorStop(1,"#3a4052");
+    g.strokeStyle=gr; g.lineWidth=w; g.beginPath(); g.moveTo(x0,y0); g.lineTo(x1,y1); g.stroke(); };
+  g.save(); g.shadowColor="#000a"; g.shadowBlur=10; seg(bx,by,ex,ey,S*.05); seg(ex,ey,tx,ty,S*.04); g.restore();
+  for(const [x,y,r] of [[ex,ey,S*.032],[bx,by,S*.05]]){ g.fillStyle="#2a2f40"; g.beginPath(); g.arc(x,y,r,0,7); g.fill(); g.strokeStyle="#ffc845"; g.lineWidth=2; g.beginPath(); g.arc(x,y,r*.6,0,7); g.stroke(); }
+  // launcher head pointing along the rim (clockwise), with a glowing barrel
+  const dir=(LAUNCH_A+.25)*Math.PI*2; g.save(); g.translate(tx,ty); g.rotate(dir);
+  g.fillStyle="#3a4052"; g.strokeStyle="#c9d2e0"; g.lineWidth=1.5; g.beginPath(); g.roundRect(-S*.05,-S*.028,S*.085,S*.056,S*.012); g.fill(); g.stroke();
+  const gl=arm.glow; g.fillStyle=`rgba(125,255,240,${.35+.65*gl})`; g.shadowColor="#7dfff0"; g.shadowBlur=8+gl*18; g.beginPath(); g.roundRect(S*.03,-S*.014,S*.03,S*.028,S*.008); g.fill();
+  g.restore(); }
+function animate(ms, fn){ return new Promise(done=>{ const t0=performance.now(); const f=now=>{ const k=Math.min(1,(now-t0)/ms); fn(k); draw(); if(k<1) requestAnimationFrame(f); else done(); }; requestAnimationFrame(f); }); }
 function drawChip(x,y,v,k=1,col){ const r=S*.034*k; col=col||(v>=100?"#1d1b2a":v>=25?"#2fae5f":v>=5?"#ff4d6d":"#4fd8ff");
   g.save(); g.shadowColor="#000a"; g.shadowBlur=4; g.shadowOffsetY=2; g.fillStyle=col; g.beginPath(); g.arc(x,y,r,0,7); g.fill(); g.restore();
   g.strokeStyle="#fff"; g.lineWidth=1.5; g.setLineDash([3,3]); g.beginPath(); g.arc(x,y,r*.78,0,7); g.stroke(); g.setLineDash([]);
@@ -211,11 +243,13 @@ function drawChip(x,y,v,k=1,col){ const r=S*.034*k; col=col||(v>=100?"#1d1b2a":v
 function hitTest(ev){ const b=cv.getBoundingClientRect(), x=ev.clientX-b.left-CX, y=ev.clientY-b.top-CY, r=Math.hypot(x,y);
   let a=Math.atan2(x,-y)/(Math.PI*2); a=(a+1)%1;
   if(r<R[3]) return {hole:true};
+  if(r<=RB[0] && r>RB[1]) return {color:Math.floor(a*4)};
   for(let t=0;t<3;t++) if(r<=R[t] && r>R[t+1]) return {t, i:sectionAt(t,a)};
   return null; }
 cv.addEventListener("click", ev=>{
   if(spinning) return; Sound.unlock(); Music.start(); const h=hitTest(ev); if(!h) return;
   if(h.hole){ if(addVoidBet(chip)){ SFX.chip(); say("Betting the comet hits a void."); } else broke(); }
+  else if(h.color!==undefined){ const nm=TIERS[0].label(h.color); if(addColorBet(h.color,chip)){ SFX.chip(); say(`All ${nm}: the comet stays in ${nm} on every tier. Pays ×${COLOR_PAY}.`); } else broke(); }
   else if(h.i<0){ say("That's a void sliver: the house's share. Tap the black hole to bet on voids."); return; }
   else if(addBet(h.t, h.i, chip)){ SFX.chip(); const T=TIERS[h.t]; say(`${T.name} ${T.label(h.i)} pays ×${T.pay}.`); }
   else broke();
@@ -240,7 +274,7 @@ function countTo(el,from,to,ms=600){ const t0=performance.now(); const f=n=>{ co
 // θ (turns, unwrapped) and r follow smooth curves through keyframes; between crossings the comet makes whole laps plus the gap.
 function buildFlight(angles){
   const KT=[0, 4.8, 7.5, 9.6, 10.25], KR=[R[0]*.985, R[1], R[2], R[3], 0], KV=[1.6, 1.0, .85, .8, 1.45];   // times (s), radii, angular speed (turns/s)
-  const th=[Math.random()]; for(let i=1;i<KT.length;i++){ const want=(KV[i-1]+KV[i])/2*(KT[i]-KT[i-1]);
+  const th=[LAUNCH_A]; for(let i=1;i<KT.length;i++){ const want=(KV[i-1]+KV[i])/2*(KT[i]-KT[i-1]);
     if(i<=3){ const a=angles[i-1]; let k=Math.round(th[i-1]+want-a); th.push(a+k); } else th.push(th[i-1]+want); }
   return { KT, KR, KV, th, cross:angles };
 }
@@ -253,10 +287,14 @@ function flightAt(F,t){ const {KT,KR,KV,th}=F; let i=0; while(i<KT.length-2 && t
 
 async function doSpin(){
   if(spinning) return; const res=spin(); if(!res){ broke(); return; }
-  spinning=true; shown=[null,null,null]; trail=[]; ghosts=[];
+  spinning=true; shown=[null,null,null]; trail=[]; ghosts=[]; colorHit=-1;
   for(let k=0;k<4;k++){ const c=$("c"+k); c.classList.remove("hit","void"); c.querySelector("b").textContent=""; }
   $("win").textContent=0; paint(); say(pick(["Into the well…","Round and round…","Gravity always wins. Mostly.","Here it goes!"]));
-  SFX.launch(); const F=buildFlight(res.angles); ball={visible:true, pos:[0,0], cross:F.th.slice(1,4)};
+  Music.spin(true); SFX.armIn();
+  await animate(1000, k=>{ arm.ext=k; });                                   // the arm swings into frame
+  SFX.charge(); await animate(450, k=>{ arm.glow=k; });                     // the barrel charges up
+  SFX.launch(); arm.glow=0;
+  const F=buildFlight(res.angles); ball={visible:true, pos:[0,0], cross:F.th.slice(1,4)};
   let won=0, nextTier=0, lastSec=null; const start=performance.now();
   await new Promise(done=>{ const frame=now=>{ const t=(now-start)/1000, {a,r}=flightAt(F,Math.min(t,F.KT[4]));
       ball.pos=P(r,a); trail.push(ball.pos); if(trail.length>22) trail.shift();
@@ -264,12 +302,14 @@ async function doSpin(){
       const tier=r>R[1]?0:r>R[2]?1:r>R[3]?2:-1; if(tier>=0){ const sec=tier+":"+sectionAt(tier,a); if(sec!==lastSec){ lastSec=sec; SFX.tick(tier); } }
       while(nextTier<3 && t>=F.KT[nextTier+1]){ reveal(nextTier, res, F); won+=res.tierWins[nextTier]; nextTier++; }
       if(t>=F.KT[4]-.05) ball.visible=false;
+      arm.ext = Math.max(0, 1 - t/0.8);                                       // the arm pulls back out of frame as the comet flies
       draw(); if(t<F.KT[4]+.35) requestAnimationFrame(frame); else done(); };
     requestAnimationFrame(frame); });
-  SFX.swallow(); trail=[];
+  SFX.swallow(); trail=[]; Music.spin(false);
   // path and void settle once the comet is swallowed
   const c3=$("c3"); c3.querySelector("b").textContent=res.voidCount; if(res.voidCount) c3.classList.add("void");
   if(res.voidWin){ collect(res.voidWin); won+=res.voidWin; popAt(CX,CY,"+"+res.voidWin); SFX.win(1); banner(`VOID ×${VOID_PAY[res.voidCount]}`, `${res.voidCount} void${res.voidCount>1?"s":""} crossed · +${res.voidWin}`, "var(--hole)"); }
+  if(res.colorWin){ collect(res.colorWin); won+=res.colorWin; colorHit=res.colorQ; SFX.jackpot(); const nm=TIERS[0].label(res.colorQ); banner(`ALL ${nm} ×${COLOR_PAY}`, `${nm} on every tier · +${res.colorWin}`, QCOL[res.colorQ]); if(res.pathWin) await wait(1600); }
   if(res.pathWin){ collect(res.pathWin); won+=res.pathWin; SFX.jackpot(); banner(`PATH BONUS ×${res.pathMult}`, `Through your bets on every tier · +${res.pathWin}`, "var(--gold)"); }
   countTo($("win"),0,won,700); countTo($("credits"),credits-res.totalWin,credits,700);
   say(won>res.staked ? pick(["Ooh, nice landing!","The well provides!","Cosmic!"]) : won>0 ? "Some of it came back." : pick(["The well takes all.","Swallowed whole.","Gravity: undefeated."]));
@@ -292,6 +332,8 @@ const SFX = {
   chip(){ Sound.tone(2200,.03,{type:"triangle",vol:.05}); Sound.tone(1600,.05,{type:"triangle",vol:.04,at:.03}); },
   pick(t){ Sound.tone(Sound.note(12+t*4),.15,{type:"sine",vol:.06}); },
   no(){ Sound.tone(220,.15,{type:"square",vol:.03,lp:900}); },
+  armIn(){ Sound.tone(140,.9,{type:"sawtooth",vol:.025,slide:1.6,lp:700}); Sound.noise(.9,{vol:.02,type:"bandpass",freq:2400,q:3,attack:.05}); },
+  charge(){ Sound.tone(400,.45,{type:"square",vol:.025,slide:3,lp:2600}); },
   launch(){ Sound.noise(.8,{vol:.07,type:"bandpass",freq:900,sweep:2.5,attack:.08}); Sound.tone(300,.6,{type:"sine",vol:.05,slide:1.8}); },
   reveal(t){ [0,4,7].forEach((n,i)=>Sound.tone(Sound.note(n+t*5+7),.22,{type:"triangle",vol:.06,at:i*.05})); },
   void(){ Sound.tone(160,.6,{type:"sine",vol:.12,slide:.4}); Sound.noise(.5,{vol:.06,type:"lowpass",freq:500,sweep:.3}); },
@@ -299,22 +341,37 @@ const SFX = {
   swallow(){ Sound.tone(500,.7,{type:"sine",vol:.07,slide:.15}); Sound.noise(.6,{vol:.05,type:"lowpass",freq:1500,sweep:.15}); },
   jackpot(){ [0,4,7,12,16,19,24,28].forEach((v,i)=>Sound.tone(Sound.note(v+7),.3,{type:"triangle",vol:.08,at:i*.06})); for(let i=0;i<14;i++) Sound.tone(2200+Math.random()*1800,.05,{type:"sine",vol:.03,at:.5+i*.05}); },
 };
-// ---- music: a slow, spacey pad with a soft pulse ----
-const Music = (()=>{ let timer=null, step=0, nextT=0; const CH=[[0,3,7,10],[-4,0,3,7],[-2,2,5,9],[-5,-1,2,7]];
-  function tick(){ if(!Sound.ready()) return; const now=Sound.now(), sd=60/84/2; if(nextT<now-.25) nextT=now+.05;
-    while(nextT<now+.12){ const at=nextT-now, k=step%16, ch=CH[Math.floor(step/16)%4];
+// ---- music: a calm pad while betting; pressing SPIN ramps the tempo up and brings in a driving spin groove, then it settles back ----
+const Music = (()=>{ let timer=null, step=0, nextT=0, bpm=84, target=84, mode="calm", riseT=0;
+  const CH=[[0,3,7,10],[-4,0,3,7],[-2,2,5,9],[-5,-1,2,7]], ARP=[0,2,1,3,2,1,3,2];
+  function tick(){ if(!Sound.ready()) return; const now=Sound.now(); if(nextT<now-.25) nextT=now+.05;
+    while(nextT<now+.12){ const sd=60/bpm/2; bpm += (target-bpm)*(1-Math.exp(-sd/.55));      // tempo glides toward its target over about half a second
+      const at=nextT-now, k=step%16, ch=CH[Math.floor(step/16)%4], drive=Math.max(0,Math.min(1,(bpm-96)/30));   // 0 = calm, 1 = full spin groove
       if(Sound.on && Sound.musicOn){ const M={bus:"music"};
-        if(k===0) ch.forEach(n=>Sound.tone(Sound.note(n),sd*15,{...M,at,type:"sine",vol:.018,attack:.4,vib:.004}));
-        if(k%4===0) Sound.tone(Sound.note(ch[0]-12),sd*1.5,{...M,at,type:"triangle",vol:.045,lp:600});
-        if(k%2===1) Sound.tone(Sound.note(ch[(k>>1)%4]+12),sd*.9,{...M,at,type:"sine",vol:.012,attack:.02}); }
+        if(k===0) ch.forEach(n=>Sound.tone(Sound.note(n),sd*15,{...M,at,type:"sine",vol:.018*(1-drive*.5),attack:.4,vib:.004}));
+        if(mode==="calm" || drive<.3){
+          if(k%4===0) Sound.tone(Sound.note(ch[0]-12),sd*1.5,{...M,at,type:"triangle",vol:.045,lp:600});
+          if(k%2===1) Sound.tone(Sound.note(ch[(k>>1)%4]+12),sd*.9,{...M,at,type:"sine",vol:.012,attack:.02});
+        } else {
+          if(k%2===0) Sound.tone(150,.15,{...M,at,vol:.07*drive,slide:.45,lp:420});                                  // kick on every beat
+          if(k%2===1) Sound.noise(.06,{...M,at,vol:.02*drive,type:"bandpass",freq:5200,q:.6,attack:.02});           // soft offbeat hat
+          if(k%4===2) Sound.noise(.12,{...M,at,vol:.026*drive,type:"bandpass",freq:1700,q:.7,attack:.014});          // clap
+          Sound.tone(Sound.note(ch[0]-12+(k%2?12:0)),sd*.85,{...M,at,type:"sawtooth",vol:.028*drive,lp:800});       // pumping octave bass
+          Sound.tone(Sound.note(ch[ARP[k%8]]+12+(k>=8?12:0)),sd*.8,{...M,at,type:"triangle",vol:.022*drive});        // racing arpeggio
+        }
+      }
       step++; nextT+=sd; } }
-  return { start(){ if(!timer){ nextT=(Sound.now()||0)+.1; timer=setInterval(tick,25); } } };
+  return {
+    start(){ if(!timer){ nextT=(Sound.now()||0)+.1; timer=setInterval(tick,25); } },
+    spin(on){ mode = on ? "spin" : "calm"; target = on ? 128 : 84;
+      if(on && Sound.on && Sound.musicOn) Sound.noise(1.4,{vol:.05,type:"highpass",freq:700,sweep:9,attack:1.2,bus:"music"}); },   // a riser while the arm swings in
+  };
 })();
 
 // ---- wiring ----
 $("snd").addEventListener("click",()=>{ Sound.on=!Sound.on; $("snd").setAttribute("aria-pressed",String(Sound.on)); });
 $("info").addEventListener("click",()=>{ $("paytable").innerHTML=TIERS.map(T=>`<tr><td>${T.name} · ${T.n} sections</td><td>×${T.pay}</td></tr>`).join("")+
-  `<tr><td>Path bonus · your bets hit on all 3 tiers</td><td>smallest chip × bonus</td></tr><tr><td>Void bet · 1 / 2 / 3 voids</td><td>×${VOID_PAY[1]} / ×${VOID_PAY[2]} / ×${VOID_PAY[3]}</td></tr>`; $("sheet").hidden=false; });
+  `<tr><td>Path bonus · your bets hit on all 3 tiers</td><td>smallest chip × bonus</td></tr><tr><td>Colour · same colour on all 3 tiers</td><td>×${COLOR_PAY}</td></tr><tr><td>Void bet · 1 / 2 / 3 voids</td><td>×${VOID_PAY[1]} / ×${VOID_PAY[2]} / ×${VOID_PAY[3]}</td></tr>`; $("sheet").hidden=false; });
 $("close").addEventListener("click",()=>$("sheet").hidden=true);
 $("sheet").addEventListener("click",e=>{ if(e.target.id==="sheet") $("sheet").hidden=true; });
 $("fpath").addEventListener("click",()=>{ $("sheet").hidden=true; if(!pathBonus()){ say("Bet on all three tiers first."); return; } FORCE.angles=bets.tiers.map((tb,t)=>{ const [a0,a1]=sectionSpan(t,+Object.keys(tb)[0]); return (a0+a1)/2; }); });

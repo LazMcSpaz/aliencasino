@@ -13,14 +13,15 @@ const TIERS = [
 ];
 const VOID = .06;                                  // share of every tier taken by the four void slivers
 const PATH_K = .09;                                // path bonus strength (see above)
-const VOID_PAY = { 1: 4, 2: 25, 3: 250 };          // void side bet: how many tiers the comet crossed in a void
+const VOID_PAY = { 1: 4, 2: 25, 3: 250 };
+const COLOR_PAY = 73;                             // colour bet: the comet stays in that colour's quadrant on all three tiers          // void side bet: how many tiers the comet crossed in a void
 const CHIPS = [1, 5, 25, 100];
 const START = 500;
 const FORCE = { angles: null };                    // debug: force the next spin's crossing angles
 
 let credits = START;
-// bets: tiers[t] = { sectionIndex: amount }, voidBet = amount
-let bets = { tiers: [{}, {}, {}], voidBet: 0 };
+// bets: tiers[t] = { sectionIndex: amount }, colors = { quadrant: amount }, voidBet = amount
+let bets = { tiers: [{}, {}, {}], colors: {}, voidBet: 0 };
 let lastBets = null;
 
 // which section an angle falls in on tier t (−1 = void sliver)
@@ -38,7 +39,7 @@ function sectionSpan(t, i, q = 0) {
 const quadrantOf = (t, i) => Math.floor(i / (TIERS[t].n / 4));     // sections share their quadrant's colour
 
 function totalBet(b = bets) {
-  let s = b.voidBet;
+  let s = b.voidBet; for (const v of Object.values(b.colors || {})) s += v;
   for (const tb of b.tiers) for (const v of Object.values(tb)) s += v;
   return s;
 }
@@ -49,8 +50,9 @@ function pathBonus(b = bets) {
 }
 
 function addBet(t, i, amt) { if (totalBet() + amt > credits) return false; bets.tiers[t][i] = (bets.tiers[t][i] || 0) + amt; return true; }
+function addColorBet(q, amt) { if (totalBet() + amt > credits) return false; bets.colors[q] = (bets.colors[q] || 0) + amt; return true; }
 function addVoidBet(amt) { if (totalBet() + amt > credits) return false; bets.voidBet += amt; return true; }
-function clearBets() { bets = { tiers: [{}, {}, {}], voidBet: 0 }; }
+function clearBets() { bets = { tiers: [{}, {}, {}], colors: {}, voidBet: 0 }; }
 function rebet() { if (!lastBets || totalBet(lastBets) > credits) return false; bets = JSON.parse(JSON.stringify(lastBets)); return true; }
 
 // one spin: the engine picks the three crossing angles, takes the stake, and works out every payout.
@@ -64,8 +66,11 @@ function spin() {
   const hits = results.map((r, t) => r < 0 ? 0 : (bets.tiers[t][r] || 0)), mult = pathBonus();
   const pathWin = hits.every(h => h > 0) ? Math.min(...hits) * mult : 0;
   const voidCount = results.filter(r => r < 0).length, voidWin = voidCount ? bets.voidBet * VOID_PAY[voidCount] : 0;
-  const totalWin = tierWins.reduce((a, b) => a + b, 0) + pathWin + voidWin;
-  return { angles, results, tierWins, pathWin, pathMult: mult, voidCount, voidWin, staked, totalWin };
+  const q0 = results[0] < 0 ? -1 : quadrantOf(0, results[0]);
+  const colorQ = q0 >= 0 && results.every((r, t) => r >= 0 && quadrantOf(t, r) === q0) ? q0 : -1;
+  const colorWin = colorQ >= 0 ? (bets.colors[colorQ] || 0) * COLOR_PAY : 0;
+  const totalWin = tierWins.reduce((a, b) => a + b, 0) + pathWin + voidWin + colorWin;
+  return { angles, results, tierWins, pathWin, pathMult: mult, voidCount, voidWin, colorQ, colorWin, staked, totalWin };
 }
 // the screen calls this as each part of the result is revealed, so credits rise in step with the comet
 function collect(amount) { credits += amount; }

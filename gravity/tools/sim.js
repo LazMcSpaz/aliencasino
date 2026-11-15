@@ -3,7 +3,7 @@ const fs=require('fs'); const E=new Function(fs.readFileSync(__dirname+'/../part
 function run(N, place){ let paid=0, staked=0, paths=0;
   for(let i=0;i<N;i++){ credits=1e9; clearBets(); place(); const r=spin(); collect(r.totalWin); paid+=r.totalWin; staked+=r.staked; if(r.pathWin) paths++; }
   return [paid/staked, paths/N, pathBonus()]; }
-return { run, addBet, addVoidBet, pathBonus, clearBets };`)();
+return { run, addBet, addVoidBet, addColorBet, pathBonus, clearBets };`)();
 const N=+process.env.N||1500000, R=n=>Math.floor(Math.random()*n);
 const styles={
   "one rim chip":                 ()=>E.addBet(0,R(4),1),
@@ -13,5 +13,7 @@ const styles={
   "2 rim, 4 belt, 6 core":        ()=>{ [[0,2,4],[1,4,12],[2,6,24]].forEach(([t,k,n])=>{ const s=new Set(); while(s.size<k) s.add(R(n)); s.forEach(i=>E.addBet(t,i,1)); }); },
   "big rim, tiny belt+core":      ()=>{ E.addBet(0,R(4),25); E.addBet(1,R(12),1); E.addBet(2,R(24),1); },
   "void bet":                     ()=>E.addVoidBet(1),
+  "colour bet":                   ()=>E.addColorBet(R(4),1),
+  "all 4 colour bets":            ()=>{ for(let q=0;q<4;q++) E.addColorBet(q,1); },
 };
 for(const [n,f] of Object.entries(styles)){ const [rtp,ph,mult]=E.run(N,f); console.log(n.padEnd(28), (rtp*100).toFixed(2)+'%', ' path hit', (ph*100).toFixed(2)+'%', ' bonus ×'+mult); }
