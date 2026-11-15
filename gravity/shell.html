@@ -53,12 +53,13 @@ canvas{display:block;touch-action:manipulation}
 .banner strong{display:block;font:400 1.5rem/1 var(--f-sign);color:var(--bc,var(--gold));text-shadow:0 0 16px var(--bc,var(--gold));white-space:nowrap}
 .banner em{display:block;font:600 .85rem var(--f-tech);font-style:normal;color:#fff;margin-top:5px;white-space:nowrap}
 /* controls: chips + table buttons, then bet · SPIN · win */
-.tools{display:flex;gap:6px;align-items:center;justify-content:center;flex-wrap:wrap}
-.chip{width:44px;height:44px;border-radius:50%;border:0;cursor:pointer;font:700 .9rem var(--f-tech);color:#fff;position:relative;
+.tools{display:flex;gap:5px;align-items:center;justify-content:center;flex-wrap:nowrap}
+.chip{flex:none;width:42px;height:42px;border-radius:50%;border:0;cursor:pointer;font:700 .9rem var(--f-tech);color:#fff;position:relative;
   background:radial-gradient(circle at 50% 50%,var(--c) 0 48%,#fff 49% 53%,var(--c) 54% 64%,transparent 65%),repeating-conic-gradient(var(--c) 0 20deg,#fff 20deg 30deg);box-shadow:0 3px 0 #0008;transition:transform .12s}
 .chip[aria-pressed="true"]{transform:translateY(-5px);box-shadow:0 8px 14px -4px var(--c),0 0 0 2px #fff}
-.tbtn{--k:7px;border:0;cursor:pointer;color:var(--ink);font:700 .72rem var(--f-tech);letter-spacing:.08em;padding:9px 10px;min-width:56px}
-.tbtn[aria-pressed="true"]{--ehi:var(--gold);color:var(--gold)}
+.tbtn{--k:7px;border:0;cursor:pointer;color:var(--ink);font:700 .7rem var(--f-tech);letter-spacing:.06em;padding:9px 8px;min-width:50px;flex:none}
+.pathro{cursor:default;text-align:center;line-height:1.1;font-size:.6rem;padding:6px 7px;min-width:0}.pathro.on{--ehi:var(--gold);color:var(--gold)}
+.ghost{display:none}
 .tbtn:disabled{opacity:.35;cursor:default}
 .deck{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:12px;margin-top:6px}
 .readout{--k:8px;padding:7px 6px 8px;text-align:center;min-width:0}
@@ -107,7 +108,7 @@ canvas{display:block;touch-action:manipulation}
       <button class="chip" data-v="5" style="--c:#ff4d6d" aria-label="Chip 5" aria-pressed="true">5</button>
       <button class="chip" data-v="25" style="--c:#2fae5f" aria-label="Chip 25">25</button>
       <button class="chip" data-v="100" style="--c:#1d1b2a" aria-label="Chip 100">100</button>
-      <button class="tbtn chrome" id="path" aria-pressed="false">PATH</button>
+      <div class="tbtn chrome pathro" id="path" aria-live="polite">PATH —</div>
       <button class="tbtn chrome" id="clear">CLEAR</button>
     </div>
     <div class="deck">
@@ -121,10 +122,10 @@ canvas{display:block;touch-action:manipulation}
   <h2>How to play</h2>
   <p>Tap a section of the bowl to put a chip on it. Then <b>SPIN</b>: the comet circles the rim and spirals down into the black hole.</p>
   <p>Each time it drops over the bottom edge of a tier, the section it crosses is that tier's result, and bets on it pay straight away. The thin dark slivers are <b>voids</b>: if the comet crosses one, that tier's bets lose.</p>
-  <p><b>Path:</b> tap PATH, then pick one section on each tier. If the comet goes through all three, it pays ×1250.</p>
+  <p><b>Path bonus:</b> if the comet passes through one of your bets on <i>every</i> tier, your smallest winning chip is multiplied by the path bonus, on top of your normal wins. The fewer sections you cover, the bigger the bonus (shown next to the chips).</p>
   <p><b>Void bet:</b> tap the black hole to bet that the comet crosses a void.</p>
   <table id="paytable"></table>
-  <div class="dbg"><button class="chrome" id="fpath">Debug: hit my path</button><button class="chrome" id="fvoid">Debug: 3 voids</button><button class="chrome" id="close">Close</button></div>
+  <div class="dbg"><button class="chrome" id="fpath">Debug: hit my bets on every tier</button><button class="chrome" id="fvoid">Debug: 3 voids</button><button class="chrome" id="close">Close</button></div>
 </div></div>
 
 <script>
@@ -151,7 +152,7 @@ function arcBand(r0,r1,a0,a1){ const A0=(a0-.25)*Math.PI*2, A1=(a1-.25)*Math.PI*
 const shade = (hex,k) => { const n=parseInt(hex.slice(1),16), f=c=>Math.max(0,Math.min(255,Math.round(c*k))); return `rgb(${f(n>>16)},${f(n>>8&255)},${f(n&255)})`; };
 
 // ---- what's on screen right now ----
-let spinning=false, shown=[null,null,null], ball=null, trail=[], pulse=[], pathMode=false, chip=5, t0=performance.now();
+let spinning=false, shown=[null,null,null], ball=null, trail=[], pulse=[], ghosts=[], chip=5, t0=performance.now();
 function draw(){
   const now=performance.now()/1000; g.clearRect(0,0,S,S);
   // outer lip
@@ -161,9 +162,8 @@ function draw(){
     for(let i=0;i<T.n;i++){ const [a0,a1]=sectionSpan(t,i), q=quadrantOf(t,i), base=QCOL[q], alt=(i%2)?.62:.82;
       const gr=g.createRadialGradient(CX,CY,r1,CX,CY,r0); gr.addColorStop(0,shade(base,alt*.45*depth)); gr.addColorStop(1,shade(base,alt*depth));
       g.fillStyle=gr; arcBand(r0,r1,a0,a1); g.fill();
-      const hit = shown[t]===i, pk = bets.path.picks[t]===i && (pathMode || pathReady());
+      const hit = shown[t]===i;
       if(hit){ g.fillStyle=`rgba(255,255,255,${.35+.25*Math.sin(now*8)})`; arcBand(r0,r1,a0,a1); g.fill(); }
-      if(pk){ g.save(); g.strokeStyle="#ffc845"; g.lineWidth=2.5; g.shadowColor="#ffc845"; g.shadowBlur=10; arcBand(r0-1.5,r1+1.5,a0+.002,a1-.002); g.stroke(); g.restore(); }
       g.strokeStyle="#0a081888"; g.lineWidth=1; arcBand(r0,r1,a0,a1); g.stroke();
       // labels
       const am=(a0+a1)/2, rm=(r0+r1)/2, [lx,ly]=P(rm,am);
@@ -189,7 +189,12 @@ function draw(){
   // chips on the table
   for(let t=0;t<3;t++) for(const [i,v] of Object.entries(bets.tiers[t])){ const [a0,a1]=sectionSpan(t,+i); drawChip(...P((R[t]+R[t+1])/2+(t===0?S*.03:0),(a0+a1)/2), v, t===2?.78:1); }
   if(bets.voidBet) drawChip(CX,CY,bets.voidBet,1.1,"#b45cff");
-  if(pathReady() || (pathMode && bets.path.picks.some(p=>p!==null))) drawPath(now);
+  // ghosts: a faint comet left where the ball crossed each tier's edge
+  for(const gh of ghosts){ const [x,y]=P(gh.r,gh.a), k=.7+.15*Math.sin(now*3+gh.r);
+    const gg=g.createRadialGradient(x,y,0,x,y,S*.045); gg.addColorStop(0,`rgba(255,255,255,${k})`); gg.addColorStop(.4,`rgba(${gh.c},${k*.6})`); gg.addColorStop(1,`rgba(${gh.c},0)`);
+    g.fillStyle=gg; g.beginPath(); g.arc(x,y,S*.045,0,7); g.fill();
+    g.strokeStyle=`rgba(${gh.c},${k})`; g.lineWidth=2; g.setLineDash([3,3]); g.beginPath(); g.arc(x,y,S*.03,0,7); g.stroke(); g.setLineDash([]); }
+  if(ghosts.length>1){ g.save(); g.strokeStyle="#ffffff40"; g.lineWidth=1; g.setLineDash([3,4]); g.beginPath(); ghosts.forEach((gh,i)=>{ const [x,y]=P(gh.r,gh.a); i?g.lineTo(x,y):g.moveTo(x,y); }); g.stroke(); g.restore(); }
   // the comet and its trail
   if(ball){ for(let i=0;i<trail.length;i++){ const [x,y]=trail[i], k=i/trail.length; g.fillStyle=`rgba(190,240,255,${k*.5})`; g.beginPath(); g.arc(x,y,1+k*S*.012,0,7); g.fill(); }
     if(ball.visible){ const [x,y]=ball.pos; const cg=g.createRadialGradient(x,y,0,x,y,S*.03); cg.addColorStop(0,"#fff"); cg.addColorStop(.35,"#bdf4ff"); cg.addColorStop(1,"#4fd8ff00");
@@ -201,11 +206,6 @@ function drawChip(x,y,v,k=1,col){ const r=S*.034*k; col=col||(v>=100?"#1d1b2a":v
   g.save(); g.shadowColor="#000a"; g.shadowBlur=4; g.shadowOffsetY=2; g.fillStyle=col; g.beginPath(); g.arc(x,y,r,0,7); g.fill(); g.restore();
   g.strokeStyle="#fff"; g.lineWidth=1.5; g.setLineDash([3,3]); g.beginPath(); g.arc(x,y,r*.78,0,7); g.stroke(); g.setLineDash([]);
   g.fillStyle="#fff"; g.font=`700 ${Math.max(8,r*.9)}px "Chakra Petch",system-ui`; g.textAlign="center"; g.textBaseline="middle"; g.fillText(v>=1000?Math.round(v/100)/10+"k":v,x,y+.5); }
-function drawPath(now){ const pts=bets.path.picks.map((p,t)=>p===null?null:(()=>{ const [a0,a1]=sectionSpan(t,p); return P((R[t]+R[t+1])/2,(a0+a1)/2); })()).filter(Boolean);
-  g.save(); g.strokeStyle="#ffc845"; g.lineWidth=2; g.setLineDash([5,5]); g.lineDashOffset=-now*20; g.shadowColor="#ffc845"; g.shadowBlur=8;
-  g.beginPath(); pts.forEach(([x,y],i)=>i?g.lineTo(x,y):g.moveTo(x,y)); g.stroke(); g.restore();
-  pts.forEach(([x,y])=>{ g.fillStyle="#ffc845"; g.beginPath(); g.arc(x,y,3.5,0,7); g.fill(); });
-  if(pathReady()){ const [x,y]=pts[pts.length-1]; g.fillStyle="#ffc845"; g.font=`700 ${Math.max(9,S*.03)}px "Chakra Petch",system-ui`; g.textAlign="center"; g.fillText(`PATH ${bets.path.amount}`,x,y-S*.045); } }
 
 // ---- betting: tap the bowl ----
 function hitTest(ev){ const b=cv.getBoundingClientRect(), x=ev.clientX-b.left-CX, y=ev.clientY-b.top-CY, r=Math.hypot(x,y);
@@ -217,21 +217,17 @@ cv.addEventListener("click", ev=>{
   if(spinning) return; Sound.unlock(); Music.start(); const h=hitTest(ev); if(!h) return;
   if(h.hole){ if(addVoidBet(chip)){ SFX.chip(); say("Betting the comet hits a void."); } else broke(); }
   else if(h.i<0){ say("That's a void sliver: the house's share. Tap the black hole to bet on voids."); return; }
-  else if(pathMode){ setPathPick(h.t, h.i); if(!bets.path.amount) setPathAmount(chip); SFX.pick(h.t);
-    const left=bets.path.picks.filter(p=>p===null).length; say(left ? `Path: pick ${left} more tier${left>1?"s":""}.` : `Path set: ${bets.path.amount} to win ${bets.path.amount*PATH_PAY}. Tap PATH when done.`); }
   else if(addBet(h.t, h.i, chip)){ SFX.chip(); const T=TIERS[h.t]; say(`${T.name} ${T.label(h.i)} pays ×${T.pay}.`); }
   else broke();
   paint();
 });
 function broke(){ say("Not enough gold bars for that chip."); SFX.no(); }
-document.querySelectorAll(".chip").forEach(b=>b.onclick=()=>{ chip=+b.dataset.v; document.querySelectorAll(".chip").forEach(x=>x.setAttribute("aria-pressed",String(x===b))); Sound.unlock(); Sound.tap(); if(pathMode && bets.path.amount) { if(setPathAmount(chip)) paint(); } });
-$("path").onclick=()=>{ if(spinning) return; pathMode=!pathMode; $("path").setAttribute("aria-pressed",String(pathMode)); Sound.unlock(); Sound.tap();
-  say(pathMode ? "Path: pick one section on each tier. Pays ×"+PATH_PAY+" if the comet goes through all three." : pathReady() ? "Path locked in." : "Path off."); paint(); };
-$("clear").onclick=()=>{ if(spinning) return; clearBets(); pathMode=false; $("path").setAttribute("aria-pressed","false"); Sound.tap(); say("Table cleared."); paint(); };
+document.querySelectorAll(".chip").forEach(b=>b.onclick=()=>{ chip=+b.dataset.v; document.querySelectorAll(".chip").forEach(x=>x.setAttribute("aria-pressed",String(x===b))); Sound.unlock(); Sound.tap(); });
+$("clear").onclick=()=>{ if(spinning) return; clearBets(); Sound.tap(); say("Table cleared."); paint(); };
 
 function paint(){ $("credits").textContent=credits; $("bet").textContent=totalBet(); const tb=totalBet();
   $("go").disabled = spinning || tb<=0 || tb>credits; $("go").querySelector("small").textContent = spinning ? "…" : tb<=0 ? "place a bet" : tb>credits ? "too much" : tb+" bars";
-  $("path").textContent = pathReady() ? `PATH ${bets.path.amount}` : "PATH"; $("clear").disabled=spinning; draw(); }
+  const pb=pathBonus(); $("path").innerHTML = pb ? `PATH BONUS<br>×${pb}` : "PATH BONUS<br>bet all 3 tiers"; $("path").classList.toggle("on", pb>0); $("clear").disabled=spinning; draw(); }
 function say(t){ $("say").textContent=t; }
 function banner(big, small, color){ const b=$("banner"); $("bannerBig").textContent=big; $("bannerSmall").textContent=small||""; b.style.setProperty("--bc", color||"var(--gold)");
   b.classList.add("show"); clearTimeout(banner.t); banner.t=setTimeout(()=>b.classList.remove("show"), 2000); }
@@ -243,7 +239,7 @@ function countTo(el,from,to,ms=600){ const t0=performance.now(); const f=n=>{ co
 // ---- the spin: the comet's path is built so it crosses each tier's edge exactly at the angle the engine chose ----
 // θ (turns, unwrapped) and r follow smooth curves through keyframes; between crossings the comet makes whole laps plus the gap.
 function buildFlight(angles){
-  const KT=[0, 2.7, 4.4, 5.8, 6.35], KR=[R[0]*.985, R[1], R[2], R[3], 0], KV=[1.55, 1.05, .9, .85, 1.5];   // times (s), radii, angular speed (turns/s)
+  const KT=[0, 4.8, 7.5, 9.6, 10.25], KR=[R[0]*.985, R[1], R[2], R[3], 0], KV=[1.6, 1.0, .85, .8, 1.45];   // times (s), radii, angular speed (turns/s)
   const th=[Math.random()]; for(let i=1;i<KT.length;i++){ const want=(KV[i-1]+KV[i])/2*(KT[i]-KT[i-1]);
     if(i<=3){ const a=angles[i-1]; let k=Math.round(th[i-1]+want-a); th.push(a+k); } else th.push(th[i-1]+want); }
   return { KT, KR, KV, th, cross:angles };
@@ -257,7 +253,7 @@ function flightAt(F,t){ const {KT,KR,KV,th}=F; let i=0; while(i<KT.length-2 && t
 
 async function doSpin(){
   if(spinning) return; const res=spin(); if(!res){ broke(); return; }
-  spinning=true; pathMode=false; $("path").setAttribute("aria-pressed","false"); shown=[null,null,null]; trail=[];
+  spinning=true; shown=[null,null,null]; trail=[]; ghosts=[];
   for(let k=0;k<4;k++){ const c=$("c"+k); c.classList.remove("hit","void"); c.querySelector("b").textContent=""; }
   $("win").textContent=0; paint(); say(pick(["Into the well…","Round and round…","Gravity always wins. Mostly.","Here it goes!"]));
   SFX.launch(); const F=buildFlight(res.angles); ball={visible:true, pos:[0,0], cross:F.th.slice(1,4)};
@@ -274,13 +270,14 @@ async function doSpin(){
   // path and void settle once the comet is swallowed
   const c3=$("c3"); c3.querySelector("b").textContent=res.voidCount; if(res.voidCount) c3.classList.add("void");
   if(res.voidWin){ collect(res.voidWin); won+=res.voidWin; popAt(CX,CY,"+"+res.voidWin); SFX.win(1); banner(`VOID ×${VOID_PAY[res.voidCount]}`, `${res.voidCount} void${res.voidCount>1?"s":""} crossed · +${res.voidWin}`, "var(--hole)"); }
-  if(res.pathWin){ collect(res.pathWin); won+=res.pathWin; SFX.jackpot(); banner("PATH JACKPOT!", `+${res.pathWin} gold bars`, "var(--gold)"); }
+  if(res.pathWin){ collect(res.pathWin); won+=res.pathWin; SFX.jackpot(); banner(`PATH BONUS ×${res.pathMult}`, `Through your bets on every tier · +${res.pathWin}`, "var(--gold)"); }
   countTo($("win"),0,won,700); countTo($("credits"),credits-res.totalWin,credits,700);
   say(won>res.staked ? pick(["Ooh, nice landing!","The well provides!","Cosmic!"]) : won>0 ? "Some of it came back." : pick(["The well takes all.","Swallowed whole.","Gravity: undefeated."]));
   await wait(500); ball=null; spinning=false; paint();
 }
 function reveal(t, res, F){
   const r=res.results[t], T=TIERS[t], c=$("c"+t), b=c.querySelector("b"); shown[t]=r;
+  ghosts.push({r:R[t+1], a:F.th[t+1], c: r<0 ? "180,92,255" : res.tierWins[t] ? "125,255,122" : "190,240,255"});
   pulse.push({r:R[t+1], t:performance.now()/1000, c: r<0 ? "180,92,255" : "255,255,255"});
   if(r<0){ b.textContent="VOID"; c.classList.add("void"); SFX.void(); return; }
   b.textContent=T.label(r); b.style.color=QCOL[quadrantOf(t,r)];
@@ -317,10 +314,10 @@ const Music = (()=>{ let timer=null, step=0, nextT=0; const CH=[[0,3,7,10],[-4,0
 // ---- wiring ----
 $("snd").addEventListener("click",()=>{ Sound.on=!Sound.on; $("snd").setAttribute("aria-pressed",String(Sound.on)); });
 $("info").addEventListener("click",()=>{ $("paytable").innerHTML=TIERS.map(T=>`<tr><td>${T.name} · ${T.n} sections</td><td>×${T.pay}</td></tr>`).join("")+
-  `<tr><td>Path · one on each tier</td><td>×${PATH_PAY}</td></tr><tr><td>Void bet · 1 / 2 / 3 voids</td><td>×${VOID_PAY[1]} / ×${VOID_PAY[2]} / ×${VOID_PAY[3]}</td></tr>`; $("sheet").hidden=false; });
+  `<tr><td>Path bonus · your bets hit on all 3 tiers</td><td>smallest chip × bonus</td></tr><tr><td>Void bet · 1 / 2 / 3 voids</td><td>×${VOID_PAY[1]} / ×${VOID_PAY[2]} / ×${VOID_PAY[3]}</td></tr>`; $("sheet").hidden=false; });
 $("close").addEventListener("click",()=>$("sheet").hidden=true);
 $("sheet").addEventListener("click",e=>{ if(e.target.id==="sheet") $("sheet").hidden=true; });
-$("fpath").addEventListener("click",()=>{ if(!pathReady()){ say("Set a path first."); $("sheet").hidden=true; return; } FORCE.angles=bets.path.picks.map((p,t)=>{ const [a0,a1]=sectionSpan(t,p); return (a0+a1)/2; }); $("sheet").hidden=true; });
+$("fpath").addEventListener("click",()=>{ $("sheet").hidden=true; if(!pathBonus()){ say("Bet on all three tiers first."); return; } FORCE.angles=bets.tiers.map((tb,t)=>{ const [a0,a1]=sectionSpan(t,+Object.keys(tb)[0]); return (a0+a1)/2; }); });
 $("fvoid").addEventListener("click",()=>{ FORCE.angles=[.003,.253,.503]; $("sheet").hidden=true; });
 document.addEventListener("pointerdown",()=>Sound.unlock(),{once:true});
 addEventListener("resize",layout);

@@ -9,15 +9,14 @@ const fonts=ff("Bungee","bungee/files/bungee-latin-400-normal.woff2")+ff("Monoto
  // tap a point on the bowl at (tier mid-radius, angle in turns)
  const tap=async(t,a)=>{ const xy=await p.evaluate(([t,a])=>{ const b=cv.getBoundingClientRect(); const r=t<0?0:(R[t]+R[t+1])/2; const [x,y]=P(r,a); return [b.left+x,b.top+y]; },[t,a]); await p.mouse.click(...xy); };
  await tap(0,.13); await tap(0,.13); await tap(1,.40); await tap(2,.77); await tap(-1,0);
- await p.click('#path'); await tap(0,.62); await tap(1,.66); await tap(2,.70); await p.click('#path');
- const before=await p.evaluate(()=>({credits, bet:totalBet(), path:pathReady(), tiers:JSON.stringify(bets.tiers), voidBet:bets.voidBet}));
+ const before=await p.evaluate(()=>({credits, bet:totalBet(), bonus:pathBonus(), label:document.getElementById('path').textContent, tiers:JSON.stringify(bets.tiers), voidBet:bets.voidBet}));
  await p.waitForTimeout(300); await p.screenshot({path:OUT+'/g1_bets.png'});
- await p.click('#go'); await p.waitForTimeout(3300); await p.screenshot({path:OUT+'/g2_mid.png'});
- await p.waitForFunction(()=>!spinning,null,{timeout:15000}); await p.waitForTimeout(400); await p.screenshot({path:OUT+'/g3_done.png'});
+ await p.click('#go'); await p.waitForTimeout(8300); await p.screenshot({path:OUT+'/g2_mid.png'});
+ await p.waitForFunction(()=>!spinning,null,{timeout:20000}); await p.waitForTimeout(400); await p.screenshot({path:OUT+'/g3_done.png'});
  const after=await p.evaluate(()=>({credits, strip:[0,1,2,3].map(k=>document.querySelector('#c'+k+' b').textContent)}));
  // path jackpot through the debug force
- await p.evaluate(()=>{ FORCE.angles=bets.path.picks.map((pk,t)=>{ const [a0,a1]=sectionSpan(t,pk); return (a0+a1)/2; }); });
- const c0=await p.evaluate(()=>credits); await p.click('#go'); await p.waitForFunction(()=>!spinning,null,{timeout:15000});
+ await p.evaluate(()=>{ FORCE.angles=bets.tiers.map((tb,t)=>{ const [a0,a1]=sectionSpan(t,+Object.keys(tb)[0]); return (a0+a1)/2; }); });
+ const c0=await p.evaluate(()=>credits); await p.click('#go'); await p.waitForFunction(()=>!spinning,null,{timeout:20000});
  const jack=await p.evaluate(()=>credits); await p.screenshot({path:OUT+'/g4_jackpot.png'});
- console.log('before',JSON.stringify(before),'\nafter',JSON.stringify(after),'\npath jackpot spin: credits',c0,'→',jack,'(expect +',5*1250,'minus stake plus tier wins)','\nerrors',errs);
+ console.log('before',JSON.stringify(before),'\nafter',JSON.stringify(after),'\npath jackpot spin: credits',c0,'→',jack,'(expect: −30 stake, +40 rim +60 belt +120 core, +5 × bonus', await p.evaluate(()=>pathBonus()), ')','\nerrors',errs);
  await b.close(); })();
