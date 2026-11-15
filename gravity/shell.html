@@ -299,23 +299,27 @@ const Others = (()=>{
     const t=Math.floor(Math.random()*3), i=Math.floor(Math.random()*TIERS[t].n), [a0,a1]=sectionSpan(t,i), a=a0+(a1-a0)*(.25+Math.random()*.5);
     return { kind:"tier", t, i, amt:pick(AMTS), at:()=>P((R[t]+R[t+1])/2+(Math.random()-.5)*(R[t]-R[t+1])*.3,a) }; }
   function start(){ const busy=new Set(visits.map(v=>v.w)); const free=WHO.filter(w=>!busy.has(w)); if(!free.length) return;
-    const w=pick(free), spot=pickSpot(), [x,y]=spot.at();
+    const w=pick(free), sx0=CX+w.seat[0]*S*1.4, sy0=CY+w.seat[1]*S*1.4;
+    // each alien mostly bets on its own side of the bowl: of a few random spots, take the one nearest its seat
+    let spot=null, xy=null, best=1e9; for(let k=0;k<4;k++){ const sp=pickSpot(), p=sp.at(), dd=Math.hypot(p[0]-sx0,p[1]-sy0); if(dd<best){ best=dd; spot=sp; xy=p; } }
+    const [x,y]=xy;
     const sx=CX+w.seat[0]*S*1.4, sy=CY+w.seat[1]*S*1.4, l=Math.hypot(sx-x,sy-y), d=[(sx-x)/l,(sy-y)/l];   // the arm runs from its seat to the spot
-    visits.push({ w, spot, x, y, d, t0:performance.now(), dropped:false }); last=performance.now(); }
+    visits.push({ w, spot, x, y, d, t0:performance.now(), dropped:false, pace: performance.now()<openUntil ? PACE.quick : PACE.normal }); last=performance.now(); }
   // how far from (x,y) to the edge of the play area along d, in bowl coordinates
   function toEdge(x,y,d){ const x0=-FXO[0], y0=-FXO[1], x1=FXS[0]-FXO[0], y1=FXS[1]-FXO[1]; let t=1e9;
     if(d[0]>0) t=Math.min(t,(x1-x)/d[0]); if(d[0]<0) t=Math.min(t,(x0-x)/d[0]); if(d[1]>0) t=Math.min(t,(y1-y)/d[1]); if(d[1]<0) t=Math.min(t,(y0-y)/d[1]); return t; }
-  const IN=.65, HOLD=.4, OUT=.55;
+  const PACE={ normal:[.65,.4,.55], quick:[.42,.22,.38] };               // reach in, hold, pull back (seconds)
+  let openUntil=0, paused=false;
   function drawArms(now){ const T=performance.now();
-    visits=visits.filter(v=>{ const s=(T-v.t0)/1000, w=v.w; if(s>IN+HOLD+OUT) return false;
+    visits=visits.filter(v=>{ const s=(T-v.t0)/1000, w=v.w, [IN,HOLD,OUT]=v.pace; if(s>IN+HOLD+OUT) return false;
       if(!v.dropped && s>=IN+HOLD*.5){ v.dropped=true; if(!spinning){ chips.push({ w, ...v.spot, x:v.x, y:v.y, res:null }); SFX.chip(); } }
       const e = s<IN ? 1-Math.pow(1-s/IN,3) : s<IN+HOLD ? 1 : 1-Math.pow((s-IN-HOLD)/OUT,2);
       const L=Math.max(S*.68, toEdge(v.x,v.y,v.d)+S*.12), back=L*1.15*(1-e), tx=v.x+v.d[0]*back, ty=v.y+v.d[1]*back;
       const im=w.im, H=420, W=H*(im.naturalWidth||100)/(im.naturalHeight||420), k=L/(H*Math.abs(w.base[1]-w.tip[1])*1.02);
       const vx=(w.base[0]-w.tip[0])*W, vy=(w.base[1]-w.tip[1])*H, rot=Math.atan2(v.d[1],v.d[0])-Math.atan2(vy,vx);
+      if(w.holds && !v.dropped) drawChip(tx,ty,v.spot.amt,.74,w.chips);           // the chip under the curl / between the fingers (drawn first, so the arm covers it)
       g.save(); g.translate(tx,ty); g.rotate(rot); g.scale(k,k); g.shadowColor="#000b"; g.shadowBlur=14/k; g.shadowOffsetY=6/k;
       if(im.complete) g.drawImage(im,-w.tip[0]*W,-w.tip[1]*H,W,H); g.restore();
-      if(w.holds && !v.dropped) drawChip(tx,ty,v.spot.amt,.78,w.chips);           // the chip in the curl / between the fingers
       return true; }); }
   function drawChips(now){ const T=performance.now();
     for(const c of chips){ let a=1; if(c.res==="lose") a=Math.max(0,1-(T-c.tr)/900); if(c.res==="clear") a=Math.max(0,1-(T-c.tr)/500);
@@ -328,10 +332,14 @@ const Others = (()=>{
       for(const b of res.balls){ if(c.kind==="tier" && b.results[c.t]===c.i) won+=c.amt*TIERS[c.t].pay;
         if(c.kind==="color" && b.colorQ===c.q) won+=c.amt*COLOR_PAY; if(c.kind==="void" && b.voidCount) won+=c.amt*VOID_PAY[b.voidCount]; }
       c.res = won ? "win" : "lose"; c.tr=T; if(won) popAt(c.x,c.y,`+${won}`, CHIP_SHADES[c.w.chips][5]); }
-    setTimeout(()=>{ const T2=performance.now(); chips.forEach(c=>{ if(c.res!=="lose"){ c.res="clear"; c.tr=T2; } }); }, 2600); }
-  setInterval(()=>{ if(spinning || document.hidden || !R[0]) return; const T=performance.now();
-    if(visits.length<2 && chips.length<9 && T-last>1100 && Math.random()<.4) start(); }, 450);
-  return { drawArms, drawChips, settle, get active(){ return visits.length>0; } };
+    paused=true; }
+  function clear(){ const T=performance.now(); chips.forEach(c=>{ if(c.res!=="lose"){ c.res="clear"; c.tr=T; } }); }
+  // a short window between rounds when the aliens bet quickly; resolves when it closes
+  function openTable(ms){ paused=false; openUntil=performance.now()+ms; last=0; return wait(ms); }
+  setInterval(()=>{ if(spinning || paused || document.hidden || !R[0]) return; const T=performance.now();
+    if(T<openUntil){ if(visits.length<3 && chips.length<12 && T-last>280) start(); }               // betting window: fast and busy
+    else if(visits.length<2 && chips.length<9 && T-last>1100 && Math.random()<.4) start(); }, 140);
+  return { drawArms, drawChips, settle, clear, openTable, get active(){ return visits.length>0; }, get open(){ return performance.now()<openUntil; } };
 })();
 function animate(ms, fn){ return new Promise(done=>{ const t0=performance.now(); const f=now=>{ const k=Math.min(1,(now-t0)/ms); fn(k); draw(); if(k<1) requestAnimationFrame(f); else done(); }; requestAnimationFrame(f); }); }
 // text that follows a circle: each letter placed and turned along the arc. Bottom-half arcs read left-to-right along the underside.
@@ -385,7 +393,8 @@ $("undo").onclick=()=>{ if(spinning) return; const h=undoBet(); Sound.unlock(); 
 $("clear").onclick=()=>{ if(spinning) return; clearBets(); Sound.tap(); say("Table cleared."); paint(); };
 
 function paint(){ $("credits").textContent=credits; $("bet").textContent=totalBet(); const tb=totalBet();
-  $("go").disabled = spinning || tb<=0 || tb>credits; $("go").querySelector("small").textContent = spinning ? "…" : tb<=0 ? "place a bet" : tb>credits ? "too much" : tb+" bars";
+  const opening=Others.open; $("go").disabled = spinning || opening || tb<=0 || tb>credits;
+  $("go").querySelector("small").textContent = spinning ? "…" : opening ? "table open…" : tb<=0 ? "place a bet" : tb>credits ? "too much" : tb+" bars";
   const pb=pathBonus(); $("path").innerHTML = pb ? `PATH BONUS<br>×${pb}` : "PATH BONUS<br>bet all 3 tiers"; $("path").classList.toggle("on", pb>0); $("clear").disabled=spinning; $("undo").disabled=spinning||!history.length; draw(); }
 function say(t){ $("say").textContent=t; }
 function banner(big, small, color){ const b=$("banner"); $("bannerBig").textContent=big; $("bannerSmall").textContent=small||""; b.style.setProperty("--bc", color||"var(--gold)");
@@ -441,7 +450,9 @@ async function doSpin(){
   Music.spin(false); $("app").classList.remove("frenzy"); Others.settle(res);
   countTo($("win"),0,won,700); countTo($("credits"),credits-res.totalWin,credits,700);
   say(won>res.staked ? pick(["Ooh, nice landing!","The well provides!","Cosmic!"]) : won>0 ? "Some of it came back." : pick(["The well takes all.","Swallowed whole.","Gravity: undefeated."]));
-  await wait(500); comets=[]; spinning=false; paint();
+  await wait(1400); comets=[]; Others.clear(); spinning=false;
+  const opened=Others.openTable(2500); paint();                            // open the window first, so SPIN never flickers back on
+  const tickT=setInterval(paint,200); await opened; clearInterval(tickT); paint();
 }
 // once a comet is swallowed: its void, colour and path bets settle (returns what it paid)
 function settleExtras(c){ const r=c.res; let paid=0;
