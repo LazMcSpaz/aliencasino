@@ -9,12 +9,13 @@
 // SHATTER chance that the crack spreads and the tower falls on the spot (the skimmed gold is still kept).
 // ANCHOR: once per climb, between drops, pay ANCHOR_COST × bet (rounded) to set an anchor stone right beside either end of the
 // top row (if there's room). It's worth nothing and doesn't change how many stones drop next — it just gives the next row one more
-// stone of support to land on, so less of it falls off. It can't hold a row up on its own: some of that row must rest on real stone.
+// stone of support to land on, so less of it falls off. It always catches what lands on it. It can only be set beside a top row at
+// least 2 wide (beside a lone stone it would be too strong a rescue).
 // GOLDEN STONE: now and then a stone in a landing row comes out gold (worth GOLD.value units). It calls the UFO beam:
 // the next GOLD.drops drops land perfectly — nothing crumbles, no collapse (cracks included) — and every stone in them is worth GOLD.mult×.
 const GOLD = { chance:.003, value:8, drops:3, mult:2 };
 const COLS = 5, ROWS = 10;
-const ANCHOR_COST = .2;
+const ANCHOR_COST = .2, ANCHOR_MIN_W = 3;
 const BANDS = { 4:{ mult:1, name:"MINOR" }, 7:{ mult:3, name:"MAJOR" }, 10:{ mult:25, name:"CAPSTONE" } };
 const BETS = [20, 40, 100, 200, 400];                       // stone values scale with the bet (see UNIT_DIV)
 const STONE_VALUES = [[1, 56], [2, 30], [3, 10], [5, 4]];  // [value in units, how common]
@@ -58,8 +59,7 @@ function drop(){
   const start = Math.max(-(climb.w-1), Math.min(COLS-1, climb.a + dir*k));   // where the left edge of the falling row lands
   const cols = Array.from({length:climb.w}, (_,i)=>start+i);
   const onStone = c => c>=climb.a && c<climb.a+climb.w && c>=0 && c<COLS;
-  // the anchor only extends a row: it holds a stone only if the same row also has stones resting on real stone
-  const kept = cols.some(onStone) ? cols.filter(c=> onStone(c) || c===climb.anchorCol) : [];
+  const kept = cols.filter(c=> onStone(c) || c===climb.anchorCol);   // anything landing on stone or on the anchor stays
   const lost = cols.filter(c=> !kept.includes(c));
   const stones = kept.map(c=>({ col:c, val:rollValue()*unit()*(beaming ? GOLD.mult : 1) }));
   let gold = false;
@@ -98,7 +98,7 @@ function skim(row, col){
 const anchorCost = () => Math.max(1, Math.round(bet * ANCHOR_COST));
 // where an anchor could go right now: [{side:"left"|"right", col}]
 function anchorSpots(){
-  if(!climb || climb.offer || climb.anchorUsed || climb.w < 2 || credits < anchorCost()) return [];   // a lone top stone can't use it
+  if(!climb || climb.offer || climb.anchorUsed || climb.w < ANCHOR_MIN_W || credits < anchorCost()) return [];   // too narrow a top: the anchor would be too strong a rescue
   const out = []; if(climb.a > 0) out.push({ side:"left", col:climb.a-1 }); if(climb.a+climb.w < COLS) out.push({ side:"right", col:climb.a+climb.w });
   return out;
 }

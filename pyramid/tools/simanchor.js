@@ -4,7 +4,7 @@ const E=new Function(src+`
 const strategies = {
   "never anchor":                    ()=>false,
   "anchor at the first chance":      ()=>true,
-  "anchor when 2 wide or less":      ()=>climb.w<=2,
+  "anchor when 3 wide or less":      ()=>climb.w<=3,
   "anchor when down to 1 stone":     ()=>climb.w===1,
   "anchor when 1 wide, after row 4": ()=>climb.w===1 && climb.row>=4,
 };
