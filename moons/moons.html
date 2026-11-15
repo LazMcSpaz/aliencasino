@@ -1,0 +1,454 @@
+<!-- Twin Moons: page layout, styles and screen logic. build.py adds the engine, the shared sound engine and the art, and writes moons.html.
+     May use: part_engine.js (all game maths), Sound (shared synth). Must not: decide outcomes or change credits itself; the engine does that. -->
+<title>Twin Moons</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Chakra+Petch:wght@500;600;700&family=Monoton&family=Yellowtail&display=swap">
+<style>
+:root{--void:#07061a;--ink:#f1edff;--dim:#9a92c7;--gold:#ffc845;--moonA:#bfefff;--moonB:#e2c8ff;--crash:#ff4d6d;--win:#7dff7a;--felt:#16123a;--felt2:#0d0b26;
+  --ui:color-mix(in srgb,#9b7bff 55%,#7fe3ff);--f-sign:"Bungee",Impact,sans-serif;--f-tech:"Chakra Petch",system-ui,sans-serif;color-scheme:dark}
+html,body{height:100%}
+body{margin:0;background:radial-gradient(90% 55% at 50% 30%,#241653 0%,var(--void) 72%);color:var(--ink);font:500 14px var(--f-tech);overflow:hidden;-webkit-tap-highlight-color:transparent;user-select:none}
+[hidden]{display:none!important}
+.app{position:relative;height:100dvh;max-width:480px;margin:0 auto;display:grid;grid-template-rows:auto 1fr auto;gap:6px;box-sizing:border-box;
+  padding:calc(8px + env(safe-area-inset-top,0px)) max(12px,env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) max(12px,env(safe-area-inset-left,0px))}
+.chrome{--k:9px;--ehi:color-mix(in srgb,var(--ui) 70%,transparent);--elo:color-mix(in srgb,var(--ui) 14%,transparent);position:relative;isolation:isolate;
+  clip-path:polygon(var(--k) 0,100% 0,100% calc(100% - var(--k)),calc(100% - var(--k)) 100%,0 100%,0 var(--k));background:linear-gradient(135deg,var(--ehi),var(--elo) 30%,var(--elo) 70%,var(--ehi))}
+.chrome::before{content:"";position:absolute;inset:1px;z-index:-1;clip-path:polygon(calc(var(--k) - .4px) 0,100% 0,100% calc(100% - var(--k) + .4px),calc(100% - var(--k) + .4px) 100%,0 100%,0 calc(var(--k) - .4px));
+  background:repeating-linear-gradient(0deg,#ffffff05 0 1px,transparent 1px 3px),linear-gradient(180deg,#221c44 0%,#120f27 55%,#0b091a 100%)}
+.hud{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;height:54px}
+.coins{display:flex;align-items:center;gap:7px;justify-self:start;padding:6px 14px 6px 7px}
+.coins i{width:26px;height:20px;background:var(--bar) center/contain no-repeat}
+.coins b{font:700 1.1rem/1 var(--f-tech)}
+.title{position:relative;justify-self:center;text-align:center;white-space:nowrap}
+.title .l2{display:block;font:400 1.75rem/1 "Monoton",var(--f-sign);color:#eaf9ff;text-shadow:0 0 4px #fff,0 0 10px var(--moonA),0 0 22px #5fb8ff,0 0 40px #5fb8ff88}
+.title .l1{position:absolute;right:-14px;bottom:-12px;font:400 1.25rem/1 "Yellowtail",cursive;color:#f6eaff;transform:rotate(-7deg);text-shadow:0 0 3px #fff,0 0 9px var(--moonB),0 0 18px #b45cff}
+.icons{justify-self:end;display:flex;gap:6px}
+.icon{--k:7px;width:38px;height:38px;display:grid;place-items:center;border:0;color:var(--dim);cursor:pointer;padding:0}
+.icon svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+.icon[aria-pressed="false"] .on{display:none}.icon[aria-pressed="true"] .off{display:none}
+/* the table: felt with the roll area at the back and the betting layout at the front */
+.table{position:relative;min-height:0;display:grid;grid-template-rows:1fr auto;border-radius:26px 26px 18px 18px;padding:10px;box-sizing:border-box;
+  background:radial-gradient(120% 70% at 50% 0%,#2a2263,var(--felt) 55%,var(--felt2));box-shadow:inset 0 0 0 3px #3a3270,inset 0 0 0 5px #0a0820,inset 0 0 40px #0008,0 10px 30px #0008}
+.table::after{content:"";position:absolute;left:12px;right:12px;top:8px;height:10px;border-radius:8px;background:linear-gradient(#5d55a0,#2a2458);box-shadow:0 3px 6px #0008;pointer-events:none}   /* the back wall the moons bounce off */
+.rollzone{position:relative;min-height:0}
+#dice{position:absolute;inset:0;width:100%;height:100%}
+.puck{position:absolute;right:6px;top:22px;width:58px;height:58px;border-radius:50%;display:grid;place-content:center;text-align:center;font:400 .62rem/1.1 var(--f-sign);
+  background:radial-gradient(circle at 40% 35%,#3a3550,#14121f);color:#9a92c7;box-shadow:0 0 0 3px #0b0918,0 4px 10px #000a;transition:all .3s}
+.puck b{display:block;font-size:1.3rem;line-height:1}
+.puck.on{background:radial-gradient(circle at 40% 35%,#fff,#d8f6ff 45%,#7fc9e8);color:#0b1a2a;box-shadow:0 0 0 3px #0b0918,0 0 18px #bfefffaa}
+.streak{position:absolute;left:8px;top:24px;font:400 .7rem var(--f-sign);color:var(--gold);text-shadow:0 0 8px #ffb84a;opacity:0;transition:opacity .3s}
+.streak.show{opacity:1}
+/* bubble from the dealer, top of the table */
+.bub{position:absolute;z-index:6;top:24px;left:calc(50% - 30px);translate:-50% 0;max-width:58%;width:max-content;padding:7px 11px;border-radius:14px;background:#140d27ee;border:2px solid var(--gold);color:#fff;
+  font:600 .78rem/1.28 var(--f-tech);text-align:center;box-shadow:0 4px 14px #0009;opacity:0;transform:scale(.85);transition:opacity .18s,transform .24s cubic-bezier(.3,1.6,.5,1);pointer-events:none}
+.bub.show{opacity:1;transform:none}
+.bub b{display:block;font:400 .52rem/1 var(--f-sign);letter-spacing:.12em;color:var(--gold);margin-bottom:3px}
+/* betting layout */
+.layout{display:grid;gap:6px;position:relative}
+.spot{position:relative;border:0;cursor:pointer;color:var(--ink);font:600 .7rem var(--f-tech);border-radius:10px;background:#ffffff0c;box-shadow:inset 0 0 0 1.5px #ffffff2a;padding:6px 4px;min-height:52px;
+  display:grid;align-content:center;justify-items:center;gap:1px;transition:box-shadow .2s,background .2s}
+.spot:disabled{opacity:.4;cursor:default}
+.spot .nm{font:400 .74rem/1 var(--f-sign);letter-spacing:.04em}
+.spot .px{font:600 .62rem var(--f-tech);color:var(--dim)}
+.spot.win{background:#7dff7a30;box-shadow:inset 0 0 0 2px var(--win),0 0 16px #7dff7a66}
+.spot.lose{background:#ff4d6d22;box-shadow:inset 0 0 0 2px var(--crash)}
+.spot.point{box-shadow:inset 0 0 0 2.5px var(--moonA),0 0 14px #bfefff88}
+.gaps{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.gaps .spot{min-height:56px;padding:5px 2px}
+.gaps .spot .nm{font-size:1.15rem;color:var(--moonA)}
+.lane{display:grid;grid-template-columns:1fr 74px 1fr;gap:6px}
+.spot.with .nm{color:var(--win)}.spot.against .nm{color:var(--crash)}
+.spot.collide{border-radius:50%;aspect-ratio:1;min-height:0;background:radial-gradient(circle,#ff4d6d33,#ffffff08 70%);box-shadow:inset 0 0 0 1.5px #ff4d6d77}
+.spot.collide .nm{font-size:.56rem;color:#ffb3c1}
+.chipon{position:absolute;right:3px;top:3px;min-width:22px;height:22px;padding:0 4px;box-sizing:border-box;border-radius:11px;display:grid;place-items:center;font:700 .66rem var(--f-tech);
+  color:#1a1530;background:var(--cc,#fff);box-shadow:0 0 0 1.5px var(--gold),0 2px 4px #0009;pointer-events:none}
+.pop{position:absolute;pointer-events:none;font:700 1.05rem var(--f-tech);color:#fff2b0;text-shadow:0 0 8px #ffb84a,0 1px 2px #000;transform:translate(-50%,-50%);z-index:8}
+.banner{position:absolute;left:50%;top:34%;z-index:9;transform:translate(-50%,-50%) scale(.7);opacity:0;pointer-events:none;transition:transform .32s cubic-bezier(.3,1.6,.5,1),opacity .22s;
+  --k:12px;padding:12px 22px;text-align:center;--ehi:var(--bc,var(--gold));--elo:color-mix(in srgb,var(--bc,var(--gold)) 25%,transparent)}
+.banner.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+.banner strong{display:block;font:400 1.45rem/1 var(--f-sign);color:var(--bc,var(--gold));text-shadow:0 0 16px var(--bc,var(--gold));white-space:nowrap}
+.banner em{display:block;font:600 .82rem var(--f-tech);font-style:normal;color:#fff;margin-top:5px;white-space:nowrap}
+.app.shake{animation:shake .45s}
+@keyframes shake{20%{transform:translate(-6px,2px)}40%{transform:translate(6px,-2px)}60%{transform:translate(-3px,1px)}80%{transform:translate(2px,0)}}
+/* controls */
+.tools{display:flex;gap:5px;align-items:center;justify-content:center;flex-wrap:nowrap}
+.chip{flex:none;width:40px;height:40px;border-radius:50%;border:0;cursor:pointer;font:700 .9rem var(--f-tech);color:var(--ink2,#fff);
+  background:radial-gradient(circle at 50% 50%,var(--c) 0 48%,#ffc845 49% 53%,var(--c) 54% 64%,transparent 65%),repeating-conic-gradient(var(--c) 0 20deg,#ffc845 20deg 30deg);box-shadow:0 3px 0 #0008;transition:transform .12s}
+.chip[aria-pressed="true"]{transform:translateY(-5px);box-shadow:0 8px 14px -4px var(--c),0 0 0 2px #fff}
+.tbtn{--k:7px;border:0;cursor:pointer;color:var(--ink);font:700 .66rem var(--f-tech);letter-spacing:.05em;padding:10px 8px;min-width:50px;flex:none}
+.tbtn:disabled{opacity:.35;cursor:default}
+.deck{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:12px;margin-top:6px}
+.readout{--k:8px;padding:7px 6px 8px;text-align:center;min-width:0}
+.readout span{display:block;font:600 .6rem/1 var(--f-tech);letter-spacing:.2em;color:var(--dim);text-transform:uppercase}
+.readout b{display:block;font:700 1.4rem/1.1 var(--f-tech);margin-top:3px}
+.readout.l{justify-self:end;width:100%;max-width:120px}.readout.r{justify-self:start;width:100%;max-width:120px}
+.go{position:relative;width:96px;height:96px;border-radius:50%;border:0;cursor:pointer;font:700 1.05rem/1.05 var(--f-tech);letter-spacing:.14em;color:#06202e;text-transform:uppercase;
+  background:radial-gradient(circle at 35% 30%,#f4fdff,#9fe3ff 45%,#2a7fb3);box-shadow:0 6px 0 #0f3d5a,inset 0 -6px 14px #0004,inset 0 4px 10px #fff8,0 0 0 5px #0c0a1a,0 0 34px -6px var(--moonA);transition:transform .08s,filter .2s}
+.go small{display:block;font:700 .6rem var(--f-tech);letter-spacing:.06em;opacity:.75;margin-top:2px}
+.go:active:not(:disabled){transform:translateY(4px)}
+.go:disabled{filter:grayscale(.8) brightness(.55);cursor:default}
+.sheet{position:fixed;inset:0;z-index:100;display:grid;place-items:center;background:#000b;padding:16px}
+.card{--k:14px;max-width:360px;max-height:86dvh;overflow:auto;padding:18px;font:500 .88rem/1.45 var(--f-tech)}
+.card h2{margin:0 0 8px;font:400 1.2rem var(--f-sign);color:var(--moonA)}
+.card table{width:100%;border-collapse:collapse;margin:8px 0}.card td{padding:4px 0;border-bottom:1px solid #ffffff14}.card td:last-child{text-align:right}
+.card .dbg{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+.card .dbg button{--k:6px;border:0;font:600 .75rem var(--f-tech);color:var(--ink);padding:7px 10px;cursor:pointer}
+.say{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+</style>
+
+<div class="app" id="app">
+  <header class="hud">
+    <div class="coins chrome"><i aria-hidden="true"></i><b id="credits">500</b></div>
+    <div class="title" aria-label="Twin Moons"><span class="l2">TWIN</span><span class="l1">Moons</span></div>
+    <div class="icons">
+      <button class="icon chrome" id="snd" aria-pressed="true" aria-label="Sound"><svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="on" d="M17 9a4 4 0 0 1 0 6"/><path class="off" d="M17 9l4 6M21 9l-4 6"/></svg></button>
+      <button class="icon chrome" id="info" aria-label="How to play"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg></button>
+    </div>
+  </header>
+  <section class="table" id="table">
+    <div class="rollzone" id="zone">
+      <canvas id="dice" aria-hidden="true"></canvas>
+      <div class="puck" id="puck" aria-live="polite"><span>POINT</span><b>OFF</b></div>
+      <div class="streak" id="streak"></div>
+      <div class="bub" id="dealer"><b>DEALER</b><span></span></div>
+      <p class="say" id="say" aria-live="polite"></p>
+      <div class="banner chrome" id="banner"><strong id="bannerBig"></strong><em id="bannerSmall"></em></div>
+    </div>
+    <div class="layout" id="layout">
+      <div class="gaps" id="gaps"></div>
+      <div class="lane">
+        <button class="spot with" data-spot="with"><span class="nm">WITH</span><span class="px">the moons · ×2</span></button>
+        <button class="spot collide" data-spot="collide"><span class="nm">COLLIDE</span><span class="px">×7.5</span></button>
+        <button class="spot against" data-spot="against"><span class="nm">AGAINST</span><span class="px">the moons · ×2</span></button>
+      </div>
+    </div>
+  </section>
+  <section id="controls">
+    <div class="tools">
+      <button class="chip" data-v="1" style="--c:#ffffff;--ink2:#1a1530" aria-label="Chip 1">1</button>
+      <button class="chip" data-v="5" style="--c:#d4cfe6;--ink2:#1a1530" aria-label="Chip 5" aria-pressed="true">5</button>
+      <button class="chip" data-v="25" style="--c:#9b96b2" aria-label="Chip 25">25</button>
+      <button class="chip" data-v="100" style="--c:#4e4a66" aria-label="Chip 100">100</button>
+      <button class="tbtn chrome" id="undo">UNDO</button>
+      <button class="tbtn chrome" id="clear">CLEAR</button>
+    </div>
+    <div class="deck">
+      <div class="readout chrome l"><span>On table</span><b id="bet">0</b></div>
+      <button class="go" id="go" disabled>ROLL<small>place a bet</small></button>
+      <div class="readout chrome r"><span>Win</span><b id="win">0</b></div>
+    </div>
+  </section>
+</div>
+<div class="sheet" id="sheet" hidden><div class="card chrome" role="dialog" aria-label="How to play">
+  <h2>How to play</h2>
+  <p>Roll two 8-sided moons. What counts is the <b>gap</b> between them. If they <b>match</b>, they collide: that's the crash.</p>
+  <p><b>First roll:</b> a 1 and an 8 (gap 7, "full orbit") wins straight away. A collision loses. Any other gap becomes <b>the point</b>.</p>
+  <p><b>Then:</b> keep rolling. Roll the point's gap again and <b>WITH</b> wins. Collide first and <b>AGAINST</b> wins.</p>
+  <p><b>Gap bets</b> (the row of numbers) win if that gap comes up before a collision. <b>COLLIDE</b> bets the very next roll is a match.</p>
+  <table id="paytable"></table>
+  <div class="dbg"><button class="chrome" id="fpoint">Debug: next roll gap 3</button><button class="chrome" id="fhit">Debug: hit the point</button><button class="chrome" id="fcrash">Debug: collide next</button><button class="chrome" id="close">Close</button></div>
+</div></div>
+
+<script>
+const ART = {"bar": "data:image/webp;base64,UklGRiYuAABXRUJQVlA4WAoAAAAQAAAAxwAAxwAAQUxQSL4IAAABGUVtGzFdz+NPeFKI6P8EcK4WqmnRUObThPf9//Vz5BwziJmZmZmZmaFjZq6Y7wpmvoorZmZmZmbGJPMb/74znt+nvHtW3uqj66xf5YXK3WirvdLVWe4OqlQZuYr16lJ9tN3KXThxZx3aVbSly3MZtrZbfULe7qXtThPmONXIqdxmq9F2W4ZHKf3tAlU66zgcbxeG8raynMrtVPlqO+tXhRks/wlJZW3nMldZLq2ICZiAzeVt/n8r+zdPoBpbsEVlqdASSKC3eDNM+2+SYoxZoSKQIBmQQG2cGMJt2pEy780Opf3ZPm7kvedxCFtGzAEhkJwxtqm9JcmY9rem1B68bysO4H3b8pnmOrtivY+2p/TVX30ZV3UuWwdqeIKMEokh3bZW3J6fSbt1E68CfGysd2lkc/82bC3el/HsWpMhdGoTY4R9O76DIapBSUA2RGq35sed24GXOLA0dlL5x3u0VfF92wV3tumeTfDy3UjbUTKk0QIJRNuyLMsU+dKjeR9qIEICYdu02+xdvBczfmUntmHv5qedybGk/YRL2o2yhUCi2CxaB7E7NEJJMkSGdG5Oi/frB+a+1vSx5U4xhLGGBIJkQALR8Yrs1XxQ1yUJJRI1exn706+z9s8sW2fG8sU/k1NrPDXtJCSQVWOoFKw+SJedbWpuNn/Ex35m9ziQ5pjlDHEEhETXKN63GNzFCAmINEeN2YcZkz429+2LqW2cQEiA6GITZZchISCZmmuc3aS3z6RmMpaQ6MoFr8FQKknYIGecMLVnahfWHLsfO3ZaTXCykERjFA+HOlcWItqmzjEzx49oHtCma/5/WmcmQJREQ026k3tT7Dw5v1EyBtacv+FnXm/kiBhv6Bkmbbb8b1l7uf6Y2iYqi4YrX1zMnUX5DRIzvj5/5GNf/29uibqTsYREY475Ku6qjJ2jrNKoEzmWzWi/UpusaIGEaOyxvL3vpVOIauZXnw6QsCUhAtN5yhWgTqDEqZweVFklEkFqXcjtlKnDclz9akTMTQI26QSurIwdlavVr46oJkFb5cu5hVZH5ep910A1nsCNrTs4L1Udo9h7bVQfI3RT+RjvpGNF81qIvQSvc89x9WR3RDlwMVS9BLA5mccrUweUPWcwP/YSwjFf2C21YnF54DCOyZkwKm/rEnJVWK4mXAopkFw+3cnZhcFlEZsEknre+UrZBeV0Eif2ZplAVuodhihWacx/gUKJxJcWljmKtVMmmMUIYkFwBE6E1IReqxDFcpJyUM0dRTHQfB8hrdT79YU5BRVmemHVvLCCNUiFuIwPRgopMWJMUhGIFyGos9cZRTHmgcghhXtnFATPVimsGEaxicd6GTmk4EtxIdDzUgSVGGwmFeH8CiuH1twJFIKYSFDLi/eisPsIKyK/UhCUgSV+gFSI+bKUHVaDvS7oqSzCak++0LkIeLFnIazS+EFURGLOC+CQIvEDFJv1ZIElpuNi/BTB9fXvSyrCLEWB9W+jKASeILRS61fIRZjnebXskCLxtxRqlvYRVmKSYhFoYBxhnZm+qXMBzsueBAcVbPYbFNxPWCu2JqEixAMEFnBwFGqeyQor8ZneqEK+LGYH1siRFPMcswisNHNEzoUs6Q4sEh9JLoDMo4VW6dM4opgLWUBgK214JlIB5onIYYX89a2o+mABCi2NXU6BZt0lcmClsV9KLmLcaEI7cSioPjRvKSmwxCRifda0dQlt8dkxVl2Ixwmw9WdQyG+GV2wNkuszK6ocWMAoCjSTkxxcn8FF9I0jtMSwj0XVpzkLAmzsH1OgNJrQVlp+WJT1ZW+CAwtzPKT6YCIKLbHGx5LqMhuQw+t/h1EfLKkUXLH8W3Jdid9cQAos4AdwXTBtNAE+TPW5HHgoUmhlpm+aVA/wcii0lJb/DLmA+yG8zQGhApagAPtl6jcPMyU7tMT6pLqg/7UI8DVxXUnP93ek0DIbUNYFaQrBnf/sJKoCMveFA8vlNc2IuT7RQ2i/GatRpPk7cmCR/yaVhUwlO6ji+BsrTSHjxhFUqXkXN2AVAS/QR0hb884NUaQzv4kDKjaviJJi5RUhNbB4o/fmqiCYg8KpudZ3kl3YQ4ST+//6SsgVhU+sAinF1j18M7mi6MTKU+TwcVKrZKNS0+jAnokEjMG2VGb+asWv99KRzt0/GCTGBlogCaZsfHPfAOAOABYRkMbYEiUSUHnOuOdaed2VFwKUyXRk5htw4zMkQBlAQPfA5OFzVlrySD1ZtFVOjnR0N2pcxthSpt2eqXHW0/QNThk3r6RdZXBMdHjiZyndeIyNVVLb3fNWrgYXrZjc/65lPdTOCGNSorP2T6Oh2hhKavfMSt/Qt/Q3F82a9kK0qwzYREynNk/wDtxAUqatR687derfzXuQ0ZOripoiy8Y4MXS6nHZ3DcGy7UzunrLR0t+c/K53TeyjdhaQMEO9+Z0B3IWZBM6Z2j97aiv+sKKtlG2M6SqTPnczZexKjI2EsRElNa3hwx9hwcbx/4ZDFtim681n9VOtqgswxohMncv61mPWD45br3fFbANkY7pou++fN2lVQ48hAcrUntY3cdbwz47o6ysXrNzceNGXDZ9DuzmbZLpw59Fft0krdjaDsTOZ2u6fOvCzi1ZaNPtd8/rYcMLsifRQU5JsjOnyk9Y7nI+XVWcxNlDS7kA3Ky8ZnLPWb/a/q2caNaVE25bBNg3UefRX31orumOMbYlM7YGeyeln53zDHy6cykLazQIbIxlMA065/xQur1QqxpBwztQe3f+OhQM/2bPywoGlydTOAmNM40+a8qEz6stVHTaGkpruWzD879baoPmba3Un2s3Z2GAC0ip//Xh+sEVMAmysLNq6+7X+rvtzU1f+w3dFamckG2PCtFWt/wtfJIa0Z0H1JSv94OzfrD5K7RKwMaGbE1/8Ywc3QylPHf7RwWUPtnBWnEdbKdvYBLMwM0eWVZy9hNpZkDDhXTrRVpJsY8JdAmze5v+35h9WUDggQiUAAFBvAJ0BKsgAyAA+PRqLQ6IhoRYsbTggA8S1N3BgADNqBBf3kP+q8yesv3/+zfs32Qc3PP3kgc/f9n/GfmB8vP8H/wP717jPzt/3PcE/X39fvWi/Yf3Rft96hP6D/if+l/kfeq/x3/I/3Hua/yX+Y/aH/Y/IB/ev8//9ewT/ar2Bv6B/hvTN/+P/G/9fyj/1z/Z/th8D37W//T2AP/Z6gH/j4kfsR/xXgb+RfOv4z+0ful7DeIPrZ/3PQv+V/eP97/ePQP/h+FfwT/qvuO+Qv8k/of+k/NP3cPmv8p3rlk/+F6inuL9I/1H+D/cT+8/D19P/wfRv7Kf7r7efsA/Vj/Z+WT/pPH08+/1394+AP+gf2P/hf3/16P+v/KfmP7nvpb/r/5b4Fv5j/V/95/ef3q/1v/////3j+xv9w/ZB/ZH/8tJeeSdR08JbdcWH/PJOo6d51U0CMLITM99Hq1RtSgpLqkC6KzR3lfbC9aSmUjyxPrsWraZD1f9o23bTQtEhWWXq5U/g+yfbLxDsEpOlArcRYsf7I8U0FqKX6790jIPpQpEOG+3GcDrURT/zb+VEx9KeLUeRXtbl5sI46dggSULwDvw3yq4ZznZSi9WsvxJdhmNpHiQhRqZh55WLveM22MYDS854kib6j/J9tiXg5DgKtcBI26SqSQ9XeUxRQgYyMGrjaoT15S7XT7I8xLJoxU7xE3CwGzd0ls2INb9pHgAhoFOt53DGwLtl1Ri/9duWNCF2TvUYLkW9jr28w+IKmog9xIBGO/fo7EL8B6gEVgTDw2cm02s9bQl13xWuPmTMfQbF0m9KhX8JfIxuYsJ1kZTK9z/MU4plqnVHvjfAooYylbjWRcKlC1mLIL/pvUUUhBTQKMYlTdkg80ebXp/9/jC0ncv2TnSPZBmLQGTZlLCDjBcbaIL/DICaMNZTNfI3Tcmoyy/SdCJqHb/fkiZdbggq6FJboTpX8EKdB0cByIbI9leOSMSoUQrftkxVGU/E4OBGdrYTgUqmoDoHvMxTTQRrT/z4VAQNmSc37NmlwwbogLMI32jiM2MVexqDl4ruJxOQNkpaANsjHgSynZNd5XsAaGTT1SfRD3GfdSTv/FS5ocL9b99BYCz3Tb2qHSEutzXT9WaDfBvYoNTHZObxVNDEF2uPATY9+/sVGAD+ezkhtZWH/PJOo6eEtuuLD/nknTAAAP72kaAAAF81GFM9nzTmKmM8NxF4+bHA5yOzKy3nRF/2G4hq1knI5sUNztKFcUQumXk49Wp+U3Fm+t0L39WZgscoMUwYAyRSbu5Tg5xVzwtgAmxKcTOoovLSa9oKinhG+MLIchNR0LVU0jJYDP4BHyYKb9FuT5WRy3MXLCRwhBVLifB/ep6ZFrmBxTF1qiDPYauJplnagMKSOLUBCcYi/3Dyej6x8Ust1WyRIBLlHXoYuiBrnX4fGLINBNAOGivTJO6JM+hTf9vEWyLCsE74Ivpq3fjWGUFhZMkHAAMjU1eQZ4UuOt/qQ0SohQ8iHR0rXCR3Ldfn2jc8FK+SJGycqNR4aCcz6YES/BArUn91vjLphmpPhJs8n3KosArqBTbtML7fUJvSETc9oktqCY7FroS1v5XojIrlz6FqYY/a1BKFCvtAv4qabj3L1G6h06MtPWuBNvWQvWscgorM6d9gOAUDJtfG9u/i6d2hOXCMfrTV22EjRhZLtijqOvwdh/u8NYjGHwiFzBZK6cAxcpWubqnej/WlP2zUVQxb3mL32EUjzLbI5mRNy/VELWr2eqARDn2+m8dVH/HZ7DvwGJd0hfsbes0n63WNpbXhVZekCwsP1IMbOgAXjBysiPel0kg9tS6WX20+eIAeru9yknmio46DmZpLs9TyI4XdfvU75/Z/2+UVzOWCAtSeNi8t1C4Tmv2xB+gUukXnkmxcGY9zzKSft6k+5qsmp4MgxsgljwHIAqhcYHmPk8DUElXIs3Ayk/izdLg/kY8u59VtPUytMq5dS3xQUvk/5CaTejIKebQ4eXrvuvPohI4WCPyj8vSpBQnS71UVhbKmUR+CHwZbQtWXLwg98y6CEge/ijK9fH6EyOv76h/zP+MTjVxEPygP718UAP8uRvalKTkq+gPN/01w3TDQWHB/AfRgng14//tf8jwSbcPCAlQ/+TVEfSAsK/9AP1oqESeByZ7x5gpFnSLA1zrEvjlB3o3nOmymdoP/9csYTje4lv+rw6BY5xH+8HJBGMMG3iQlUb5+sxss4ql9v2J1yynNsIZXB46mncWJonPIy6nPlaLZMUo57f6hI35AIRXy0DxSXqo9pn5eyj+Pv+FIcISd775BrXC71bJXsoKFmsNDA6sM5AR+mUeCxt53pZDg8VesQX6v6S/oGXSsRWZUYF0gUW29XO3MNTBn/g1vAlRiMENBvjTTwwi7lLEBypUImCY7pBDriFvgIwM8wXK1yyO0Fx0h2fPODmM09o2SorYJF4oZGw/emF5q67CmpJqZIORIBvLymLfcIqcCmi2EqVG0ifO310Re0CWs+5+XxbzKKKiLVh7+FbH6QF85S4oRUCJv/QtyEHld9WgW7nDuND7niQv5fMSKeva43wK/Lolr19Wvjn6CkuiiIQ55WSRHdsxQSyFBKHYyRRdnTls1Dx4rPNxx2fg6Ok4Rd8zJsujy7zkL130kNWiK/k/4pp225hGFpO76SnOLc/PB8Ag0VHt87aKv6KjI4IjdingA9JwFzW7+vSqtpkAETmv0vuvwg75/cGPtP6oJN8WrslqVw4AMtjAtt1kCn6hXAwfAG7wmoYNG2vrokuRF13YkXDUS2LMg8LAxIzTyiBLz6VkbkPH1fHewXptXCy0saZJUumDDVQAGLozTiOmjr8agmBK3O4eX9+hwQevcUGeJvfvITMB6bTxM1FE8zIxPwRk3sUBOImQJSR/USnWlWJWYEotz8x+Vxftjejx9kfQSHr8mfjt6Vk47NQ2Xyqj6YuMF7w5GHIMxMBpPgXQ4Gq3QnLS8Ok/COp42dpFzo8CJW3gj/GBbWzUCnkj7/iyN26IDuzHQxOlqN/RneLgzigoJdRPKy3qDytm6DD7C6oRK3R757fqu0IRk0EOyaI/bP4b5kB9zt+EJeNdtz0ETf+TtolL2gIoQAGTxV26NAAiQu/GjfXYoVEwVeadwhDr46kZ/7zXd6cNWbpyhCjRHJ0KsnEcM7r01DhKqK1pEhEjQ0M3jfYNNt54l6cY8dQMqvOoEDpQ/9OVaBiIbWnb36RFQ9ToxfGywUvxwcveyoBjii77UPGq66hj11W9TxIgOtwQbFdaEs6P++Q9LUSp1b7e5IvBsHcZzSXD2ZDwPcMHRRJPiLptQIG6SVsb52n1hmhFEwNtY1Q3LvQEOMvJkBy0nqRk7JJv4Zs5xYBOYV53ApPbKTSXjrFsble/X9b+ygI2OBvIMpDLP9iTaoXAFotv3CHQ1Hljvr2OW8Hk2AxK7uW6jYjOacWVXuwxOWFSxSiCMXBEr821SBEsivldRgQUZ9u2B7ETnAoY4ijChoR2ewwhe/mtPgCUCuxhD7xYvAeEXzepLkK7znbehx/CYtcIuNhVeSmwyef93Yd/ZsIJkjY1zyhQrpGWXMGznf0YHny9fYxrXpdHy3n2Jo3KRbrj33eDE2B9uwKM0vAstQK+IoHTiCiQbXGRO/f9GGft/YP8qINSCx4eAtlomMNEPXIDdVDE7Dv8jhbuONYGUvPvnNtgwnYY4p/KSIP1Ps2KhJ7mcLY961bdvzhgE7wkXB00u0rSc9eq87MHIKV06CAOhjMnrPuya0uiT/QYwRI30NCgINUE1OUXNhqAT+ZoHwRGjNZLAEjBmMzyw/6nqr+lRq72p1nmvnvGdHGQwbGKh2kZYJOo0c6/mNKHG98yGAYRnbu/N+2gXSZvmp88cugk/p816IKoQJ8V8FLdb5mNG3EeFbjhGR96SuRFgaLMBBX+tYN+jOA08w0BaOZutU5+x7509AZockQWsdaiBy94ugDKlpFSNe07QS2JH/x2Uo2d6fXj3k+9GULT7z4ZvwphnA+HK/cliSzs4LAF25W0UniPtxVzjYUWmmaj3/H3+LS+MgB7A1PyOfHNfMBbDBkHRcXfJUoj5uGhgbIOAVmSzVjACKCRnJ/4L8QD5EYLOLhcWZF94LfvTm0CVPAwJ9VoZqKW8TpwWrNvWeLnMXNAVJApjKcma4sInQUrAbR/vPkVZmQNMzluPQZT9UZFmvOTCMGSLcfiDYd4sfzzJqF/hxtW3TRn8+K9U9pQMpQ838L5QQxfPCRoytVGr/0HurGqw7Xp93wcSlyQD9Uzy1yY6g1Vx4cjPe/pUDqjrcVezVS8ujduljdSZuzOI2pBWg0TvricBrtNV8U53qDJ26vguTxaTC8hO5GManfWpASYo6yz4XMcVMuYsaptRaqRPS4rItzYpdYj6NvV1X1lef/PFzc6r3sbQPu6uY8jy7BhflEH5F/kMOYQ4irSmFCa3qQjjzF8/YWw2KUkxd+9wIbK9lXmH7r36OzfbW1cIyi9pNDNX+eNZXsDbTHxdMK24QMmdtc7ay3/3amCG8J9NJ19u83xbVkKayKAte55LB4azrX5XYoqecU05ZmHoITG/Jd8fWDaiMaiALqLsCKZAErMXInOqMx+eFldoUJ0zFiYfjsAnVD+P6yPAR48F/1P+jBgxg1qyCDdlH/xCFaDxqhj93PoeNFw/YtI4dp6aijC1yFm+vN6Gaq29yPWObXWGiywv1+YHwO5m2WZ0oM9EAXHbY0Mub/MAhHZ7Uy9dhejXVIbyUBv5X/FhmroV0AWy4+/DeBiFapXAQWrGowzYqL5VuYsNX3AjfALqBfsAw4FMGnRSg+vkUkkqXUtf6by6TH2pxdv1gWaYTA0FnH01pgG4t3hCiYRPpuTyuO6XXptLZrkED9pinXIJXdpjfrMStqZdjRkef7zaZg3iLA1bOewJjKNQoIDKEJgzZ9RwFq/0Lin1iFxBXx7wM23TbcDoVSFtKy6N0i7KKRq5G1FOqRwqEhhyJyuqSPj7HO6bvlRSq0xGb8PN9N08WtSSsp3IwTWXbE0uvv8MWw/Li90FKzDNu+pfu1x6nsiXIPQMWre/Ju/aASvfM+dBakdZDXjl2jlaxtcQ7fYDfmzau4vXp+e3sWsb8vBTl1TYMSj+3DlezeZS3uTch4Qf9o6u+6aALLuulfR0E6PyfAhF+hdHdVXp45bB2ULrNyvpXBOjxBaogWa21eyzkvBqaWxdUn7/hfZI/MXNIdPhjeVhmbxT+FS5u36yNgPLjJfrhfTrwXyJzI5Q97gd/5rh6NsKohW9c+oz2+VeciAUDr9UcQtWeFI9xNAC9Qe2z/VzfvBfrGoaLY1jJ+RCWNTD543PmYlZnBkyVSZbDl7VKgvqgu9HSeHYMq7lWZPG2yxS5u8f80NzkyMFkv4UhQxVmrqgsoHrki7xzDzmlmEXqQn8JdnT2h5eDeRT2UVhi5Auk1AFb0O/YOBVbXSXWJ6APQVx2xXE/MsjkJ2IwcTSJaYaT8Px9+YAjTFAaI18WqXS8cLzJktHS5qdENSBc3Iz9lVkI4G0z1A1dQD4hC4FIDEflv7b0geksxbLcgzDFoJoERbPgLhIDD1fwVjGymEBl0kFqb1DBKvdMRSsBuuoIkor2inqkTY1VlifIO6w/81c3lk76FcEYsmsfnx+24+9P/n9klxY59iyQ8Y5OeF9hAtEH0qqRtI4F+l9ojSwb+orhaKklHDiyScCynNgr4gL98rmHCAT/QmfWZz0cv6VcRFlotaS0Kwh3UuFd2amptSiC8ZopoJJYzkKBKLgy2QNFmj1Be4oCxdR7ud/K46qAUJzcrGJ22InAuAJ7omG0QHX78QpTF/i4sNLRfAXQqBsqayv8lNSmZHNTXlcB8HzeX0pzK7IAf6GSEMEYIoxBfJeglPa8fDpJGJlhA/if19NL/UxuTbH7d/OAldjms3J8kjigtS90ZVYrPCR6G0g7obxb+RgoJxvQMF3ILMYpCyxmtTcJkTGDZsg3wsWGZ/5tlmQThWJTfU1hsViNbdqN7FJWzeWgtCBza+fUof4Lv3b9q8OyGj9KOgZFGru6A4MRvbahoiEUl7ObjibTbWV4jlBK1SXY4ltxf0hz+CL43eDUr6sKX3KPCnp1X2M1QMnCccJXUGucy+1voPn/IRvoMRwWovTFFb/MZORIadaQ+6KabolQb13kvPeMddmkzqiR7AWEnSN2+FM2DS3Z16Xeisj5Wo/rzX0WqNG1ieSKo5hbAEu3GSg1RKXTtYGaHCkUZJgCUFx1sKD1XO9qqMjNxJsutKvkXor1GKYCylxs4uPX0AtW2K27EoZ2ZUCTrirntiDoDpnsEy7x+B025JsceHurVNRub/WnZr6DwhQnIIseTjI+Bjty24qX97nXY3Uc5zd70l6HM1Fm4rjMnqqo/cMjrkmR9e0agUb5FeR7IyuMpq+h5ECvwW+FiqgJXQABeef+kG6f+vgpbVvPqccHsFxiaUynr97JhyMR+0YTksxFeUcxsM8Yeotg41KrAcMLiHxY9fC4tQqW91CDfSyA4N/lccQHSjLd30L/lGSkfS/ahcfTq8G2nB3ARnE4JJPpNsG6lgNKvWBcXcTEezkqSzXESXcbyvwHKkbaO6NZORSJ5xj/OH/jNywaZt2uUzHP40Ltl1FCCJaF1uWKkbQkOG2211OZYMv+VCG33jyebdwbZUPFjeJC7xEAKVTTdeax5C7iMM7/sfo2vC4FLg+kd4CWaELHf7RYEVTJdX7DP/tkIfWZUohWEoTk97LEhTlvPfujpYXdmQ6nYuz5JLfNVJMNWrgHPdOTQAkRxx1VU4NJuAH+rSiF1Sj2lbGRlc7zjdFBctqp70eavS3SvCcq7fvabYjuy2qFSFKekTxAuMQGzHP5WylW6Rc280IvGOYz/Aa+a+VfbKozl5IfCTG6ChZXPifjBN2+lO1+POF+PA4jf0rPHK/e756uLTuEFJ+FtwP5PT8ca5P9Badx3P1bzUB3U8gz0Dl2fJ1nQR8S6XGMPKlnpr72j22I5315h3McX//nvKujxdKkbkARnSPGl9LykMYwi2iP1gBZ/6Xep3HlM70Hv/4ge6wkjt46qqFvz+VsK7rAa2/dJnb+DBZ/KI6Mk80wB20ne0ylUlfAtS01WtgWkgFMkZPP/Le6NbLNQStlSHPbwUyL689Du+MKdU5uf2OZRVt38fS26svybIzy5J2ZUVLm4J69BY3f8V8TkUUh0AnsFV0O3StEhb7xeKEqFaeehiiLOB7AelGVPDea1k5hvnrw1he4+1Dfxnkc0HRVZiZ/uWsE9hYqIg+PewGtoVMA/9fzYZCLvoHXiqXHGRhyrbzoOdzmQgPtA/M4B/qu/sASFn80kApdTiLvkFo6iCoJusT2Xxmk3Fc1Ca0LIAoHSy8AgADMsBVcL3GNDv9l2PEl0RJumfE93UapVOSSe0OU4DfyGWAz/rBqm4ZpJFcW0/ytufmTpFgfa9hvNrihy2mFVUo+iYXT2YSri1z8WTs20y8rJZlpsPcPu4oi5bE/2NPnTeXaCyPSJGrwms8Eov62q4WF4DUKJdrR78EiBPdAp+MWKvWd0XzmWgwDSpoAV4kXJJaK0iTMo8ZfNR0h1kXHqGOt88fDwkzAZoDW2g1xm2PRCxNN9ooZZlAI0EJU9aMAAY+nLsJ9ysq7RSeSFoo9KSbFowsPbsQtlzKBUbsDtLHf0+DQ5nU8V69OEvJNAEN1DJTP6JxZIoO9r4UN9BanmVbZNtYVCa34qky7HCnJ+y3AdIYMXwOAUmBd+94eaDKv/IuLzfdPuZpNevwTvIKWP5ZM8iAFcgYCr+r20swqaAJJq+C/rS1AgPkDJkHAUQ4x5MJJoG4Chj+AvRryrHcFJKFRnc2FbHlc536XnrujFOBXboyJkumdilNViQ761agVPHl7pcWoAC6wI4AJV87u2YahCODbrRrGpRPTAlussnYIebMrWO5IMmWZTcssHmwr8FJtqCfLqA4+lkNBUy2yeWhcW2QMH5Gi+HPIQLRL7VVg+VyVEFE50laGXkilc2nzLqbH8qLHO+/alaa0G4I2S2dL2zrAfBbHhkiSYAEJnuF385rRQM1rAU7ybu8qy9kO0eTeg+lMk8L/+7s85Ay6repeihCXuTGWpAdhDUW+hoeF7qpDtfh7cVP7/YzhsNkwqgcahoDsNF6589zAUBjFOhY1a13B8KawgGvxa+6tm4Nnp/nCx0y5ekGNJR6k3CxrLujRSXtrcrzjOMXxK0xqyUE7AbRnqGDoaU9LKN6ft0jfXKWYqlQGaHE6QMSmvU+QQEXJN4o19aDZ88kp29MVlkKjHRzeGOR8LMz8wEOHRCv5QbecQvLvrfqRYwEqB78U4pQB4z0ISIdesTQyXHNriOV5ya1P7dKubWMRyMG4ZXVkcFXK0IJstM2P3kb2r0GB4manq6d1m2+p5m+m4nm3vidJZskvWIqswG8SO4O+xeiyVtrwJ7dbCaijQX5VpzgD4YuPEkrbBSH19D53tBqwg929YpXNJWHVGbpNXohoJbWbhkLuSgQai79P3vq1mgxWRHA3D04JfoWGLWFZXbX4/6iHJbZ4UmmPD87msv0tIT8SD4mdPij/i47C4rIVQQsA/PHbTAFZ+CuqYubfS5zB/W12k6Ztirmh+KN7MmLvmw4ktw2UON4ndF7uqPaL2pC3/wqR6vLWbdeJIOd3eyeXTjODB+BxYLuXMRGXvTuRVIa4bAI9fb3jJ0TYujNOsTmYFyda1U2wqVob7tUjX0+T8yXKHSxNOMo8lhkS9AtrtKaAVss66/zL2mpEmSo075D4MGgZ5vdaLL3rUOBPdKj/ooc/ZtQp4S5pycocpiaN935UON38WEuwBmABrFszKJW/FHe5IKq6EnUDPHNE/PLi9eEz9sLR3CKY6wZZEicnSZdbd13I6hBaW6WcBhkPxI4X1JLTzALQEl0b6FGc9ssUuHYJ2jIXzp/Z45e14M917kirQawxnof/acrkWZ23TKk1UJKtrX5v5G98a7fx8+meLIOHjez1InuJcNFxCMJRbPGJY+uRMHtiikbx49+3ASs34NwPXLohCYDpIzK7DegI6IWAAb5NRbgt6bTlW//9RfWLVPGTtACcOnYvfPVa6NGKM47RAbtlk2pjf1v/kYF/MOwqpWZP6L4meMlXzUDjbwvLSELg4++Z1bXeHVEsR4VYBQvxatUQkWJGbonVYPXjVchsSWV0aN/J5g3DLwp7Ms8yzN4/7OJvkMNHSmWrnZbZdRbZk8XTHXgRlMxAY71hQXt49lgL+H1xNsSzjrchFXeQkxT4oQgg0TUpcf9XZyiQRkSXmc3i7j85Co0R83oBpAoRts0XmDPDWiIjDTGG55IvDqxg1cWs6PH2slATSgrSXqKL1qera2twCgTyMrOK0SITy3YWOCjI0dvwGmGVTuSKveG+AhXIOTKm9eIiUh6UiIvt2sqaBrmmEG333iDiNnhTzAPWfBG9ZGQ6AzpPy9OSIsbH2xnyMvxAkAKrNFvQsmG/54VgX7xI9OsKaRPhFUOYW3GX2QNRpVG7uj4LTkMq/J2l4q+A5U08FeCCdD+SLBTHkc+2ZeFE17QEEy7ug0fjnmfS9GvaDrPy7pacWBRTJEAfm0u6jyEgiRc5L4GsSs4V9lnkneNwKTml1m8hpKn7qHcUkOGJbo/2rGH3apGAtLieb/swSZDHdPRvJ0fwDnsMN5Tm6pkRENUkddpLIl+rDCiWMFsVlZ5xD50iKUPJ8UsykQRhYie7clsJNoiD1Q+wtbX5GyWszPL+QRFgOHdoVKcEd25/6de4qaAPijHOg7TdVBYBTLF1MFKjcFWEnfzcO5f86QBNREnmnoVR01jlAT2FMEgVr2tcKY+Y1IhFK3/RIfbYfAOiETcSArJYO6MUNenBGCYOjsBA6VkricA/Wnm8JVrec0pWzu3yspLC//Emtibm6sbcozSdeVa4dCiKtLWr5noeFL89HdXQNouo3G8yez1mrLCAHbZZgq+eSRnza5aBml658tX1qGk1b7roaiZ9+QTkZ4DlqQWNmM6wcKGnkLST7B2ISW5l+25iM3T4+5FLDJL9U6lSDvc4ra2pvI6bP7bUggGG63M+21BIG0272GlViiwzx5RxacBKokIhTRtkDJIN9wgZw8oud3PdUWXG6x88gm0W+RziXPMWDJlsX2a9k8PAHtPyUgFAMiMbQN0A/V9OjBEPxdOlaymgNdBJ1MPaMUn7ZsyRTvN9bitMrkWdLXYARVOxmbcsWcf4Z7dKY2t4E9va7AHnUpcn7J1RCr+etVnNTFEPSdk1bDXZMoJAYacgZYyxdB6MmJ/re3EWvlolqTL4PkN1tdJmKml3xjPHuH5DC1gOu0wHHEaM1/VbouLGFgV/i/ctC0jo8Xeo9YP/odCsky0sBxXnxdvdxW4+//v0u3m83hDWiNoBAUgxLyXd+cAQi5lHluYgmIN7EzIVqDi/grrZcKrZc0Ops2QM1CQ6gKWJILJT00YIWpesMgZNZsHSow93q4lMiwQAkHqIjzHVT8Ma4znbPKP/TtdPhXOF18kTP+AmQiVxyX/fgL8JZmVlc79ob+9rN49PkO3zp2DzmttFlnCIzVQ+bYcxn5f17w9n4YGUdi91vmlI6dwx218dqwtGsZTRjckoI8zrMBGyxAhv+4RaFS/WcXo+lttDevWfijaZtzy83mE/P0DbJXprlilyeGzkDBrxDJBxiJCjeFvY7IHH1t70kxjqRMKUZp8+lj6s0Vdqg4bmE/wWamRYBQqm3Q1mqiOyS7vsISJlUdCy0W/hsc6w5isEGAzebLzGfSzA8VhXL/WH8oN7+LzjQHUtqne40vCwjGartB7DTvBHORk9BD3n697BNugetnKMd6JoX+LtLOi49QFhN5wzC+E9mYyFbuhoMu+tPNIOYDrsW6eMpdSQVjVMTNn3oVJiWPKwEuL7SFjfgo/AUKyRVksvPNCVquadMqDPnErmWhAqLRHn+3ZfpAInc6K05RibzV6ELTQGxji3h24iy4ngnqJbZ2GTdqryY6C+0MvIPiCrYs9zD57cO5s6ej6m284Bg6UzuMwE8V/hsXBKiqwH7gyHlg2VWLwXTezZVjnII6GhKCSG2BvUfFgYV6P+LS1efCZlBCoaesvmbKJPtlpkBPfpdMGLQkf+oBl+b7br+o5MGEpG357PfHb2gZ8NGCu77Axf2zN9A75g3wbndwvmkOXzOLv+Q/5MA8c9ARr7EbpyOWsmx8BXsO821pwrVaqjFJAfgRyhcJIhqn5sSyOidVGKc4GSP8d5ROy5O5x1movfr9FaSSgbo6EcYcQ+xadLER6XPN0IqcKzm+IROqOHaXqtgzkZiy6BjoH+4sadgZEbbetN1DTEMp+KMavyEAbruSx6M0JGAt3meIczSO7WKpPyw8mk9m847uMJF+XR/xV2gDqQ2iQQQuT+8zaiW/sDhRUXSOVTCx+wct6/LqimGVLkqHnofsu37dlVTbKdlZLYH4TFJQUZ6pmbipYGs6utktKfaqdmj/2JbCv/uUUemKAJfvTwSt7rLI9+zdhbwiFOMfq13uSXStXu3n2fG6Qs3QPOpzJWd8q2h8OBCQkI53QyC89vtUxG1WOZY6HGhGYSww9wOW9yRJeIFAI7IQonqWJouYRML/DBB64zmSId4FZ9RLxiqL5TSS2M4GNjBqcZZni41h23OIgPPgeLEz8InhubenBTAMFUt+op2y6Qqza3qYf+jx3OYzofbjwqIcUHN5ttNhF44eP/bxwT8cw1PatRQlJ+BIOaHZaCWibjsBNeOLTYiYm2/qS+vpR7lUHmGBRtLFQqKYvF0uGMg0skr83pHPgAhZGk7dnNEMjlrJ1Q1wT+WqK2fjnR8EIVMYyBU38SjzAN0Ze//mMf1Us6VcXLIF6xUU278Wz8xwHn0nhyqB2jy1g2wst0ieOB47WmVNhxOlreShVSUGlDV+lmVorBcCgKwBO2qL9a951PB8RwLwigLKhox8rjkkln5VNQmyPijFcLHoqmo9uMvT2HtPm+tKO/PC5rUZNUPsB7o4RQhNQCegBc1b1vYueX5ZGEIalRasZGKY64hFKD+yyViV0j0ngjMg6a5db7f18QoEMFxA1/3fyEPXfRLJ23JLRxf8xisnKSQIwxcF7z7Ji869RFx5FPx6h+6EjaPaF0UJoqOht9YpKtxV+0q0g61SnAEGDb7GU+2AiDO0jpbIrBSdsxnFwr4FLZuh0j2MWyWu1jFejUlmoLLVIJUXJacPAn3CEecbBH3kHCqGY+cnTV6Qd7YL4OfAiM8qO+vqzJAcWA4UXZsUVZADvwPPKiqxh3CChNkOl4VdDmOFtN+T4gm2cMzfH2z/Ft+vZTFOdMNUg7M1NcdK0/d2GGGSmnst7RsiRFXRhbrhF0vkerYlSQ2TKXsvXzIZgqh2V3waoHYSgDrdiiom7phKPCZZ72s5L35C45jEXYzimXUL+0y5zFz/M+0IiOIsMWQ8g5g4DdljohExoV8C0WRztBfe+m9EJlsQLp42MxKymuFIgqA+LhtykGHq4Il4CgBjoYaaSRTEt5wB1GbJSborYAB2HgAr3R/n1EJ1bVffR9BABvuItarivj4+eX9/Tp46xMf5CXxHlC6yg5/MOSPMcitggl4ADb13tIsu7NSRi/1Pwd9vwBevQAEq+GBLTAAAAAAAAAAA="};
+// Twin Moons: all game maths (no drawing, no timers), so tools/sim.js can run it in Node.
+// Two 8-sided moons are rolled. What counts is the GAP between them (0–7). Matching moons (gap 0) COLLIDE: the crash, like craps' 7.
+// Come-out roll (no point yet): gap 7 (a 1 and an 8, "full orbit") wins the line straight away; a collision loses it;
+// any other gap becomes THE POINT. Then keep rolling: hit the point's gap again → win; collide first → crash.
+// Bets: WITH the moons (pass, ×2), AGAINST (don't pass, ×2; a double-1 or double-8 collision on the come-out is a push),
+// GAP bets 1–7 (that gap before a collision; stays up until it resolves), COLLISION (next roll is doubles, one roll only).
+// Payouts are "returns": ×2 means a 5 chip comes back as 10; odd amounts round down, like a real table. Payback per bet is checked by tools/sim.js.
+const FACES = 8;
+const GAP_PAY = { 1: 1.5, 2: 1.6, 3: 1.7, 4: 1.9, 5: 2.2, 6: 2.8, 7: 4.7 };
+const LINE_PAY = 2, COLLIDE_PAY = 7.5, NATURAL = 7;
+const CHIPS = [1, 5, 25, 100], START = 500;
+const FORCE = { dice: null };                       // debug: force the next roll, e.g. [3, 3]
+
+let credits = START, point = null, streak = 0;
+let bets = { with: 0, against: 0, gaps: {}, collide: 0 };
+let history = [];                                   // chips placed since the last roll, newest last (UNDO)
+
+const tableTotal = () => bets.with + bets.against + bets.collide + Object.values(bets.gaps).reduce((a, b) => a + b, 0);
+// where a chip may go right now: line bets only before a point is set (and are locked in while it's on)
+function canBet(spot) { if (spot === "with" || spot === "against") return point === null; return true; }
+function placeBet(spot, amt) {
+  if (amt > credits || !canBet(spot)) return false; credits -= amt;
+  if (typeof spot === "number") bets.gaps[spot] = (bets.gaps[spot] || 0) + amt; else bets[spot] += amt;
+  history.push({ spot, amt }); return true; }
+function undoBet() { const h = history.pop(); if (!h) return null; credits += h.amt;
+  if (typeof h.spot === "number") { bets.gaps[h.spot] -= h.amt; if (bets.gaps[h.spot] <= 0) delete bets.gaps[h.spot]; } else bets[h.spot] -= h.amt; return h; }
+function clearBets() { while (history.length) undoBet(); }
+const hasAction = () => point !== null || tableTotal() > 0;
+
+// one roll: returns the dice and everything that was paid, lost or pushed
+function roll() {
+  if (!hasAction()) return null;
+  const d = FORCE.dice || [1 + Math.floor(Math.random() * FACES), 1 + Math.floor(Math.random() * FACES)]; FORCE.dice = null;
+  const gap = Math.abs(d[0] - d[1]), crash = gap === 0, comeOut = point === null, pointBefore = point;
+  const res = { dice: d, gap, crash, comeOut, pointBefore, outcomes: [], natural: false, made: false, sevenOut: false };
+  const pay = (spot, amt, mult, label) => { const w = Math.floor(amt * mult); credits += w; res.outcomes.push({ spot, amt, win: w, label }); };
+  const lose = (spot, amt, label) => res.outcomes.push({ spot, amt, win: 0, label });
+  // collision: a one-roll bet
+  if (bets.collide) { crash ? pay("collide", bets.collide, COLLIDE_PAY, "Collision!") : lose("collide", bets.collide); bets.collide = 0; }
+  // gap bets
+  for (const [g, amt] of Object.entries(bets.gaps)) { const gg = +g;
+    if (crash) { lose(gg, amt); delete bets.gaps[g]; } else if (gap === gg) { pay(gg, amt, GAP_PAY[gg], `Gap ${gg}`); delete bets.gaps[g]; } }
+  // the line
+  if (comeOut) {
+    if (crash) { if (bets.with) lose("with", bets.with);
+      if (bets.against) { if (d[0] === FACES || d[0] === 1) pay("against", bets.against, 1, "Push"); else pay("against", bets.against, LINE_PAY, "Against wins"); }
+      bets.with = bets.against = 0; streak = 0; }
+    else if (gap === NATURAL) { res.natural = true; if (bets.with) pay("with", bets.with, LINE_PAY, "Full orbit!"); if (bets.against) lose("against", bets.against); bets.with = bets.against = 0; }
+    else point = gap;
+  } else {
+    if (gap === point) { res.made = true; streak++; if (bets.with) pay("with", bets.with, LINE_PAY, "Point hit!"); if (bets.against) lose("against", bets.against); bets.with = bets.against = 0; point = null; }
+    else if (crash) { res.sevenOut = true; streak = 0; if (bets.with) lose("with", bets.with); if (bets.against) pay("against", bets.against, LINE_PAY, "Against wins"); bets.with = bets.against = 0; point = null; }
+  }
+  res.pointAfter = point; res.streak = streak; history = [];
+  res.totalWin = res.outcomes.reduce((a, o) => a + o.win, 0); return res;
+}
+
+// ---- Sound: all synthesized live with Web Audio, no sound files needed ----
+const Sound = (()=>{
+  let ctx=null, master=null, mbus=null, on=true, musicOn=true, mlevel=1;
+  try{ on = localStorage.getItem("slot-sound")!=="off"; musicOn = localStorage.getItem("slot-music")!=="off"; }catch(e){}
+  function ensure(){
+    if(!ctx){ const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return null;
+      ctx=new AC(); master=ctx.createGain(); master.gain.value=0.55;
+      const lim=ctx.createDynamicsCompressor(); lim.threshold.value=-10; lim.knee.value=6; lim.ratio.value=8; lim.attack.value=.003; lim.release.value=.15;
+      master.connect(lim).connect(ctx.destination);   // limiter: stops loud moments from overdriving a phone speaker
+      const hp=ctx.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=90; hp.Q.value=.7;
+      mbus=ctx.createGain(); mbus.gain.value=musicOn?mlevel:0; mbus.connect(hp).connect(master); decodeClips(); }
+    if(ctx.state==="suspended") ctx.resume();
+    return ctx;
+  }
+  // lp = low-pass filter cutoff (warmer, rounder sound); lpEnd = where the cutoff sweeps to; detune in cents; bus "music" goes through the music volume
+  function tone(freq, dur, {type="sine", vol=0.2, at=0, slide=0, attack=0.004, lp=0, lpEnd=0, q=1, detune=0, bus=null, vib=0}={}){
+    if(!on) return; const c=ensure(); if(!c) return; if(bus==="music") attack=Math.max(attack,.008);   // softer note starts = no clicks
+    const t=c.currentTime+Math.max(0,at), o=c.createOscillator(), g=c.createGain();
+    o.type=type; o.frequency.setValueAtTime(freq,t); if(detune) o.detune.value=detune;
+    if(slide) o.frequency.exponentialRampToValueAtTime(Math.max(30,freq*slide), t+dur);
+    if(vib){ const l=c.createOscillator(), lg=c.createGain(); l.frequency.value=5.5; lg.gain.value=freq*vib; l.connect(lg).connect(o.frequency); l.start(t); l.stop(t+dur+0.05); }
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol,t+attack); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    let node=o; if(lp){ const f=c.createBiquadFilter(); f.type="lowpass"; f.Q.value=q; f.frequency.setValueAtTime(lp,t); if(lpEnd) f.frequency.exponentialRampToValueAtTime(lpEnd,t+dur); node.connect(f); node=f; }
+    node.connect(g).connect(bus==="music"?mbus:master); o.start(t); o.stop(t+dur+0.05);
+  }
+  function thud(vol=0.25, freq=260){
+    if(!on) return; const c=ensure(); if(!c) return;
+    const len=Math.floor(c.sampleRate*0.09), buf=c.createBuffer(1,len,c.sampleRate), d=buf.getChannelData(0);
+    for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/len,3);
+    const src=c.createBufferSource(), f=c.createBiquadFilter(), g=c.createGain();
+    src.buffer=buf; f.type="lowpass"; f.frequency.value=freq; g.gain.value=vol;
+    src.connect(f).connect(g).connect(master); src.start();
+  }
+  // Recorded clips (base64 mp3 in SND_SRC) are decoded once the audio system wakes up, then played through the same volume control
+  const clips={};
+  function decodeClips(){ if(typeof SND_SRC==="undefined") return;
+    for(const [k,b64] of Object.entries(SND_SRC)){ if(clips[k]) continue; clips[k]="loading";
+      const bin=atob(b64.split(",")[1]), buf=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) buf[i]=bin.charCodeAt(i);
+      ctx.decodeAudioData(buf.buffer).then(ab=>{ clips[k]=ab; }).catch(()=>{ delete clips[k]; }); } }
+  function clip(name, {vol=1, at=0}={}){ // returns false if the clip isn't ready, so callers can fall back to synth sounds
+    if(!on) return true; const c=ensure(); const ab=clips[name]; if(!c || !(ab instanceof AudioBuffer)) return false;
+    const src=c.createBufferSource(), g=c.createGain(), t=c.currentTime+at; src.buffer=ab;
+    g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(vol,t+.005);   // 5 ms fade-in: no pop when a clip starts
+    src.connect(g).connect(master); src.start(t); return true; }
+  function noise(dur, {vol=0.2, at=0, type="lowpass", freq=1200, q=0.8, attack=0.004, sweep=0, bus=null}={}){   // filtered noise burst: gunshots, tyres, crowds, scribbles
+    if(!on) return; const c=ensure(); if(!c) return; if(bus==="music") attack=Math.max(attack,.01);   // no instant starts on music percussion
+    const t=c.currentTime+Math.max(0,at), len=Math.max(1,Math.floor(c.sampleRate*dur)), buf=c.createBuffer(1,len,c.sampleRate), d=buf.getChannelData(0);
+    for(let i=0;i<len;i++) d[i]=Math.random()*2-1;
+    const src=c.createBufferSource(), f=c.createBiquadFilter(), g=c.createGain();
+    src.buffer=buf; f.type=type; f.frequency.setValueAtTime(freq,t); f.Q.value=q; if(sweep) f.frequency.exponentialRampToValueAtTime(Math.max(40,freq*sweep), t+dur);
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol,t+attack); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    src.connect(f).connect(g).connect(bus==="music"?mbus:master); src.start(t); src.stop(t+dur+0.05);
+  }
+  const note = n => 440*Math.pow(2,(n-9)/12); // n = semitones above C4 (0 = C)
+  const arp = (notes, gap, opts) => notes.forEach((n,i)=>tone(note(n), opts.dur||0.18, {...opts, at:i*gap}));
+  return {
+    get on(){ return on; },
+    set on(v){ on=v; try{ localStorage.setItem("slot-sound", v?"on":"off"); }catch(e){} if(v) ensure(); },
+    unlock(){ if(on) ensure(); },
+    get musicOn(){ return musicOn; },
+    set musicOn(v){ musicOn=v; try{ localStorage.setItem("slot-music", v?"on":"off"); }catch(e){} if(mbus) mbus.gain.setTargetAtTime(v?mlevel:0, ctx.currentTime, .05); },
+    musicLevel(v){ mlevel=v; if(mbus && musicOn) mbus.gain.setTargetAtTime(v, ctx.currentTime, .08); },
+    now(){ return ctx ? ctx.currentTime : null; },
+    ready(){ return !!ctx && ctx.state==="running"; },
+    tap(){ tone(880,.05,{type:"triangle",vol:.08}); },
+    lines(n){ arp([0,4,7,12,16].slice(0,n), .045, {type:"triangle", vol:.09, dur:.12}); },
+    spinStart(){ tone(140,.4,{type:"sawtooth",vol:.05,slide:3}); tone(70,.25,{type:"sine",vol:.12,slide:.8}); },
+    tick(){ tone(1500+Math.random()*400,.02,{type:"square",vol:.018}); },
+    reelStop(i){ thud(.35, 240); tone(150-i*18,.14,{type:"sine",vol:.22,slide:.55}); },
+    wild(){ arp([24,28,31,36], .05, {type:"sine", vol:.08, dur:.25}); },
+    lose(){ tone(note(-5),.18,{type:"triangle",vol:.05}); tone(note(-8),.25,{type:"triangle",vol:.05,at:.12}); },
+    win(level){ // 0 small, 1 medium
+      if(level===0) arp([12,16,19], .07, {type:"triangle", vol:.12, dur:.2});
+      else { arp([7,12,16,19,24], .07, {type:"triangle", vol:.13, dur:.22}); arp([19,24], .1, {type:"sine", vol:.06, dur:.5, at:0}); }
+    },
+    bigWin(){
+      arp([0,4,7,12, 4,7,12,16, 7,12,16,19,24], .085, {type:"square", vol:.05, dur:.16});
+      [0,4,7,12].forEach(n=>tone(note(n),1.4,{type:"triangle",vol:.06,at:1.1,attack:.02}));
+      for(let i=0;i<10;i++) tone(2000+Math.random()*1500,.05,{type:"sine",vol:.03,at:1.1+i*.07});
+    },
+    noise, clip,
+    tone, arp, note, thud,
+    refill(){ for(let i=0;i<8;i++) tone(1800+i*120,.04,{type:"triangle",vol:.05,at:i*.04}); },
+  };
+})();
+const $ = id => document.getElementById(id);
+const wait = ms => new Promise(r=>setTimeout(r,ms));
+document.documentElement.style.setProperty("--bar", `url(${ART.bar})`);
+const SHADE = {1:"#ffffff",5:"#d4cfe6",25:"#9b96b2",100:"#4e4a66"};
+const shadeFor = v => SHADE[v>=100?100:v>=25?25:v>=5?5:1];
+let chip=5, rolling=false;
+
+// ---- the gap row ----
+for(let g=1; g<=7; g++){ const b=document.createElement("button"); b.className="spot"; b.dataset.spot=g; b.innerHTML=`<span class="nm">${g}</span><span class="px">×${GAP_PAY[g]}</span>`; $("gaps").appendChild(b); }
+const spotEl = s => document.querySelector(`.spot[data-spot="${s}"]`);
+$("layout").addEventListener("click", e=>{ const b=e.target.closest(".spot"); if(!b || rolling) return; Sound.unlock(); Music.start();
+  const s=isNaN(+b.dataset.spot) ? b.dataset.spot : +b.dataset.spot;
+  if(!canBet(s)){ say("WITH and AGAINST are locked in while a point is on."); SFX.no(); return; }
+  if(placeBet(s,chip)){ SFX.chip(); hint(s); } else { say("Not enough gold bars for that chip."); SFX.no(); }
+  paint(); });
+function hint(s){ if(s==="with") say(point===null?"With the moons: gap 7 wins now, a collision loses, anything else sets the point.":"");
+  else if(s==="against") say("Against: you win if the moons collide before the point.");
+  else if(s==="collide") say("Collide: the very next roll is a match. Pays ×7.5.");
+  else say(`Gap ${s}: wins if a gap of ${s} comes before a collision. Pays ×${GAP_PAY[s]}.`); }
+document.querySelectorAll(".chip").forEach(b=>b.onclick=()=>{ chip=+b.dataset.v; document.querySelectorAll(".chip").forEach(x=>x.setAttribute("aria-pressed",String(x===b))); Sound.unlock(); Sound.tap(); });
+$("undo").onclick=()=>{ if(rolling) return; const h=undoBet(); h ? Sound.tap() : say("Nothing to undo."); paint(); };
+$("clear").onclick=()=>{ if(rolling) return; clearBets(); Sound.tap(); paint(); };
+
+function paint(){
+  $("credits").textContent=credits; $("bet").textContent=tableTotal();
+  document.querySelectorAll(".spot").forEach(b=>{ const s=isNaN(+b.dataset.spot)?b.dataset.spot:+b.dataset.spot, amt=typeof s==="number"?(bets.gaps[s]||0):bets[s];
+    let c=b.querySelector(".chipon"); if(amt){ if(!c){ c=document.createElement("span"); c.className="chipon"; b.appendChild(c); } c.textContent=amt; c.style.setProperty("--cc",shadeFor(amt)); c.style.color=amt>=25?"#fff":"#1a1530"; } else c?.remove();
+    b.disabled = rolling || !canBet(s); b.classList.toggle("point", s===point); });
+  const p=$("puck"); p.classList.toggle("on", point!==null); p.querySelector("b").textContent = point===null ? "OFF" : point;
+  p.querySelector("span").textContent = point===null ? "POINT" : "GAP";
+  $("streak").textContent = streak>1 ? `ORBIT STREAK ×${streak}` : ""; $("streak").classList.toggle("show", streak>1);
+  const go=$("go"); go.disabled = rolling || !hasAction(); go.querySelector("small").textContent = rolling ? "…" : !hasAction() ? "place a bet" : point===null ? "come-out" : `point: gap ${point}`;
+  $("undo").disabled = rolling || !history.length; $("clear").disabled = rolling || !history.length;
+}
+// dealer bubble
+const LINES = { roll:["Here they go…","Spin, little moons!","Gravity, do your thing.","Round and round…","Moons away!"],
+  crash:["CRASH! Moons collided.","Smash! Back to dust.","Kaboom. The house thanks you.","Those two never get along."],
+  made:["Point hit! Well orbited.","Right back to the gap. Lovely!","The moons obey you!"],
+  natural:["Full orbit! First-roll winner!","One and eight! Perfect orbit!"],
+  point:["Point is a gap of {p}. Find it again before they collide.","Gap {p} is the point. Don't let them match!"] };
+const bag={}; function line(k,p){ const pool=LINES[k]; let b=bag[k]; if(!b||!b.length) b=bag[k]=pool.slice().sort(()=>Math.random()-.5); return b.pop().replace("{p}",p); }
+function say(t){ if(!t) return; $("say").textContent=t; const d=$("dealer"); d.querySelector("span").textContent=t; d.classList.remove("show"); void d.offsetWidth; d.classList.add("show");
+  clearTimeout(say.t); say.t=setTimeout(()=>d.classList.remove("show"), 2200+t.length*40); }
+function banner(big, small, color){ const b=$("banner"); $("bannerBig").textContent=big; $("bannerSmall").textContent=small||""; b.style.setProperty("--bc", color||"var(--gold)");
+  b.classList.add("show"); clearTimeout(banner.t); banner.t=setTimeout(()=>b.classList.remove("show"), 1800); }
+function popOn(el, txt){ const r=el.getBoundingClientRect(), t=$("table").getBoundingClientRect(), e=document.createElement("div"); e.className="pop"; e.textContent=txt;
+  e.style.left=(r.left-t.left+r.width/2)+"px"; e.style.top=(r.top-t.top)+"px"; $("table").appendChild(e);
+  e.animate([{transform:"translate(-50%,-30%) scale(.6)",opacity:0},{transform:"translate(-50%,-80%) scale(1.1)",opacity:1,offset:.25},{transform:"translate(-50%,-170%)",opacity:0}],{duration:1300,easing:"ease-out"}).finished.then(()=>e.remove()); }
+function countTo(el,from,to,ms=600){ const t0=performance.now(); const f=n=>{ const k=Math.min(1,(n-t0)/ms); el.textContent=Math.round(from+(to-from)*k); if(k<1) requestAnimationFrame(f); }; requestAnimationFrame(f); }
+
+// ---- the moons: drawn on a canvas, tumbling up the felt, bouncing off the back wall, then settling side by side ----
+const cv=$("dice"), g=cv.getContext("2d"); let W=300, H=200, dpr=1;
+function layout(){ const r=$("zone").getBoundingClientRect(); dpr=Math.min(3,devicePixelRatio||1); W=r.width; H=r.height; cv.width=W*dpr; cv.height=H*dpr; g.setTransform(dpr,0,0,dpr,0,0); draw(); }
+const CRATERS=[0,1].map(()=>Array.from({length:7},()=>[Math.random()*1.4-.7,Math.random()*1.4-.7,.08+Math.random()*.16]));
+let moons=[{x:0,y:0,face:4,rot:0},{x:0,y:0,face:5,rot:0}], ruler=null, flash=0, debris=[];
+const R0 = () => Math.min(W*.13, H*.2);
+function rest(){ const r=R0(); moons[0].x=W*.36; moons[1].x=W*.64; moons[0].y=moons[1].y=H*.5; }
+function drawMoon(m,i){ const r=R0(), col=i?["#f5ecff","#cdb4f0","#6a4f99"]:["#f2fcff","#a9dcef","#3f7891"];
+  g.save(); g.translate(m.x,m.y); g.shadowColor="#000b"; g.shadowBlur=14; g.shadowOffsetY=r*.25;
+  const gr=g.createRadialGradient(-r*.35,-r*.4,r*.1,0,0,r); gr.addColorStop(0,col[0]); gr.addColorStop(.6,col[1]); gr.addColorStop(1,col[2]); g.fillStyle=gr; g.beginPath(); g.arc(0,0,r,0,7); g.fill(); g.restore();
+  g.save(); g.translate(m.x,m.y); g.beginPath(); g.arc(0,0,r,0,7); g.clip(); g.rotate(m.rot);
+  for(const [cx,cy,cr] of CRATERS[i]){ g.fillStyle="#0000001c"; g.beginPath(); g.arc(cx*r,cy*r,cr*r,0,7); g.fill(); g.strokeStyle="#ffffff30"; g.lineWidth=1; g.beginPath(); g.arc(cx*r-1,cy*r-1,cr*r,Math.PI,1.5*Math.PI); g.stroke(); }
+  g.restore();
+  g.save(); g.translate(m.x,m.y); g.fillStyle=i?"#3b1f6e":"#103a52";   /* numbers stay upright; only the craters spin */ g.font=`400 ${r*.95}px "Bungee",Impact,sans-serif`; g.textAlign="center"; g.textBaseline="middle"; g.fillText(m.face,0,r*.06); g.restore(); }
+function draw(){ g.clearRect(0,0,W,H);
+  // the gap ruler: 1–8 track with both moons marked and the gap between them lit
+  if(ruler){ const y=H*.86, x0=W*.12, x1=W*.88, step=(x1-x0)/7, [a,b]=ruler.d, lo=Math.min(a,b), hi=Math.max(a,b), crash=lo===hi;
+    g.globalAlpha=ruler.a; g.strokeStyle="#ffffff30"; g.lineWidth=2; g.beginPath(); g.moveTo(x0,y); g.lineTo(x1,y); g.stroke();
+    if(!crash){ g.strokeStyle="#bfefff"; g.lineWidth=5; g.shadowColor="#bfefff"; g.shadowBlur=10; g.beginPath(); g.moveTo(x0+(lo-1)*step,y); g.lineTo(x0+(hi-1)*step,y); g.stroke(); g.shadowBlur=0;
+      g.fillStyle="#bfefff"; g.font=`400 ${Math.max(10,H*.07)}px "Bungee",Impact,sans-serif`; g.textAlign="center"; g.fillText(`GAP ${hi-lo}`, x0+((lo+hi)/2-1)*step, y-12); }
+    for(let k=1;k<=8;k++){ const x=x0+(k-1)*step, on=k===a||k===b; g.fillStyle=on?(crash?"#ff4d6d":"#fff"):"#ffffff40"; g.beginPath(); g.arc(x,y,on?6:3,0,7); g.fill();
+      g.fillStyle=on?"#fff":"#ffffff60"; g.font=`600 ${Math.max(9,H*.055)}px "Chakra Petch",system-ui`; g.textAlign="center"; g.fillText(k,x,y+16); }
+    g.globalAlpha=1; }
+  moons.forEach(drawMoon);
+  debris=debris.filter(p=>{ p.x+=p.vx; p.y+=p.vy; p.vy+=.12; p.l-=.02; if(p.l<=0) return false; g.fillStyle=`rgba(${p.c},${p.l})`; g.beginPath(); g.arc(p.x,p.y,p.r,0,7); g.fill(); return true; });
+  if(flash>0){ g.fillStyle=`rgba(255,220,230,${flash})`; g.fillRect(0,0,W,H); flash=Math.max(0,flash-.05); }
+}
+// one throw: both moons come in from the front-right, tumble to the back wall, bounce, and settle on their faces
+async function throwMoons(d){
+  const r=R0(), tgt=[[W*.36,H*.5],[W*.64,H*.5]], crash=d[0]===d[1];
+  if(crash){ tgt[0]=[W*.5-r*1.02,H*.48]; tgt[1]=[W*.5+r*1.02,H*.52]; }
+  const start=[[W*.8,H*1.25],[W*.95,H*1.35]], wall=[[W*.42,H*.22],[W*.62,H*.2]], dur=1200, t0=performance.now(); let lastFace=0;
+  SFX.throw();
+  await new Promise(done=>{ const f=now=>{ const k=Math.min(1,(now-t0)/dur);
+      moons.forEach((m,i)=>{ const k1=Math.min(1,k/.55), k2=Math.max(0,(k-.55)/.45), e2=1-Math.pow(1-k2,3);
+        if(k<.55){ m.x=start[i][0]+(wall[i][0]-start[i][0])*k1; m.y=start[i][1]+(wall[i][1]-start[i][1])*k1; }
+        else { m.x=wall[i][0]+(tgt[i][0]-wall[i][0])*e2; m.y=wall[i][1]+(tgt[i][1]-wall[i][1])*e2 - Math.sin(e2*Math.PI)*H*.06; }
+        m.rot += (1-k)*.45*(i?-1:1); });
+      if(k<.9 && now-lastFace>70){ lastFace=now; moons.forEach(m=>m.face=1+Math.floor(Math.random()*8)); SFX.tick(); }
+      if(k>=.55 && !f.bounced){ f.bounced=true; SFX.bounce(); }
+      draw(); if(k<1) requestAnimationFrame(f); else done(); }; requestAnimationFrame(f); });
+  moons[0].face=d[0]; moons[1].face=d[1]; SFX.land();
+  if(crash){ // they roll into each other
+    await anim(260,k=>{ moons[0].x=tgt[0][0]+r*.05*k; moons[1].x=tgt[1][0]-r*.05*k; });
+    flash=.75; SFX.crash(); $("app").classList.add("shake"); setTimeout(()=>$("app").classList.remove("shake"),460);
+    for(let i=0;i<34;i++){ const a=Math.random()*Math.PI*2, v=1.5+Math.random()*4; debris.push({x:W*.5,y:H*.5,vx:Math.cos(a)*v,vy:Math.sin(a)*v-1.5,r:1.5+Math.random()*3,l:1,c:i%2?"255,120,150":"220,200,255"}); }
+    await anim(380,k=>{ const e=1-Math.pow(1-k,2); moons[0].x=tgt[0][0]-r*.5*e; moons[1].x=tgt[1][0]+r*.5*e; });
+  }
+  ruler={d, a:0}; await anim(250,k=>{ ruler.a=k; });
+}
+function anim(ms,fn){ return new Promise(done=>{ const t0=performance.now(); const f=n=>{ const k=Math.min(1,(n-t0)/ms); fn(k); draw(); if(k<1) requestAnimationFrame(f); else done(); }; requestAnimationFrame(f); }); }
+(function idle(){ if(!rolling && (debris.length||flash)) draw(); requestAnimationFrame(idle); })();
+
+// ---- a roll ----
+async function doRoll(){
+  if(rolling) return; const c0=credits, res=roll(); if(!res) return;
+  rolling=true; ruler=null; document.querySelectorAll(".spot").forEach(b=>b.classList.remove("win","lose")); $("win").textContent=0; paint();
+  say(line("roll")); await throwMoons(res.dice);
+  for(const o of res.outcomes){ const el=spotEl(o.spot); if(!el) continue; el.classList.add(o.win>o.amt?"win":o.win===o.amt?"win":"lose"); if(o.win) popOn(el,"+"+o.win); }
+  if(res.outcomes.some(o=>o.win)) SFX.win(); else if(res.outcomes.length) SFX.lose();
+  if(res.crash){ banner("COLLISION!", res.comeOut ? "Come-out crash" : res.pointBefore!==null ? `Crashed before gap ${res.pointBefore}` : "", "var(--crash)"); say(line("crash")); }
+  else if(res.natural){ banner("FULL ORBIT!", "1 and 8 · first-roll winner", "var(--gold)"); say(line("natural")); }
+  else if(res.made){ banner("POINT HIT!", `Gap ${res.gap} again${res.streak>1?` · streak ×${res.streak}`:""}`, "var(--win)"); say(line("made")); }
+  else if(res.comeOut){ say(line("point",res.gap)); SFX.point(); }
+  countTo($("win"),0,res.totalWin,600); countTo($("credits"),c0,credits,600);
+  await wait(700); rolling=false; paint();
+}
+$("go").onclick=()=>{ Sound.unlock(); Music.start(); doRoll(); };
+
+// ---- sound ----
+const SFX = {
+  chip(){ Sound.tone(2200,.03,{type:"triangle",vol:.05}); Sound.tone(1600,.05,{type:"triangle",vol:.04,at:.03}); },
+  no(){ Sound.tone(220,.15,{type:"square",vol:.03,lp:900}); },
+  throw(){ Sound.noise(.5,{vol:.05,type:"bandpass",freq:1200,sweep:2,attack:.05}); },
+  tick(){ Sound.thud(.06,900); },
+  bounce(){ Sound.thud(.22,500); Sound.tone(320,.08,{type:"sine",vol:.05}); },
+  land(){ Sound.thud(.18,300); Sound.thud(.14,260); },
+  crash(){ Sound.noise(.8,{vol:.18,type:"lowpass",freq:1400,sweep:.2}); Sound.tone(110,.7,{type:"sawtooth",vol:.06,slide:.4,lp:600}); Sound.thud(.5,180); },
+  win(){ for(let i=0;i<7;i++) Sound.tone(1600+Math.random()*900,.06,{type:"triangle",vol:.045,at:i*.05}); },
+  lose(){ Sound.tone(Sound.note(-5),.18,{type:"triangle",vol:.05}); Sound.tone(Sound.note(-8),.25,{type:"triangle",vol:.05,at:.12}); },
+  point(){ [0,7].forEach((n,i)=>Sound.tone(Sound.note(n+12),.25,{type:"sine",vol:.06,at:i*.1})); },
+};
+const Music = (()=>{ let timer=null, step=0, nextT=0; const CH=[[0,4,7,11],[-3,0,4,7],[-7,-3,0,4],[-5,-1,2,7]];
+  function tick(){ if(!Sound.ready()) return; const now=Sound.now(), sd=60/88/2; if(nextT<now-.25) nextT=now+.05;
+    while(nextT<now+.12){ const at=nextT-now, k=step%16, ch=CH[Math.floor(step/16)%4];
+      if(Sound.on && Sound.musicOn){ const M={bus:"music"};
+        if(k===0) ch.forEach(n=>Sound.tone(Sound.note(n),sd*15,{...M,at,type:"sine",vol:.016,attack:.4,vib:.004}));
+        if(k%4===0) Sound.tone(Sound.note(ch[0]-12),sd*1.5,{...M,at,type:"triangle",vol:.04,lp:600});
+        if(k%4===2) Sound.noise(.05,{...M,at,vol:.012,type:"bandpass",freq:5200,q:.6,attack:.02});
+        if(k%2===1) Sound.tone(Sound.note(ch[(k>>1)%4]+12),sd*.9,{...M,at,type:"sine",vol:.011,attack:.02}); }
+      step++; nextT+=sd; } }
+  return { start(){ if(!timer){ nextT=(Sound.now()||0)+.1; timer=setInterval(tick,25); } } };
+})();
+
+// ---- wiring ----
+$("snd").addEventListener("click",()=>{ Sound.on=!Sound.on; $("snd").setAttribute("aria-pressed",String(Sound.on)); });
+$("info").addEventListener("click",()=>{ $("paytable").innerHTML=`<tr><td>With / Against the moons</td><td>×${LINE_PAY}</td></tr><tr><td>Collide (next roll matches)</td><td>×${COLLIDE_PAY}</td></tr>`+
+  Object.entries(GAP_PAY).map(([gg,p])=>`<tr><td>Gap ${gg} before a collision</td><td>×${p}</td></tr>`).join(""); $("sheet").hidden=false; });
+$("close").addEventListener("click",()=>$("sheet").hidden=true);
+$("sheet").addEventListener("click",e=>{ if(e.target.id==="sheet") $("sheet").hidden=true; });
+$("fpoint").addEventListener("click",()=>{ FORCE.dice=[2,5]; $("sheet").hidden=true; });
+$("fhit").addEventListener("click",()=>{ $("sheet").hidden=true; if(point===null){ say("No point yet."); return; } FORCE.dice=[1,1+point]; });
+$("fcrash").addEventListener("click",()=>{ FORCE.dice=[4,4]; $("sheet").hidden=true; });
+document.addEventListener("pointerdown",()=>Sound.unlock(),{once:true});
+addEventListener("resize",()=>{ layout(); if(!rolling) rest(); draw(); });
+paint(); requestAnimationFrame(()=>{ layout(); rest(); draw(); setTimeout(()=>say("Place a bet, then roll the moons."),400); });
+document.fonts && document.fonts.load('20px "Bungee"').then(()=>draw()).catch(()=>{});
+</script>

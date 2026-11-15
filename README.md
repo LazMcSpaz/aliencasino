@@ -25,6 +25,10 @@ gravity/     Gravity Well: spiral roulette — a comet spirals down a 3-tier bow
   shell.html       the bowl (it is the betting table), the comet's flight, reveals, sound
   build.py         → gravity.html · tools/sim.js checks payback (each tier ≈95%), tools/playtest.js browser test
 
+moons/       Twin Moons: alien craps — two 8-sided moons, the GAP between them counts, matching moons collide (the crash)
+  part_engine.js   come-out / point rules, With / Against / Gap / Collide bets · tools/sim.js checks payback, tools/playtest.js browser test
+  shell.html, build.py → moons.html
+
 model3d/     the walking slot-machine robot
   model.js         builds the robot in code (cabinet, corrugated legs and arms, claws, animations)
   viewer.src.html  the interactive 3D viewer page (template)
