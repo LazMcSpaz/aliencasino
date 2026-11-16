@@ -70,6 +70,13 @@ body{margin:0;background:radial-gradient(100% 60% at 40% 20%,#0d1d3a 0%,var(--vo
 .auto label{display:grid;gap:3px;text-align:center;cursor:pointer}
 .auto label b{font:700 .9rem/1 var(--f-mono);color:#fff;text-shadow:0 0 8px var(--holo)}
 .auto.off label b{color:var(--dim);text-shadow:none}
+.tabs,.row2{display:grid;grid-template-columns:1fr 1fr;gap:4px;width:100%}
+.tab{position:relative;border:0;cursor:pointer;font:400 .6rem var(--f-mono);letter-spacing:.1em;padding:5px 0;color:var(--dim);background:#ffffff08;box-shadow:inset 0 0 0 1px #5fe8ff33;border-radius:3px}
+.tab.on{color:#fff;background:color-mix(in srgb,var(--tc) 22%,transparent);box-shadow:inset 0 0 0 1px var(--tc),0 0 8px color-mix(in srgb,var(--tc) 45%,transparent)}
+.tab.live::after{content:"";position:absolute;right:4px;top:4px;width:5px;height:5px;border-radius:50%;background:var(--tc);box-shadow:0 0 5px var(--tc)}
+.tb[aria-pressed="true"]{--hc:var(--gold);color:var(--gold);text-shadow:0 0 6px var(--gold)}
+.wager .auto{width:100%;box-sizing:border-box;padding:2px 0 0}
+.bails{display:grid;gap:6px;flex:none}
 .board{flex:1;min-height:0;padding:7px 6px;display:flex;flex-direction:column;gap:3px;overflow:hidden}
 .mate{display:grid;grid-template-columns:7px minmax(0,1fr) auto;column-gap:5px;align-items:center;padding:3px 4px;border-radius:4px;transition:background .3s;font:400 .62rem/1.2 var(--f-mono)}
 .mate i{width:7px;height:7px;border-radius:50%;background:var(--mc);box-shadow:0 0 6px var(--mc)}
@@ -81,7 +88,7 @@ body{margin:0;background:radial-gradient(100% 60% at 40% 20%,#0d1d3a 0%,var(--vo
 @keyframes rowflash{0%{background:color-mix(in srgb,var(--mc) 55%,transparent)}}
 .winro{padding:6px 7px;display:flex;justify-content:space-between;align-items:baseline}
 .winro b{font:700 1rem var(--f-mono);color:var(--win);text-shadow:0 0 8px #7dff9a88}
-.bail{--k:14px;--hc:var(--holo);height:96px;flex:none;cursor:pointer;display:grid;place-content:center;gap:4px;text-align:center;font:400 1.1rem/1 var(--f-sign);letter-spacing:.06em;color:#fff;text-shadow:0 0 10px var(--hc);transition:filter .2s}
+.bail{--k:12px;--hc:var(--sc,var(--holo));height:62px;flex:none;cursor:pointer;display:grid;place-content:center;gap:3px;text-align:center;font:400 .95rem/1 var(--f-sign);letter-spacing:.06em;color:#fff;text-shadow:0 0 10px var(--hc);transition:filter .2s}
 .bail small{font:400 .64rem var(--f-mono);letter-spacing:.08em;color:var(--hc);text-shadow:0 0 6px var(--hc)}
 .bail:disabled{filter:saturate(.2) brightness(.6);cursor:default}
 .bail.go{--hc:var(--win);animation:bailglow .5s ease-in-out infinite alternate}
@@ -118,17 +125,19 @@ body{margin:0;background:radial-gradient(100% 60% at 40% 20%,#0d1d3a 0%,var(--vo
     <aside class="panel" id="panel">
       <div class="board holo" id="board"><span class="lbl">Flight board</span></div>
       <div class="winro holo"><span class="lbl">Win</span><b id="win">0</b></div>
-      <div class="auto holo off" id="auto"><button id="autoDn" aria-label="Lower auto bail">−</button><label id="autoTog"><span class="lbl">Auto bail</span><b id="autoV">OFF</b></label><button id="autoUp" aria-label="Raise auto bail">+</button></div>
-      <div class="wager holo"><span class="lbl">Wager</span><b class="amt" id="stake">10</b>
+      <div class="wager holo">
+        <div class="tabs"><button class="tab on" data-s="0" style="--tc:#5fe8ff">BET 1</button><button class="tab" data-s="1" style="--tc:#ffc845">BET 2</button></div>
+        <b class="amt" id="stake">10</b>
         <div class="chips">
           <button class="chip" data-v="1" style="--c:#5fe8ff" aria-label="Add 1">1</button>
           <button class="chip" data-v="5" style="--c:#7dff9a" aria-label="Add 5">5</button>
           <button class="chip" data-v="25" style="--c:#b48cff" aria-label="Add 25">25</button>
           <button class="chip" data-v="100" style="--c:#ffc845" aria-label="Add 100">100</button>
         </div>
-        <button class="tb holo" id="clear">CLEAR</button>
+        <div class="row2"><button class="tb holo" id="clear">CLEAR</button><button class="tb holo" id="repeat" aria-pressed="false" title="Put the same bets down every launch">REPEAT</button></div>
+        <div class="auto off" id="auto"><button id="autoDn" aria-label="Lower auto bail">−</button><label id="autoTog"><span class="lbl">Auto bail</span><b id="autoV">OFF</b></label><button id="autoUp" aria-label="Raise auto bail">+</button></div>
       </div>
-      <button class="bail holo" id="go">BET<small>next launch</small></button>
+      <div class="bails"><button class="bail holo" id="go0" style="--sc:#5fe8ff">BET 1<small>add chips</small></button><button class="bail holo" id="go1" style="--sc:#ffc845">BET 2<small>add chips</small></button></div>
     </aside>
   </div>
 </div>
@@ -137,7 +146,8 @@ body{margin:0;background:radial-gradient(100% 60% at 40% 20%,#0d1d3a 0%,var(--vo
   <p>Set your wager with the chips, then tap <b>BET</b> before the drone launches.</p>
   <p>The drone lifts off and the multiplier climbs: ×1.5, ×2, ×10… Tap <b>BAIL</b> any time to collect your wager × the multiplier.</p>
   <p>But the drone can explode at any moment, even on the launch pad. If it explodes before you bail, you lose your wager.</p>
-  <p><b>AUTO BAIL</b> collects for you when the drone reaches the multiplier you set. Tap the middle to turn it on or off.</p>
+  <p><b>Two bets:</b> pick BET 1 or BET 2 at the top of the wager panel to set each one. Each has its own BAIL button, so you can bail one early and let the other ride.</p>
+  <p><b>AUTO BAIL</b> collects for the selected bet when the drone reaches the multiplier you set. Tap the middle to turn it on or off. <b>REPEAT</b> puts the same bets down every launch.</p>
   <p>The flight board shows the other players. Watch who bails, and who rides it too long.</p>
   <div class="dbg"><button class="holo" id="fpad">Debug: explode on the pad</button><button class="holo" id="f3">Debug: explode at ×3</button><button class="holo" id="f60">Debug: fly to ×60</button><button class="holo" id="close">Close</button></div>
 </div></div>
@@ -159,7 +169,7 @@ const LVL_COL = ["#5fe8ff","#7dd8ff","#9fb2ff","#b48cff","#d77bff","#ff5fae","#f
 const levelOf = m => { let L=-1; TH.forEach(([v],i)=>{ if(m>=v) L=i; }); return L; };
 const multColor = m => levelOf(m)<0 ? "#5fe8ff" : LVL_COL[levelOf(m)];
 
-let stake=10, phase="wait", t0=0, mult=1, flightT=0, autoOn=false, autoM=2, windowEnd=0;   // phase: wait (betting window) · flight · boom
+let stakes=[10,0], sel=0, touched=[false,true], phase="wait", t0=0, mult=1, flightT=0, autoOn=[false,false], autoM=[2,3], repeat=false, lastBets=[0,0], windowEnd=0;   // two bet slots   // phase: wait (betting window) · flight · boom
 const WINDOW_MS = 6000;
 
 // ---- the flight board: up to eight alien players ----
@@ -364,18 +374,30 @@ const Fx = (()=>{ const cv=$("sky"), g=cv.getContext("2d"); let W=250, H=600, dp
 
 // ---- the round ----
 function paintHist(){ $("hist").innerHTML = history.map(m=>`<span class="${m<2?"lo":m<10?"mid":m<100?"hi":"mega"}">${fmt(m)}</span>`).join(""); }
+const SLOT_COL=["#ffffff","#ffc845"]; let lastR=null;
 function paint(){
-  $("credits").textContent=credits; $("stake").textContent = round.bet || stake;
-  const go=$("go"), sm=go.querySelector("small"); go.className="bail holo";
-  const set=(big,small,cls,dis)=>{ go.firstChild.textContent=big; sm.textContent=small; if(cls) go.classList.add(cls); go.disabled=!!dis; };
-  if(phase==="wait"){ const s=Math.max(0,Math.ceil((windowEnd-performance.now())/1000));
-    if(round.bet) set("CANCEL",`launch T-${s}`,"cancel"); else set("BET",stake>credits?"not enough":`launch T-${s}`,"lock",stake>credits||stake<=0); }
-  else if(phase==="flight" && round.bet && !round.cashed) set("BAIL", "+"+Math.floor(round.bet*mult), "go");
-  else set("STANDBY", round.cashed?`banked +${round.cashed.win}`:"next drone soon", null, true);
-  document.querySelectorAll(".chip").forEach(b=>b.disabled = phase!=="wait" || !!round.bet);
-  $("clear").disabled = phase!=="wait" || !!round.bet;
-  $("auto").classList.toggle("off",!autoOn); $("autoV").textContent = autoOn ? fmt(autoM) : "OFF"; $("autoDn").disabled=$("autoUp").disabled=!autoOn;
+  const S=round.slots; $("credits").textContent=credits; $("stake").textContent = S[sel].bet || stakes[sel];
+  document.querySelectorAll(".tab").forEach(t=>{ const i=+t.dataset.s; t.classList.toggle("on",i===sel); t.classList.toggle("live",!!S[i].bet); });
+  const secs=Math.max(0,Math.ceil((windowEnd-performance.now())/1000));
+  [0,1].forEach(i=>{ const go=$("go"+i), sm=go.querySelector("small"), sl=S[i], n=i+1; go.className="bail holo";
+    const set=(big,small,cls,dis)=>{ go.firstChild.textContent=big; sm.textContent=small; if(cls) go.classList.add(cls); go.disabled=!!dis; };
+    if(phase==="wait"){ if(sl.bet) set("CANCEL "+n,`${sl.bet} · T-${secs}`,"cancel"); else if(stakes[i]>0) set("BET "+n,stakes[i]>credits?"not enough":`${stakes[i]} · T-${secs}`,"lock",stakes[i]>credits); else set("BET "+n,"add chips",null,true); }
+    else if(phase==="flight" && sl.bet && !sl.cashed) set("BAIL "+n,"+"+Math.floor(sl.bet*mult),"go");
+    else { const o=phase==="boom"&&lastR ? lastR.slots[i] : sl; set("STANDBY", o.cashed?`+${o.cashed.win} @ ${fmt(o.cashed.m)}`:o.bet?`lost ${o.bet}`:"next drone soon", null, true); } });
+  const locked = phase!=="wait" || !!S[sel].bet;
+  document.querySelectorAll(".chip").forEach(b=>b.disabled=locked); $("clear").disabled=locked;
+  $("repeat").setAttribute("aria-pressed",String(repeat));
+  $("auto").classList.toggle("off",!autoOn[sel]); $("autoV").textContent = autoOn[sel] ? fmt(autoM[sel]) : "OFF"; $("autoDn").disabled=$("autoUp").disabled=!autoOn[sel];
 }
+// your own row at the top of the flight board
+const YOU = (()=>{ const el=document.createElement("div"); el.className="mate idle"; el.style.setProperty("--mc","#ffffff"); el.innerHTML=`<i></i><b>YOU</b><span></span><em>standing by</em>`;
+  $("board").insertBefore(el, $("board").children[1]); return el; })();
+function youRow(r){ const S=r ? r.slots : round.slots, total=S.reduce((a,s)=>a+s.bet,0), parts=[];
+  S.forEach((s,i)=>{ if(!s.bet) return; const tag=S.filter(x=>x.bet).length>1?`${i+1}:`:"";
+    parts.push(s.cashed ? `${tag}+${s.cashed.win}` : phase==="boom" ? `${tag}lost ${s.bet}` : phase==="flight" ? `${tag}riding` : `${tag}${s.bet} ready`); });
+  const won=S.some(s=>s.cashed), lost=phase==="boom" && S.some(s=>s.bet && !s.cashed);
+  YOU.className="mate"+(total?"":" idle")+(won&&!lost?" out":"")+(lost&&!won?" lost":""); YOU.querySelector("span").textContent=total||"";
+  YOU.querySelector("em").textContent=total?parts.join(" · "):"standing by"; }
 function say(t){ if(!t) return; $("say").textContent=t; const d=$("dealer"); d.querySelector("span").textContent=t; d.classList.remove("show"); void d.offsetWidth; d.classList.add("show");
   clearTimeout(say.t); say.t=setTimeout(()=>d.classList.remove("show"), 1800+t.length*40); }
 const LINES = { open:["New drone on the pad. Place your bets.","Drone's fuelled. Who's in?","Next drone launch coming up."],
@@ -387,37 +409,44 @@ const shake=(amt,ms)=>{ const a=$("app"); a.style.setProperty("--sa",amt+"px"); 
 const pulse=L=>{ const m=$("mult"); m.style.setProperty("--ps",1.15+L*.05); m.style.setProperty("--pd",(.45+L*.04)+"s"); m.classList.remove("pulse"); void m.offsetWidth; m.classList.add("pulse"); };
 
 async function betWindow(){ phase="wait"; windowEnd=performance.now()+WINDOW_MS; mult=1; flightT=0; Fx.reset();
-  $("mult").className="mult"; $("mult").firstChild.textContent="×1.00"; $("mult").style.setProperty("--mc","#5fe8ff"); say(line("open")); crewBet(); paint();
+  $("mult").className="mult"; $("mult").firstChild.textContent="×1.00"; $("mult").style.setProperty("--mc","#5fe8ff"); say(line("open")); crewBet();
+  if(repeat) [0,1].forEach(i=>{ if(lastBets[i] && lastBets[i]<=credits){ stakes[i]=lastBets[i]; touched[i]=true; placeBet(i,lastBets[i]); } });   // repeat: same bets as last launch
+  youRow(); paint();
   let last=-1; while(performance.now()<windowEnd){ const s=Math.ceil((windowEnd-performance.now())/1000); if(s!==last){ last=s; $("multSub").textContent=`launch in ${s}`; if(s<=3) SFX.count(s); paint(); } await wait(100); }
   flight(); }
-function flight(){ setAuto(autoOn?autoM:0); launch(); phase="flight"; t0=performance.now(); $("win").textContent=0; say(line("launch")); SFX.launch(); paint();
+function flight(){ [0,1].forEach(i=>setAuto(i, autoOn[i]?autoM[i]:0)); lastBets=round.slots.map(s=>s.bet); launch(); phase="flight"; t0=performance.now(); $("win").textContent=0; say(line("launch")); SFX.launch(); youRow(); paint();
   let passed=-1, bigSaid=false;
   const tick=()=>{ flightT=(performance.now()-t0)/1000; const m=multAt(flightT);
     if(blown(m)){ mult=round.crash; return boom(); }
-    if(round.bet && !round.cashed && round.auto && m>=round.auto) doCash(round.auto);     // auto bail lands exactly on the target
+    round.slots.forEach((sl,i)=>{ if(sl.bet && !sl.cashed && sl.auto && m>=sl.auto) doCash(i, sl.auto); });   // auto bail lands exactly on each target
     mult=m; crewTick(m);
     const L=levelOf(m); while(passed<L){ passed++; Fx.threshold(passed); SFX.threshold(passed); pulse(passed); if(passed>=3) shake(2+passed*1.2, 300+passed*30); }
     $("mult").firstChild.textContent=fmt(m); $("mult").style.setProperty("--mc",multColor(m));
-    $("multSub").textContent = round.cashed ? `bailed at ${fmt(round.cashed.m)}` : round.bet ? `bail now: +${Math.floor(round.bet*m)}` : "drone climbing";
+    const riding=round.slots.filter(sl=>sl.bet && !sl.cashed).reduce((a,sl)=>a+sl.bet,0), banked=round.slots.some(sl=>sl.cashed);
+    $("multSub").textContent = riding ? `bail now: +${Math.floor(riding*m)}` : banked ? "you bailed" : "drone climbing";
     if(m>20 && !bigSaid){ bigSaid=true; say(line("big")); }
     Engine.level(m); paint(); requestAnimationFrame(tick); };
   Engine.on(); requestAnimationFrame(tick); }
-function doCash(m){ const win=cashOut(m); if(!win) return; Fx.bail("#ffffff","+"+win,true); SFX.cash(); $("win").textContent=win; $("credits").textContent=credits;
-  say(`You bailed at ${fmt(round.cashed.m)}: +${win}!`); paint(); }
+function doCash(i,m){ const win=cashOut(i,m); if(!win) return; Fx.bail(SLOT_COL[i],"+"+win,true); SFX.cash();
+  $("win").textContent=round.slots.reduce((a,sl)=>a+(sl.cashed?sl.cashed.win:0),0); $("credits").textContent=credits;
+  say(`${round.slots.filter(sl=>sl.bet).length>1?`Bet ${i+1} bailed`:"You bailed"} at ${fmt(round.slots[i].cashed.m)}: +${win}!`); youRow(); paint(); }
 async function boom(){ phase="boom"; Engine.off(); const pad=mult<=1; Fx.boom(); SFX.boom(); shake(10,550);
   $("mult").className="mult boom"; $("mult").firstChild.textContent=fmt(mult); $("multSub").textContent = pad ? "drone exploded on the pad" : "drone destroyed";
-  crewBoom(); const r=endRound(); paintHist(); say(line(pad?"pad":"boom")); if(r.bet && !r.cashed) SFX.lose(); paint();
+  crewBoom(); const r=lastR=endRound(); paintHist(); youRow(r); say(line(pad?"pad":"boom")); if(r.slots.some(sl=>sl.bet && !sl.cashed)) SFX.lose(); paint();
   await wait(3300); betWindow(); }
 
 // ---- controls ----
-document.querySelectorAll(".chip").forEach(b=>b.onclick=()=>{ Sound.unlock(); Music.start(); const v=+b.dataset.v; if(!paint.touched){ stake=0; paint.touched=true; } stake=Math.min(credits, stake+v); SFX.chip(); paint(); });
-$("clear").onclick=()=>{ stake=0; paint.touched=true; Sound.tap(); paint(); };
-$("go").onclick=()=>{ Sound.unlock(); Music.start();
-  if(phase==="wait"){ if(round.bet){ cancelBet(); Sound.tap(); } else if(placeBet(stake)){ SFX.chip(); SFX.lock(); } paint(); }
-  else if(phase==="flight" && round.bet && !round.cashed) doCash(mult); };
-$("autoTog").onclick=()=>{ autoOn=!autoOn; Sound.tap(); if(phase==="flight" && round.bet && !round.cashed) setAuto(autoOn?autoM:0); paint(); };
+document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{ sel=+t.dataset.s; Sound.tap(); paint(); });
+document.querySelectorAll(".chip").forEach(b=>b.onclick=()=>{ Sound.unlock(); Music.start(); const v=+b.dataset.v; if(!touched[sel]){ stakes[sel]=0; touched[sel]=true; } stakes[sel]=Math.min(credits, stakes[sel]+v); SFX.chip(); paint(); });
+$("clear").onclick=()=>{ stakes[sel]=0; touched[sel]=true; Sound.tap(); paint(); };
+$("repeat").onclick=()=>{ repeat=!repeat; Sound.tap(); say(repeat?"Repeat on: your bets go down every launch.":"Repeat off."); paint(); };
+[0,1].forEach(i=>$("go"+i).onclick=()=>{ Sound.unlock(); Music.start(); const sl=round.slots[i];
+  if(phase==="wait"){ sel=i; if(sl.bet){ cancelBet(i); Sound.tap(); } else if(placeBet(i,stakes[i])){ SFX.chip(); SFX.lock(); } youRow(); paint(); }
+  else if(phase==="flight" && sl.bet && !sl.cashed) doCash(i,mult); });
+const liveAuto=i=>{ const sl=round.slots[i]; if(phase==="flight" && sl.bet && !sl.cashed) setAuto(i, autoOn[i]?autoM[i]:0); };
+$("autoTog").onclick=()=>{ autoOn[sel]=!autoOn[sel]; Sound.tap(); liveAuto(sel); paint(); };
 const AUTOS=[1.2,1.5,1.8,2,2.5,3,4,5,7,10,15,20,50,100];
-const stepAuto=d=>{ let i=AUTOS.findIndex(v=>v>=autoM-1e-9); if(i<0) i=AUTOS.length-1; i=Math.max(0,Math.min(AUTOS.length-1,i+d)); autoM=AUTOS[i]; Sound.tap(); if(phase==="flight" && round.bet && !round.cashed) setAuto(autoM); paint(); };
+const stepAuto=d=>{ let i=AUTOS.findIndex(v=>v>=autoM[sel]-1e-9); if(i<0) i=AUTOS.length-1; i=Math.max(0,Math.min(AUTOS.length-1,i+d)); autoM[sel]=AUTOS[i]; Sound.tap(); liveAuto(sel); paint(); };
 $("autoDn").onclick=()=>stepAuto(-1); $("autoUp").onclick=()=>stepAuto(1);
 
 // ---- sound ----
