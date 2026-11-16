@@ -38,7 +38,7 @@ asteroid/    Asteroid Field: a "mines" game — crack asteroids for crystals, co
   part_engine.js   5×5 field, 1–24 black holes, multiplier = fair odds × 97% · tools/sim.js checks payback, tools/playtest.js browser test
   shell.html       holo field with procedural rocks and crystals, multiplier ladder, escalating effects, black-hole pull · build.py → asteroid.html
 
-lobby/       the Alien Casino floor: every game's 3D model in one room; tap a game, the camera glides over, PLAY opens it
+lobby/       the Alien Casino floor: a packed room — slot banks back to back, robots wandering, a bar, the tables; tap a machine to play
   lobby.src.html   room, lights, picking, the card, the game overlay · build.py → lobby.html (+ copies the built games into games/, not committed)
   tools/shot.js    screenshots (serve lobby/ over http first)
 

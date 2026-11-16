@@ -38,11 +38,12 @@ nav button[aria-pressed="true"]{--hc:var(--gold);color:#fff;text-shadow:0 0 8px 
 .card .play{--hc:var(--gold);color:#fff;text-shadow:0 0 10px var(--gold);animation:pulse 1.2s ease-in-out infinite alternate}
 @keyframes pulse{to{box-shadow:inset 0 0 0 1px var(--gold),inset 0 0 30px #ffc84555,0 0 16px #ffc84566}}
 /* a game, open over the casino */
-.game{position:fixed;inset:0;z-index:20;background:#000;display:grid;grid-template-rows:auto 1fr}
-.game .bar{display:flex;align-items:center;gap:10px;padding:calc(6px + env(safe-area-inset-top,0px)) 12px 6px;background:#07040f;border-bottom:1px solid #5fe8ff33}
-.game .bar button{--k:6px;cursor:pointer;padding:7px 12px;font:400 .66rem var(--f-mono);letter-spacing:.14em;color:var(--holo)}
-.game .bar b{font:400 .8rem var(--f-sign);color:var(--gc,var(--holo));text-shadow:0 0 8px var(--gc,var(--holo))}
-.game iframe{width:100%;height:100%;border:0;background:#000}
+.game{position:fixed;inset:0;z-index:20;background:#000}
+.game iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#000}
+/* back to the casino: a small tab on the left edge, so it never covers a game's buttons */
+.game .back{position:absolute;z-index:2;left:0;top:50%;translate:0 -50%;width:26px;height:64px;border:0;padding:0;cursor:pointer;border-radius:0 12px 12px 0;background:#07040fcc;color:var(--holo);box-shadow:inset -1px 0 0 #5fe8ff66,inset 0 1px 0 #5fe8ff44,inset 0 -1px 0 #5fe8ff44,0 0 12px #5fe8ff33;display:grid;place-items:center;opacity:.75}
+.game .back svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+.game .back:active{opacity:1}
 .loading{position:fixed;inset:0;z-index:30;display:grid;place-content:center;gap:10px;text-align:center;background:var(--bg);font:400 .7rem var(--f-mono);letter-spacing:.24em;color:var(--dim);transition:opacity .5s}
 .loading b{font:400 1.8rem/1 "Monoton",var(--f-sign);color:#eafcff;text-shadow:0 0 10px var(--holo2),0 0 24px #8a4dff;letter-spacing:0}
 .loading.done{opacity:0;pointer-events:none}
@@ -53,10 +54,11 @@ nav button[aria-pressed="true"]{--hc:var(--gold);color:#fff;text-shadow:0 0 8px 
 <nav id="nav" aria-label="Games"></nav>
 <div class="card holo" id="card" role="dialog" aria-live="polite"><span class="kind" id="cKind"></span><h2 id="cName"></h2><p id="cDesc"></p>
   <div class="btns"><button class="holo" id="cBack">BACK</button><button class="holo play" id="cPlay">PLAY</button></div></div>
-<div class="game" id="game" hidden><div class="bar"><button class="holo" id="gBack">&larr; CASINO</button><b id="gName"></b></div><iframe id="frame" title="Game" allow="autoplay"></iframe></div>
+<div class="game" id="game" hidden><iframe id="frame" title="Game" allow="autoplay"></iframe><button class="back" id="gBack" aria-label="Back to the casino"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button></div>
 <div class="loading" id="loading"><b>ALIEN CASINO</b><span id="lmsg">BOARDING…</span></div>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/utils/BufferGeometryUtils.js"></script>
 <script>
 const ART = /*{{ART}}*/;
 /*{{MODELS}}*/
@@ -64,28 +66,33 @@ const TEX_SRC = /*{{TEX}}*/;
 document.documentElement.style.setProperty("--bar", `url(${ART.bar})`);
 const $=id=>document.getElementById(id);
 
-// ---- the games on the floor: where each model stands, and what it opens ----
+// ---- the games, and where their machines stand on the floor ----
 const GAMES = [
-  { id:"slot",    name:"The Living Slot",  kind:"Slot machine with moods", col:"#ff9a4a", src:"games/slot.html",     pos:[-2.7,0,3.4],  rot:.22, va:.22,  scale:1,   clip:"Idle_Happy",
-    desc:"The walking slot robot. Its mood changes the spins. Three themed machines inside." },
-  { id:"pyramid", name:"Pyramid Scheme",   kind:"Stacking slot",           col:"#ffc845", src:"games/pyramid.html",  pos:[0,0,4.0],     rot:0,   va:0,    scale:1,   clip:"Idle",
-    desc:"Stack the blocks higher for bigger pays. Zib brings the golden brick." },
-  { id:"asteroid",name:"Asteroid Field",   kind:"Mines",                   col:"#5fe8ff", src:"games/asteroid.html", pos:[2.7,0,3.4],   rot:-.22, va:-.22, scale:1,   clip:"Idle",
-    desc:"Crack asteroids for crystals. Collect before you hit a black hole." },
-  { id:"gravity", name:"Gravity Well",     kind:"Spiral roulette",         col:"#b48cff", src:"games/gravity.html",  pos:[-5.6,0,-3.6], rot:.35, va:.1,  scale:1,   clip:"Idle",
-    desc:"A comet spirals down three tiers into a black hole. Bet on where it lands." },
-  { id:"moons",   name:"Twin Moons",       kind:"Alien craps",             col:"#bfefff", src:"games/moons.html",    pos:[5.8,0,-3.4],  rot:-.35, va:-.1, scale:1,   clip:"Idle",
-    desc:"Roll two 8-sided moons. The gap between them counts. Matching moons collide." },
-  { id:"warp",    name:"Warp Drive",       kind:"Crash game",              col:"#ff5fae", src:"games/warp.html",     pos:[0,0,-6.4],    rot:0,   va:0,    scale:.82, clip:"Idle",
-    desc:"A drone launches and the multiplier climbs. Bail before it explodes." } ];
-
+  { id:"slot",    name:"The Living Slot", kind:"Slot machine with moods", col:"#ff9a4a", src:"games/slot.html",     desc:"The walking slot robots. Their mood changes the spins. Three themed machines inside." },
+  { id:"pyramid", name:"Pyramid Scheme",  kind:"Stacking slot",           col:"#ffc845", src:"games/pyramid.html",  desc:"Stack the blocks higher for bigger pays. Zib brings the golden brick." },
+  { id:"asteroid",name:"Asteroid Field",  kind:"Mines",                   col:"#5fe8ff", src:"games/asteroid.html", desc:"Crack asteroids for crystals. Collect before you hit a black hole." },
+  { id:"gravity", name:"Gravity Well",    kind:"Spiral roulette",         col:"#b48cff", src:"games/gravity.html",  desc:"A comet spirals down three tiers into a black hole. Bet on where it lands." },
+  { id:"moons",   name:"Twin Moons",      kind:"Alien craps",             col:"#bfefff", src:"games/moons.html",    desc:"Roll two 8-sided moons. The gap between them counts. Matching moons collide." },
+  { id:"warp",    name:"Warp Drive",      kind:"Crash game",              col:"#ff5fae", src:"games/warp.html",     desc:"A drone launches and the multiplier climbs. Bail before it explodes." } ];
+const G = Object.fromEntries(GAMES.map(g=>[g.id,g]));
+// The floor plan (metres; the room runs x −7…7, z −6 at the back wall … 6 at the front). va = the side we look at it from when picked.
+const PLAN = [
+  { game:"warp",    kind:"model", pos:[-2.7,0,-3.3], rot:0,    scale:.6, va:.15 },
+  { game:"gravity", kind:"model", pos:[3.3,0,-4.1],  rot:-.3,  scale:.9, va:-.25 },
+  { game:"moons",   kind:"model", pos:[2.7,0,.6],    rot:0,    scale:.85, va:.25 },
+  { game:"pyramid", kind:"bank",  pos:[-4.3,0,3.0],  rot:0,    per:3, va:.12 },    // two rows of three, back to back
+  { game:"asteroid",kind:"bank",  pos:[.6,0,4.2],    rot:0,    per:3, va:-.1 },
+  { game:"slot",    kind:"bot",   pos:[-6.2,0,-.3],  rot:1.0, va:1.15, label:true },                  // waiting by the wall, ready to play
+  { game:"slot",    kind:"bot",   pos:[6.55,0,1.4],  rot:-Math.PI/2, va:-1.2 },                       // tending the bar
+  { game:"slot",    kind:"bot",   walk:[[-6.5,1.3],[-2.35,1.3],[-2.35,5.4],[-6.5,5.4]], speed:.45, va:0 },     // wandering round the Pyramid bank
+  { game:"slot",    kind:"bot",   walk:[[-1.5,-.4],[-1.5,5.9],[4.7,5.9],[4.7,-1.4],[-1.1,-1.4]], speed:.4, va:0 } ];   // and round the middle of the floor
 // ---- renderer, scene, camera ----
 const cv=$("c"), renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true});
 const PHONE=Math.min(innerWidth,innerHeight)<700; renderer.setPixelRatio(Math.min(PHONE?1.5:2,devicePixelRatio)); renderer.outputEncoding=THREE.sRGBEncoding; renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.05;
 renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
-const scene=new THREE.Scene(); scene.background=new THREE.Color(0x07040f); scene.fog=new THREE.Fog(0x07040f,20,42);
+const scene=new THREE.Scene(); scene.background=new THREE.Color(0x07040f); scene.fog=new THREE.Fog(0x07040f,18,36);
 const cam=new THREE.PerspectiveCamera(45,1,.1,80);
-const HOMES={ wide:{ cam:[0,9.2,15.5], t:[0,1.2,-1] }, tall:{ cam:[0,22,17.5], t:[0,0,-1.6] } };
+const HOMES={ wide:{ cam:[0,7.4,11.5], t:[0,.8,-.6] }, tall:{ cam:[0,22,8.5], t:[0,0,-.2] } };
 const home=()=>innerWidth<innerHeight?HOMES.tall:HOMES.wide;
 const HOME=home();
 cam.position.set(...HOME.cam);
@@ -95,43 +102,64 @@ ctl.minAzimuthAngle=-.9; ctl.maxAzimuthAngle=.9; ctl.update();
 // ---- lights: dim violet room, a key light for shadows, coloured pools of light over the games ----
 scene.add(new THREE.HemisphereLight(0xa99cff,0x140a28,.55));
 const key=new THREE.DirectionalLight(0xffffff,1.25); key.position.set(4,14,9); key.castShadow=true; key.shadow.mapSize.set(PHONE?1024:2048,PHONE?1024:2048);
-Object.assign(key.shadow.camera,{left:-12,right:12,top:12,bottom:-12,near:1,far:40}); key.shadow.bias=-.0005; key.shadow.normalBias=.03; scene.add(key);
+Object.assign(key.shadow.camera,{left:-9,right:9,top:9,bottom:-9,near:1,far:36}); key.shadow.bias=-.0005; key.shadow.normalBias=.03; scene.add(key);
 const rim=new THREE.DirectionalLight(0xff5fae,.7); rim.position.set(-8,6,-10); scene.add(rim);
-GAMES.forEach(g=>{ const l=new THREE.PointLight(new THREE.Color(g.col),1.1,9,2); l.position.set(g.pos[0],4.2,g.pos[2]); scene.add(l); });
+PLAN.filter(p=>p.pos&&p.kind!=="bot").forEach(p=>{ const l=new THREE.PointLight(new THREE.Color(G[p.game].col),1,7,2); l.position.set(p.pos[0],3.6,p.pos[2]); scene.add(l); });
+{ const l=new THREE.PointLight(0xffb070,1.2,7,2); l.position.set(5.6,3.2,1.6); scene.add(l); }   // warm light over the bar
 
 // ---- the room: alien carpet, panelled walls with neon and portholes onto space, the casino's sign ----
 const ctex=(c,rep)=>{ const t=new THREE.CanvasTexture(c); t.encoding=THREE.sRGBEncoding; t.anisotropy=8; if(rep){ t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(...rep); } return t; };
-const RW=22, RD=20, WH=7.5;
+const RW=14, RD=12, WH=4.6, ZC=0;   // room width, depth, wall height; the room is centred on z = 0
 { // carpet: a dark violet weave with gold-and-cyan alien motifs, repeating
   const c=document.createElement("canvas"); c.width=c.height=512; const g=c.getContext("2d");
   g.fillStyle="#1a0f33"; g.fillRect(0,0,512,512); for(let i=0;i<3000;i++){ g.fillStyle=`rgba(${Math.random()<.5?"120,80,200":"40,20,80"},${Math.random()*.25})`; g.fillRect(Math.random()*512,Math.random()*512,2,2); }
   const motif=(x,y,s)=>{ g.save(); g.translate(x,y); g.strokeStyle="#ffc84566"; g.lineWidth=3; for(let k=0;k<4;k++){ g.rotate(Math.PI/2); g.beginPath(); g.moveTo(0,s*.2); g.quadraticCurveTo(s*.5,s*.4,s*.25,s*.9); g.stroke(); }
     g.fillStyle="#5fe8ff55"; g.beginPath(); g.arc(0,0,s*.14,0,7); g.fill(); g.strokeStyle="#b48cff55"; g.lineWidth=2; g.beginPath(); g.arc(0,0,s*.55,0,7); g.stroke(); g.restore(); };
   motif(128,128,110); motif(384,384,110); motif(384,128,60); motif(128,384,60);
-  const floor=new THREE.Mesh(new THREE.PlaneGeometry(RW,RD+14),new THREE.MeshStandardMaterial({map:ctex(c,[5,8.5]),roughness:.95})); floor.rotation.x=-Math.PI/2; floor.position.z=6;   /* runs on toward the camera */ floor.receiveShadow=true; scene.add(floor); }
+  const floor=new THREE.Mesh(new THREE.PlaneGeometry(RW,RD+14),new THREE.MeshStandardMaterial({map:ctex(c,[5,8.5]),roughness:.95})); floor.rotation.x=-Math.PI/2; floor.position.z=7;   /* runs on toward the camera */ floor.receiveShadow=true; scene.add(floor); }
 { // walls
   const c=document.createElement("canvas"); c.width=512; c.height=256; const g=c.getContext("2d"), gr=g.createLinearGradient(0,0,0,256); gr.addColorStop(0,"#120b26"); gr.addColorStop(1,"#1f1440"); g.fillStyle=gr; g.fillRect(0,0,512,256);
   for(let x=0;x<512;x+=128){ g.fillStyle="#0a0618"; g.fillRect(x,0,6,256); g.fillStyle="#2c1f55"; g.fillRect(x+6,0,2,256); }
   g.fillStyle="#b48cff"; g.fillRect(0,200,512,3); g.fillStyle="#5fe8ff"; g.fillRect(0,40,512,2);
   const wm=new THREE.MeshStandardMaterial({map:ctex(c,[4,1]),roughness:.7,metalness:.2,emissive:0xffffff,emissiveMap:ctex(c,[4,1]),emissiveIntensity:.18});
   const wall=(w,x,z,ry)=>{ const m=new THREE.Mesh(new THREE.PlaneGeometry(w,WH),wm); m.position.set(x,WH/2,z); m.rotation.y=ry; m.receiveShadow=true; scene.add(m); };
-  wall(RW,0,-1-RD/2,0); wall(RD,-RW/2,-1,Math.PI/2); wall(RD,RW/2,-1,-Math.PI/2);
+  wall(RW,0,ZC-RD/2,0); wall(RD,-RW/2,ZC,Math.PI/2); wall(RD,RW/2,ZC,-Math.PI/2);
   // neon strips along the foot of the walls
   const neon=(col)=>new THREE.MeshBasicMaterial({color:col});
-  for(const [w,x,z,ry,col] of [[RW,0,-1-RD/2+.02,0,0xb48cff],[RD,-RW/2+.02,-1,Math.PI/2,0x5fe8ff],[RD,RW/2-.02,-1,-Math.PI/2,0x5fe8ff]]){ const m=new THREE.Mesh(new THREE.PlaneGeometry(w,.06),neon(col)); m.position.set(x,.25,z); m.rotation.y=ry; scene.add(m); const m2=m.clone(); m2.position.y=WH-.4; scene.add(m2); }
+  for(const [w,x,z,ry,col] of [[RW,0,ZC-RD/2+.02,0,0xb48cff],[RD,-RW/2+.02,ZC,Math.PI/2,0x5fe8ff],[RD,RW/2-.02,ZC,-Math.PI/2,0x5fe8ff]]){ const m=new THREE.Mesh(new THREE.PlaneGeometry(w,.06),neon(col)); m.position.set(x,.25,z); m.rotation.y=ry; scene.add(m); const m2=m.clone(); m2.position.y=WH-.4; scene.add(m2); }
   // portholes onto space along the side walls
   const sc=document.createElement("canvas"); sc.width=sc.height=256; const sg=sc.getContext("2d"), bg=sg.createRadialGradient(90,80,10,128,128,180); bg.addColorStop(0,"#3a1f6b"); bg.addColorStop(.6,"#0b0a2a"); bg.addColorStop(1,"#03040f"); sg.fillStyle=bg; sg.fillRect(0,0,256,256);
   for(let i=0;i<160;i++){ sg.fillStyle=`rgba(255,255,255,${Math.random()*.9})`; sg.fillRect(Math.random()*256,Math.random()*256,Math.random()<.1?2:1,Math.random()<.1?2:1); }
   sg.fillStyle="#ff9a6a"; sg.beginPath(); sg.arc(190,170,26,0,7); sg.fill(); sg.fillStyle="#0b0a2a88"; sg.beginPath(); sg.arc(200,162,24,0,7); sg.fill();
   const winM=new THREE.MeshBasicMaterial({map:ctex(sc)}), rimM=new THREE.MeshStandardMaterial({color:0x8d8aa0,metalness:.85,roughness:.3}), rimG=new THREE.MeshBasicMaterial({color:0x5fe8ff});
-  for(const side of [-1,1]) for(const z of [-7,-2.5,2]){ const x=side*(RW/2-.03), g=new THREE.Group(); g.position.set(x,3.6,z); g.rotation.y=-side*Math.PI/2; scene.add(g);
+  for(const side of [-1]) for(const z of [-3.6,.2]){ const x=side*(RW/2-.03), g=new THREE.Group(); g.position.set(x,2.9,z); g.rotation.y=-side*Math.PI/2; scene.add(g);
     g.add(new THREE.Mesh(new THREE.CircleGeometry(.85,40),winM)); const r=new THREE.Mesh(new THREE.TorusGeometry(.9,.1,10,40),rimM); g.add(r); const r2=new THREE.Mesh(new THREE.TorusGeometry(1.02,.02,6,40),rimG); g.add(r2); }
   // the casino sign on the back wall
   const nc=document.createElement("canvas"); nc.width=1024; nc.height=300; const ng=nc.getContext("2d"); ng.textAlign="center"; ng.textBaseline="middle";
   ng.font='400 150px "Monoton","Bungee",Impact,sans-serif'; ng.shadowColor="#b48cff"; ng.shadowBlur=40; ng.fillStyle="#f3e9ff"; ng.fillText("ALIEN",440,130);
   ng.font='400 120px "Yellowtail",cursive'; ng.shadowColor="#ff7a3a"; ng.fillStyle="#fff0d0"; ng.save(); ng.translate(760,210); ng.rotate(-.1); ng.fillText("Casino",0,0); ng.restore();
-  const sign=new THREE.Mesh(new THREE.PlaneGeometry(7,7*300/1024),new THREE.MeshBasicMaterial({map:ctex(nc),transparent:true})); sign.position.set(-6.2,5.6,-1-RD/2+.05); scene.add(sign);
-  const sign2=sign.clone(); sign2.position.x=6.2; scene.add(sign2); }
+  const sign=new THREE.Mesh(new THREE.PlaneGeometry(7,7*300/1024),new THREE.MeshBasicMaterial({map:ctex(nc),transparent:true})); sign.scale.setScalar(.75); sign.position.set(2.6,3.55,ZC-RD/2+.05); scene.add(sign); }
+{ // the bar along the right wall: a counter with a lit front, a shelf of glowing bottles, a neon sign, stools
+  const BX=6.25, Z0=-1.4, Z1=4.4, len=Z1-Z0, zc=(Z0+Z1)/2;
+  const dark=new THREE.MeshStandardMaterial({color:0x1c1b22,metalness:.45,roughness:.45}), shell=new THREE.MeshStandardMaterial({color:0x2c2b34,metalness:.55,roughness:.38}),
+    gold=new THREE.MeshStandardMaterial({color:0xffc845,metalness:.85,roughness:.28}), top=new THREE.MeshStandardMaterial({color:0x120c22,metalness:.3,roughness:.15}), glowV=new THREE.MeshBasicMaterial({color:0xb48cff}), glowC=new THREE.MeshBasicMaterial({color:0x5fe8ff});
+  const box=(w,h,d,m,x,y,z)=>{ const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m); o.position.set(x,y,z); o.castShadow=o.receiveShadow=true; scene.add(o); return o; };
+  box(.7,1.0,len,shell,BX,.5,zc); box(.82,.06,len+.12,top,BX-.04,1.03,zc); box(.84,.02,len+.14,gold,BX-.04,1.0,zc);
+  box(.01,.05,len-.1,glowV,BX-.355,.85,zc).castShadow=false; box(.01,.04,len-.1,glowC,BX-.355,.12,zc).castShadow=false;
+  box(.3,.05,len+.2,dark,6.86,.03,zc);
+  for(const y of [1.45,1.9,2.35]){ box(.32,.04,len-.4,dark,6.82,y,zc); box(.02,.02,len-.4,glowC,6.66,y-.03,zc).castShadow=false; }
+  { const geo=new THREE.CylinderGeometry(.04,.045,.26,10), cols=[0xff5fae,0x5fe8ff,0xffc845,0x8dff6a,0xb48cff,0xff8a3a], n=60,
+      im=new THREE.InstancedMesh(geo,new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.85}),n), M=new THREE.Matrix4(), C=new THREE.Color();
+    for(let i=0;i<n;i++){ const row=i%3, k=Math.floor(i/3); M.makeTranslation(6.82+(Math.random()-.5)*.08, [1.45,1.9,2.35][row]+.15, Z0+.35+k*(len-.7)/19); im.setMatrixAt(i,M); im.setColorAt(i,C.setHex(cols[Math.floor(Math.random()*cols.length)])); }
+    scene.add(im); }
+  const bc=document.createElement("canvas"); bc.width=512; bc.height=200; const bg=bc.getContext("2d"); bg.textAlign="center"; bg.textBaseline="middle";
+  bg.font='400 130px "Monoton","Bungee",Impact,sans-serif'; bg.shadowColor="#5fe8ff"; bg.shadowBlur=30; bg.fillStyle="#eafcff"; bg.fillText("BAR",256,100);
+  const bs=new THREE.Mesh(new THREE.PlaneGeometry(2.4,2.4*200/512),new THREE.MeshBasicMaterial({map:ctex(bc),transparent:true})); bs.position.set(6.96,3.35,zc); bs.rotation.y=-Math.PI/2; scene.add(bs);
+  const seat=new THREE.MeshStandardMaterial({color:0x2a1a4f,metalness:.2,roughness:.5}), metal=new THREE.MeshStandardMaterial({color:0x8d8aa0,metalness:.85,roughness:.3});
+  for(let i=0;i<5;i++){ const z=Z0+.6+i*(len-1.2)/4, g=new THREE.Group(); g.position.set(5.45,0,z); scene.add(g);
+    const add=(geo,m,y,rx=0)=>{ const o=new THREE.Mesh(geo,m); o.position.y=y; o.rotation.x=rx; o.castShadow=o.receiveShadow=true; g.add(o); };
+    add(new THREE.CylinderGeometry(.2,.2,.08,20),seat,.74); add(new THREE.TorusGeometry(.2,.012,4,24),glowV,.74,Math.PI/2); add(new THREE.CylinderGeometry(.035,.05,.7,10),metal,.36);
+    add(new THREE.CylinderGeometry(.22,.25,.03,20),dark,.015); add(new THREE.TorusGeometry(.16,.012,6,20),gold,.32,Math.PI/2); } }
 // ---- textures for the models ----
 const loadImg=s=>new Promise(r=>{ const i=new Image(); i.onload=()=>r(i); i.onerror=()=>r(null); i.src=s; });
 async function loadAll(o){ if(typeof o==="string") return o.startsWith("data:image") ? loadImg(o) : o; if(Array.isArray(o)||typeof o!=="object"||!o) return o;
@@ -143,46 +171,75 @@ function label(g){ const c=document.createElement("canvas"); c.width=512; c.heig
   x.fillStyle="#060914d0"; x.strokeStyle=g.col; x.lineWidth=4; const w=420; x.beginPath(); x.moveTo(256-w/2+18,14); x.lineTo(256+w/2,14); x.lineTo(256+w/2,96); x.lineTo(256+w/2-18,114); x.lineTo(256-w/2,114); x.lineTo(256-w/2,32); x.closePath(); x.fill(); x.stroke();
   x.font='400 46px "Bungee",Impact,sans-serif'; x.fillStyle=g.col; x.shadowColor=g.col; x.shadowBlur=16; x.fillText(g.name.toUpperCase(),256,64);
   const s=new THREE.Sprite(new THREE.SpriteMaterial({map:ctex(c),transparent:true,depthWrite:false})); s.scale.set(1.9,.475,1); s.renderOrder=5; return s; }
-async function buildFloor(){ const TX=await loadAll(TEX_SRC); const say=t=>$("lmsg").textContent=t;
+// a cabinet doesn't move, so its hundreds of parts are welded into a few meshes (one per material): far fewer draw calls when there are many
+function bake(root){ root.updateMatrixWorld(true); const inv=new THREE.Matrix4().copy(root.matrixWorld).invert(), groups=new Map();
+  root.traverse(o=>{ if(!o.isMesh || Array.isArray(o.material) || !o.visible) return; let g=o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+    g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv,o.matrixWorld)); if(!g.attributes.normal) g.computeVertexNormals();
+    if(!g.attributes.uv) g.setAttribute("uv",new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count*2),2));
+    for(const k of Object.keys(g.attributes)) if(!["position","normal","uv"].includes(k)) g.deleteAttribute(k); g.morphAttributes={};
+    const key=o.material.uuid; if(!groups.has(key)) groups.set(key,{m:o.material,gs:[]}); groups.get(key).gs.push(g); });
+  const out=new THREE.Group(); for(const {m,gs} of groups.values()){ const merged=THREE.BufferGeometryUtils.mergeBufferGeometries(gs,false); if(!merged) continue;
+    const mesh=new THREE.Mesh(merged,m); mesh.castShadow=mesh.receiveShadow=true; out.add(mesh); } return out; }
+const walkers=[];
+async function buildFloor(){ const TX=await loadAll(TEX_SRC);
+  // the shared models: one of each, cloned where the floor needs several
+  const proto={}, protoClips={};
   const make={ slot:()=>buildSlotBot(THREE,{mood:"happy",tex:TX.slot}), pyramid:()=>buildPyramidBot(THREE,{tex:TX.pyramid}), asteroid:()=>buildPyramidBot(THREE,{tex:TX.asteroid}),
     gravity:()=>buildGravityTable(THREE,{tex:TX.gravity}), moons:()=>buildMoonsTable(THREE,{tex:TX.moons}), warp:()=>buildWarpStage(THREE,{tex:TX.warp}) };
-  $("loading").classList.add("done"); let n=0;                                       // the room is already there: show it now
-  for(const g of GAMES){ n++; $("hint").textContent=`SETTING UP GAMES ${n}/${GAMES.length}`; await new Promise(r=>requestAnimationFrame(()=>setTimeout(r,0)));
-    let m; try{ m=make[g.id](); }catch(e){ console.error(g.id,e); continue; } if(g.id==="slot" && m.setMood) m.setMood("happy");
-    const holder=new THREE.Group(); holder.position.set(...g.pos); holder.rotation.y=g.rot; holder.scale.setScalar(g.scale); holder.add(m.root); holder.userData.game=g; scene.add(holder);
-    m.root.traverse(o=>{ if(o.isMesh){ o.castShadow=o.castShadow!==false; o.userData.game=g; pickables.push(o); } });
-    if(m.clips && m.clips.length){ const mx=new THREE.AnimationMixer(m.root); const c=m.clips.find(c=>c.name===g.clip)||m.clips[0]; mx.clipAction(c).play(); mx.update(Math.random()*2); mixers.push(mx); }
-    if(m.update) updates.push(t=>m.update(t,"Idle"));
-    // its name floats above it
-    const box=new THREE.Box3().setFromObject(holder), lab=label(g); lab.position.set(g.pos[0],box.max.y+.55,g.pos[2]); lab.userData.game=g; scene.add(lab); pickables.push(lab);
-    // a glowing ring on the floor shows which game you've picked
+  $("loading").classList.add("done"); let n=0;
+  for(const p of PLAN){ n++; $("hint").textContent=`SETTING UP THE FLOOR ${n}/${PLAN.length}`; await new Promise(r=>requestAnimationFrame(()=>setTimeout(r,0)));
+    const g=G[p.game], holder=new THREE.Group(); holder.userData.game=g; scene.add(holder);
+    try{
+      if(p.kind==="model"){ const m=make[p.game](); holder.add(m.root); holder.position.set(...p.pos); holder.rotation.y=p.rot; holder.scale.setScalar(p.scale);
+        if(m.clips && m.clips.length){ const mx=new THREE.AnimationMixer(m.root); mx.clipAction(m.clips.find(c=>c.name==="Idle")||m.clips[0]).play(); mx.update(Math.random()*2); mixers.push(mx); }
+        if(m.update) updates.push(t=>m.update(t,"Idle")); }
+      else if(p.kind==="bank"){ if(!proto[p.game]){ const b=bake(make[p.game]().root), bb=new THREE.Box3().setFromObject(b), c=bb.getCenter(new THREE.Vector3()); b.children.forEach(m=>m.geometry.translate(-c.x,0,-c.z)); proto[p.game]={ obj:b, size:bb.getSize(new THREE.Vector3()) }; }
+        const {obj,size}=proto[p.game], gap=.06;
+        for(const row of [1,-1]) for(let i=0;i<p.per;i++){ const c=obj.clone(); c.position.set((i-(p.per-1)/2)*(size.x+gap), 0, row*size.z/2); c.rotation.y=row>0?0:Math.PI; holder.add(c); }   // back to back
+        holder.position.set(...p.pos); holder.rotation.y=p.rot; }
+      else if(p.kind==="bot"){ if(!proto.slot){ const m=make.slot(); if(m.setMood) m.setMood("happy"); proto.slot=m.root; protoClips.slot=m.clips; }
+        const r=proto.slot.clone(true); holder.add(r); const mx=new THREE.AnimationMixer(r), cl=protoClips.slot;
+        if(p.walk){ mx.clipAction(cl.find(c=>c.name==="Walk_Happy")||cl[0]).play(); const w={ holder, path:p.walk, seg:0, k:Math.random(), speed:p.speed, paused:false }; walkers.push(w); holder.userData.walker=w; placeWalker(w,0); }
+        else { mx.clipAction(cl.find(c=>c.name==="Idle_Happy")||cl[0]).play(); holder.position.set(...p.pos); holder.rotation.y=p.rot; }
+        mx.update(Math.random()*2); mixers.push(mx); }
+    }catch(e){ console.error(p.game,e); continue; }
+    holder.traverse(o=>{ if(o.isMesh){ o.userData.game=g; o.userData.spot=p; pickables.push(o); } });
+    const box=new THREE.Box3().setFromObject(holder);
+    // one name sign per game (over its main spot), and a ring on the floor for whichever machine you pick
+    let lab=null; if(p.kind!=="bot" || p.label){ lab=label(g); lab.position.set((box.min.x+box.max.x)/2,box.max.y+.45,(box.min.z+box.max.z)/2); lab.userData.game=g; lab.userData.spot=p; scene.add(lab); pickables.push(lab); }
     const ring=new THREE.Mesh(new THREE.RingGeometry(1,1.06,64),new THREE.MeshBasicMaterial({color:new THREE.Color(g.col),transparent:true,opacity:0,depthWrite:false})); ring.rotation.x=-Math.PI/2;
-    const sz=box.getSize(new THREE.Vector3()), c=box.getCenter(new THREE.Vector3()); ring.scale.setScalar(Math.max(sz.x,sz.z)*.62+.3); ring.position.set(c.x,.02,c.z); scene.add(ring);
-    placed.push({ g, holder, box, ring, lab }); try{ renderer.compile(scene,cam); }catch(e){} }
+    const sz=box.getSize(new THREE.Vector3()), c=box.getCenter(new THREE.Vector3()); ring.scale.setScalar(Math.max(sz.x,sz.z)*.62+.25); ring.position.set(c.x,.02,c.z); scene.add(ring);
+    placed.push({ g, p, holder, box, ring, lab }); try{ renderer.compile(scene,cam); }catch(e){} }
   $("hint").innerHTML="TAP A GAME &middot; DRAG TO LOOK AROUND"; buildNav(); }
+// a wandering robot: walks its loop at its own pace, turning to face where it's going
+function placeWalker(w,dt){ if(!w.paused) w.k+=dt*w.speed/segLen(w); while(w.k>=1){ w.k-=1; w.seg=(w.seg+1)%w.path.length; }
+  const a=w.path[w.seg], b=w.path[(w.seg+1)%w.path.length]; w.holder.position.set(a[0]+(b[0]-a[0])*w.k,0,a[1]+(b[1]-a[1])*w.k);
+  const want=Math.atan2(b[0]-a[0],b[1]-a[1]); let d=want-w.holder.rotation.y; d=Math.atan2(Math.sin(d),Math.cos(d)); w.holder.rotation.y+=d*Math.min(1,dt*4+(dt?0:1)); }
+const segLen=w=>{ const a=w.path[w.seg], b=w.path[(w.seg+1)%w.path.length]; return Math.hypot(b[0]-a[0],b[1]-a[1])||1; };
 
 // ---- picking a game: tap it (or its name, or the list), the camera glides over, its card comes up ----
 let focused=null, tween=null;
-function viewFor(p){ const c=p.box.getCenter(new THREE.Vector3()), s=p.box.getSize(new THREE.Vector3()), f=new THREE.Vector3(Math.sin(p.g.va),0,Math.cos(p.g.va));   // va: the direction we look at it from (kept clear of the other games)
-  const d=Math.max(s.x,s.y*.9,s.z)*1.25+2.2, portrait=innerWidth<innerHeight;
+function viewFor(p){ p.box.setFromObject(p.holder); const c=p.box.getCenter(new THREE.Vector3()), s=p.box.getSize(new THREE.Vector3()), va=p.holder.userData.walker?p.holder.rotation.y:p.p.va, f=new THREE.Vector3(Math.sin(va),0,Math.cos(va));   // va: the direction we look at it from (kept clear of the other games)
+  const d=Math.max(s.x,s.y*.9,s.z)*1.15+1.8, portrait=innerWidth<innerHeight;
   const t=new THREE.Vector3(c.x, Math.min(s.y*.5, 2.4), c.z); const pos=t.clone().addScaledVector(f,d*(portrait?1.25:1)).add(new THREE.Vector3(0,s.y*.35+1.2,0)); return { pos, t }; }
 function glide(pos,t,ms=900){ const p0=cam.position.clone(), t0=ctl.target.clone(), s=performance.now(); tween={ p0, t0, pos, t, s, ms }; }
-function focus(id){ const p=placed.find(q=>q.g.id===id); if(!p) return; focused=p; const v=viewFor(p); glide(v.pos,v.t);
+function focus(id,spot){ const p=placed.find(q=>spot?q.p===spot:(q.g.id===id&&(q.lab||q.p.kind!=="bot"))) || placed.find(q=>q.g.id===id); if(!p) return;
+  walkers.forEach(w=>w.paused=false); if(p.holder.userData.walker) p.holder.userData.walker.paused=true; focused=p; const v=viewFor(p); glide(v.pos,v.t);
   const g=p.g; $("card").style.setProperty("--gc",g.col); $("cName").textContent=g.name; $("cKind").textContent=g.kind; $("cDesc").textContent=g.desc; $("card").classList.add("show"); $("hint").style.opacity=0;
   document.querySelectorAll("nav button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.id===id))); }
-function unfocus(){ focused=null; const H=home(); glide(new THREE.Vector3(...H.cam),new THREE.Vector3(...H.t)); $("card").classList.remove("show"); $("hint").style.opacity=1; document.querySelectorAll("nav button").forEach(b=>b.setAttribute("aria-pressed","false")); }
+function unfocus(){ focused=null; walkers.forEach(w=>w.paused=false); const H=home(); glide(new THREE.Vector3(...H.cam),new THREE.Vector3(...H.t)); $("card").classList.remove("show"); $("hint").style.opacity=1; document.querySelectorAll("nav button").forEach(b=>b.setAttribute("aria-pressed","false")); }
 function buildNav(){ GAMES.forEach(g=>{ const b=document.createElement("button"); b.className="holo"; b.dataset.id=g.id; b.textContent=g.name; b.style.setProperty("--hc",g.col); b.onclick=()=>focused&&focused.g.id===g.id?openGame(g):focus(g.id); $("nav").appendChild(b); }); }
 const ray=new THREE.Raycaster(), ndc=new THREE.Vector2(); let down=null;
 cv.addEventListener("pointerdown",e=>{ down=[e.clientX,e.clientY,performance.now()]; });
 cv.addEventListener("pointerup",e=>{ if(!down) return; const moved=Math.hypot(e.clientX-down[0],e.clientY-down[1]); down=null; if(moved>8) return;
   ndc.set(e.clientX/innerWidth*2-1,-(e.clientY/innerHeight)*2+1); ray.setFromCamera(ndc,cam); const hit=ray.intersectObjects(pickables,false).find(h=>h.object.userData.game);
-  if(hit){ const g=hit.object.userData.game; if(focused&&focused.g.id===g.id) openGame(g); else focus(g.id); } else if(focused) unfocus(); });
+  if(hit){ const g=hit.object.userData.game, sp=hit.object.userData.spot; if(focused&&focused.p===sp) openGame(g); else focus(g.id,sp); } else if(focused) unfocus(); });
 $("cBack").onclick=unfocus; $("cPlay").onclick=()=>focused&&openGame(focused.g);
 
 // ---- playing: the game opens over the casino; the casino pauses until you come back ----
 const cache={}; let playing=false;
 const PREFIX='<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"></head><body>';
-async function openGame(g){ $("gName").textContent=g.name; $("game").style.setProperty("--gc",g.col); $("game").hidden=false; playing=true;
+async function openGame(g){ $("game").style.setProperty("--gc",g.col); $("game").hidden=false; playing=true;
   try{ if(!cache[g.id]){ const r=await fetch(g.src); cache[g.id]=await r.text(); } $("frame").srcdoc=PREFIX+cache[g.id]+"</body></html>"; }
   catch(e){ $("frame").srcdoc=PREFIX+`<p style="font:16px sans-serif;color:#ccc;padding:24px">Couldn't load ${g.name}.</p>`; } }
 $("gBack").onclick=()=>{ $("frame").srcdoc=""; $("game").hidden=true; playing=false; clock.getDelta(); };
@@ -193,8 +250,9 @@ addEventListener("resize",size); size();
 const clock=new THREE.Clock();
 renderer.setAnimationLoop(()=>{ if(playing) return; const dt=Math.min(.05,clock.getDelta()), t=clock.elapsedTime;
   if(tween){ const k=Math.min(1,(performance.now()-tween.s)/tween.ms), e=k<.5?4*k*k*k:1-Math.pow(-2*k+2,3)/2; cam.position.lerpVectors(tween.p0,tween.pos,e); ctl.target.lerpVectors(tween.t0,tween.t,e); if(k>=1) tween=null; }
-  mixers.forEach(m=>m.update(dt)); updates.forEach(u=>u(t));
-  placed.forEach(p=>{ const on=focused===p; p.ring.material.opacity+=((on?.9:0)-p.ring.material.opacity)*.12; p.lab.position.y+=Math.sin(t*1.6+p.g.pos[0])*.0015; const lo=focused&&!on?0:1; p.lab.material.opacity+=(lo-p.lab.material.opacity)*.15; p.lab.visible=p.lab.material.opacity>.02; });
+  walkers.forEach(w=>{ placeWalker(w,dt); }); mixers.forEach(m=>m.update(dt)); updates.forEach(u=>u(t));
+  placed.forEach(p=>{ const on=focused===p; p.ring.material.opacity+=((on?.9:0)-p.ring.material.opacity)*.12; if(p.holder.userData.walker){ p.ring.position.x=p.holder.position.x; p.ring.position.z=p.holder.position.z; }
+    if(p.lab){ p.lab.position.y+=Math.sin(t*1.6+p.box.min.x)*.0015; const lo=focused&&focused.g!==p.g?0:1; p.lab.material.opacity+=(lo-p.lab.material.opacity)*.15; p.lab.visible=p.lab.material.opacity>.02; } });
   ctl.update(); renderer.render(scene,cam); });
 addEventListener("error",e=>{ $("lmsg").textContent="SOMETHING WENT WRONG: "+(e.message||""); });
 (async()=>{ try{ await Promise.race([document.fonts.load('400 40px Bungee'),new Promise(r=>setTimeout(r,600))]); }catch(e){}
