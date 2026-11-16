@@ -34,6 +34,10 @@ warp/        Warp Drive: a "crash" game — the ship's multiplier climbs; cash o
   shell.html       flight screen (left ⅔): the drone (art/drone.webp) climbs off a planet, through clouds, into space; flashier at each threshold
                    betting panel (right ⅓): wager, auto bail, flight board of up to 8 aliens, BAIL · build.py → warp.html · tools/frames.js screenshots
 
+asteroid/    Asteroid Field: a "mines" game — crack asteroids for crystals, collect before you hit a black hole
+  part_engine.js   5×5 field, 1–24 black holes, multiplier = fair odds × 97% · tools/sim.js checks payback, tools/playtest.js browser test
+  shell.html       holo field with procedural rocks and crystals, multiplier ladder, escalating effects, black-hole pull · build.py → asteroid.html
+
 model3d/     the walking slot-machine robot
   model.js         builds the robot in code (cabinet, corrugated legs and arms, claws, animations)
   viewer.src.html  the interactive 3D viewer page (template)
