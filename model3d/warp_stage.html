@@ -74,10 +74,11 @@ function buildWarpStage(THREE, opts = {}) {
   const finLights = [], vents = [];
   for (const sx of [-1, 1]) { noShadow(add(tower, chamferBox(.025, SH, .02, .006), mat.edge, "EdgeLight", [sx * (SW / 2 + .07), SY, .085]));
     const fin = grp(tower, "Fin" + (sx < 0 ? "L" : "R"), [sx * (SW / 2 + .14), SY - SH * .1, -.02]);
-    add(fin, chamferBox(.12, SH * .7, .1, .03), mat.shell, "FinBody", [sx * .05, 0, 0], [0, 0, -sx * .05]);
-    for (let k = 0; k < 6; k++) { const lm = glow("FinLight", k % 2 ? 0xb48cff : 0x5fe8ff, 1.6); finLights.push({ m: lm, k, base: k % 2 ? 0xb48cff : 0x5fe8ff }); noShadow(add(fin, chamferBox(.02, .14, .02, .005), lm, "FinLight", [sx * .11, -SH * .28 + k * SH * .11, .03])); }
+    const fb = grp(fin, "FinTilt", [sx * .05, 0, 0], [0, 0, -sx * .05]);                 // everything on the fin shares its slight outward lean
+    add(fb, chamferBox(.12, SH * .7, .1, .03), mat.shell, "FinBody");
+    for (let k = 0; k < 6; k++) { const lm = glow("FinLight", k % 2 ? 0xb48cff : 0x5fe8ff, 1.6); finLights.push({ m: lm, k, base: k % 2 ? 0xb48cff : 0x5fe8ff }); noShadow(add(fb, chamferBox(.03, .14, .02, .005), lm, "FinLight", [0, -SH * .28 + k * SH * .11, .055])); }
     // steam vents near the foot of each arm: they blast at liftoff
-    add(fin, new THREE.CylinderGeometry(.045, .055, .08, 12), mat.metal, "SteamVent", [sx * .12, -SH * .3, .02], [0, 0, sx * Math.PI / 2]);
+    add(fb, new THREE.CylinderGeometry(.045, .055, .08, 12), mat.metal, "SteamVent", [sx * .07, -SH * .3, .0], [0, 0, sx * Math.PI / 2]);
     vents.push(new THREE.Vector3(sx * (SW / 2 + .14 + .2), SY - SH * .1 - SH * .3, .0));
     add(fin, chamferBox(.16, .06, .14, .02), mat.trim, "FinCap", [sx * .03, SH * .36, 0]); }
   { const back = grp(tower, "TowerBack", [0, SY, -.375]);
@@ -102,16 +103,17 @@ function buildWarpStage(THREE, opts = {}) {
   const ringC = noShadow(add(tower, new THREE.TorusGeometry(.95, .01, 4, 96), mat.holo, "HoloRing_C", [0, SY + SH / 2 + .75, 0], [Math.PI / 2, 0, 0]));
   // ---- the leaderboard: a second tall screen, half as wide, to the right of the main one ----
   // it hangs a little higher than the main screen, held off the main screen's spine by two arms behind both screens
-  const LW = SW / 2, LH = SH * .82, LX = SW / 2 + .62 + LW / 2, LY = SY + SH / 2 + .22 - LH / 2;
+  const LW = SW / 2, LH = SH * .82, LX = SW / 2 + .72 + LW / 2, LY = SY + SH / 2 + .7 - LH / 2;
   const board = grp(root, "LeaderboardTower", [LX, 0, 0]);
   add(board, chamferBox(.26, LH, .2, .04), mat.shellDark, "BoardSpine", [0, LY, -.16]);
-  { const x0 = .25, x1 = LX - .13, len = x1 - x0, arms = grp(root, "BoardArms");
-    for (const y of [LY + LH * .3, LY - LH * .28]) {
-      add(arms, chamferBox(len, .1, .1, .025), mat.shell, "Arm", [x0 + len / 2, y, -.26]);
-      add(arms, chamferBox(len * .8, .025, .02, .006), mat.violet, "ArmLight", [x0 + len / 2, y + .052, -.26]).castShadow = false;
-      add(arms, new THREE.CylinderGeometry(.018, .018, len * .7, 8), mat.metal, "Piston", [x0 + len / 2, y - .075, -.26], [0, 0, Math.PI / 2]);
-      for (const x of [x0, x1]) { add(arms, new THREE.CylinderGeometry(.075, .075, .16, 14), mat.metal, "ArmJoint", [x, y, -.26], [Math.PI / 2, 0, 0]);
-        add(arms, new THREE.CylinderGeometry(.08, .08, .02, 14), mat.trim, "JointCap", [x, y, -.17], [Math.PI / 2, 0, 0]); } } }
+  { const x0 = .25, x1 = LX, RISE = .55, AZ = -.3, arms = grp(root, "BoardArms");          // x1: the centre strip down the back of the board
+    for (const yb of [LY + LH * .28, LY - LH * .22]) { const ya = yb - RISE, len = Math.hypot(x1 - x0, RISE), ang = Math.atan2(RISE, x1 - x0);
+      const arm = grp(arms, "Arm", [x0, ya, AZ], [0, 0, ang]);
+      add(arm, chamferBox(len, .1, .1, .025), mat.shell, "ArmBody", [len / 2, 0, 0]);
+      noShadow(add(arm, chamferBox(len * .78, .025, .02, .006), mat.violet, "ArmLight", [len / 2, .052, 0]));
+      add(arm, new THREE.CylinderGeometry(.018, .018, len * .7, 8), mat.metal, "Piston", [len / 2, -.075, 0], [0, 0, Math.PI / 2]);
+      for (const [x, y] of [[x0, ya], [x1, yb]]) { add(arms, new THREE.CylinderGeometry(.075, .075, .18, 14), mat.metal, "ArmJoint", [x, y, AZ], [Math.PI / 2, 0, 0]);
+        add(arms, new THREE.CylinderGeometry(.08, .08, .02, 14), mat.trim, "JointCap", [x, y, AZ - .1], [Math.PI / 2, 0, 0]); } } }
   add(board, chamferBox(LW + .16, LH + .16, .14, .04), mat.shell, "BoardFrame", [0, LY, 0]);
   for (const sx of [-1, 1]) noShadow(add(board, chamferBox(.02, LH, .02, .006), mat.edge, "BoardEdge", [sx * (LW / 2 + .055), LY, .075]));
   add(board, chamferBox(LW + .26, .12, .18, .03), mat.trim, "BoardCap", [0, LY + LH / 2 + .1, 0]);
