@@ -152,7 +152,7 @@ body{margin:0;background:radial-gradient(90% 55% at 50% 30%,#241653 0%,var(--voi
 </div>
 <div class="sheet" id="sheet" hidden><div class="card chrome" role="dialog" aria-label="How to play">
   <h2>How to play</h2>
-  <p>Roll two 8-sided moon crystals: tap <b>ROLL</b>, or press on the table to pick them up, shake, and flick upward to throw.</p>
+  <p>Roll two 8-sided moon crystals: tap <b>ROLL</b>, or press and hold it to pick them up, slide up and flick to throw.</p>
   <p>What counts is the <b>gap</b> between them. If they <b>match</b>, they collide: that's the crash.</p>
   <p><b>First roll:</b> a 1 and an 8 (gap 7, "full orbit") wins straight away. A collision loses. Any other gap becomes <b>the point</b>.</p>
   <p><b>Then:</b> keep rolling. Roll the point's gap again and <b>WITH</b> wins. Collide first and <b>AGAINST</b> wins.</p>
@@ -366,7 +366,7 @@ function banner(big, small, color){ const b=$("banner"); $("bannerBig").textCont
 function popOn(el, txt){ const r=el.getBoundingClientRect(), t=$("table").getBoundingClientRect(), e=document.createElement("div"); e.className="pop"; e.textContent=txt;
   e.style.left=(r.left-t.left+r.width/2)+"px"; e.style.top=(r.top-t.top)+"px"; $("table").appendChild(e);
   e.animate([{transform:"translate(-50%,-30%) scale(.6)",opacity:0},{transform:"translate(-50%,-80%) scale(1.1)",opacity:1,offset:.25},{transform:"translate(-50%,-170%)",opacity:0}],{duration:1300,easing:"ease-out"}).finished.then(()=>e.remove()); }
-function countTo(el,from,to,ms=600){ const t0=performance.now(); const f=n=>{ const k=Math.min(1,(n-t0)/ms); el.textContent=Math.round(from+(to-from)*k); if(k<1) requestAnimationFrame(f); }; requestAnimationFrame(f); }
+function countTo(el,from,to,ms=600){ const t0=performance.now(); const f=n=>{ const k=Math.max(0,Math.min(1,(n-t0)/ms)); el.textContent=Math.round(from+(to-from)*k); if(k<1) requestAnimationFrame(f); }; requestAnimationFrame(f); }
 
 // ---- the moons: two 8-sided moon crystals (octahedra) rendered in 3D on a canvas ----
 // Each die has a rotation matrix M. A throw tumbles it with M(t) = final · spin(axis, θ(t)) and θ easing to 0, so it lands
@@ -397,11 +397,11 @@ const D8 = (()=>{
   const LIGHT=norm([-.45,.7,.75]);
   const BASE=[[150,214,236],[196,170,240]], INK=["#0e3a50","#35196a"];
   // draw a die. ctx: canvas context; (x,y) centre; s: size (circumradius); M: rotation; i: which moon (colour)
-  function render(ctx, x, y, s, M, i, glow=1){
+  function render(ctx, x, y, s, M, i, glow=1, lift=0){
     const R=mul(VIEW,M), pr=v=>{ const p=ap(R,v); return [x+p[0]*s, y-p[1]*s, p[2]]; };
     const faces=FACES.map(f=>{ const n=ap(R,f.n), P=f.v.map(pr); return { f, n, P, z:(P[0][2]+P[1][2]+P[2][2])/3 }; }).filter(q=>q.n[2]>.01).sort((a,b)=>a.z-b.z);
     // soft contact shadow on the felt
-    ctx.save(); ctx.translate(x+s*.15,y+s*.85); ctx.scale(1,.33); const sg=ctx.createRadialGradient(0,0,0,0,0,s*.95); sg.addColorStop(0,"rgba(0,0,0,.42)"); sg.addColorStop(1,"rgba(0,0,0,0)"); ctx.fillStyle=sg; ctx.beginPath(); ctx.arc(0,0,s*.95,0,7); ctx.fill(); ctx.restore();
+    ctx.save(); ctx.translate(x+s*.15+lift*.25,y+s*.85+lift); ctx.scale(1+lift*.004,.33); const sg=ctx.createRadialGradient(0,0,0,0,0,s*.95); sg.addColorStop(0,`rgba(0,0,0,${.42/(1+lift*.02)})`); sg.addColorStop(1,"rgba(0,0,0,0)"); ctx.fillStyle=sg; ctx.beginPath(); ctx.arc(0,0,s*.95,0,7); ctx.fill(); ctx.restore();
     for(const q of faces){ const [a,b,c]=q.P, d=Math.max(0,dot(q.n,LIGHT)), base=BASE[i], k=.38+.72*d, spec=Math.pow(d,14)*.55;
       const col=(m,add=0)=>`rgb(${Math.min(255,base[0]*m+add)|0},${Math.min(255,base[1]*m+add)|0},${Math.min(255,base[2]*m+add)|0})`;
       const top=[a,b,c].reduce((p,v)=>v[1]<p[1]?v:p), bot=[a,b,c].reduce((p,v)=>v[1]>p[1]?v:p);
@@ -432,7 +432,7 @@ const D8 = (()=>{
 })();
 const cv=$("dice"), g=cv.getContext("2d"); let W=300, H=200, dpr=1;
 function layout(){ const r=$("zone").getBoundingClientRect(); dpr=Math.min(3,devicePixelRatio||1); W=r.width; H=r.height; cv.width=W*dpr; cv.height=H*dpr; g.setTransform(dpr,0,0,dpr,0,0); draw(); }
-let moons=[{x:0,y:0,M:D8.finalFor(4,-.2)},{x:0,y:0,M:D8.finalFor(5,.15)}], ruler=null, flash=0, debris=[], shaking=null;
+let moons=[{x:0,y:0,M:D8.finalFor(4,-.2)},{x:0,y:0,M:D8.finalFor(5,.15)}], ruler=null, flash=0, debris=[], shaking=null;   // shaking: unused now (kept for the ROLL label)
 const R0 = () => Math.min(W*.14, H*.22);
 function rest(){ moons[0].x=W*.36; moons[1].x=W*.64; moons[0].y=moons[1].y=H*.48; }
 function drawMoon(m,i){ D8.render(g, m.x, m.y, R0()*1.08, m.M, i); }
@@ -445,53 +445,94 @@ function draw(){ g.clearRect(0,0,W,H);
     for(let k=1;k<=8;k++){ const x=x0+(k-1)*step, on=k===a||k===b; g.fillStyle=on?(crash?"#ff4d6d":"#fff"):"#ffffff40"; g.beginPath(); g.arc(x,y,on?6:3,0,7); g.fill();
       g.fillStyle=on?"#fff":"#ffffff60"; g.font=`600 ${Math.max(9,H*.055)}px "Chakra Petch",system-ui`; g.textAlign="center"; g.fillText(k,x,y+16); }
     g.globalAlpha=1; }
-  // held and shaken before a flick: the moons rattle in the hand near the front of the table
-  if(shaking){ const t=performance.now()/1000;
-    moons.forEach((m,i)=>{ const jx=Math.sin(t*38+i*2)*R0()*.12, jy=Math.cos(t*31+i)*R0()*.1;
-      m.x=W*(.42+i*.16)+jx; m.y=H*.8+jy; m.M=D8.mul(D8.axisRot([1,1-i,.4],t*9+i),D8.finalFor(1+i)); }); }
-  moons.slice().sort((a,b)=>a.y-b.y).forEach(m=>drawMoon(m,moons.indexOf(m)));
-  if(shaking){ g.fillStyle="rgba(255,255,255,.75)"; g.font=`600 ${Math.max(10,H*.055)}px "Chakra Petch",system-ui`; g.textAlign="center"; g.fillText("flick up to throw",W/2,H*.97); }
+  if(!inFlight) moons.slice().sort((a,b)=>a.y-b.y).forEach(m=>drawMoon(m,moons.indexOf(m)));
   debris=debris.filter(p=>{ p.x+=p.vx; p.y+=p.vy; p.vy+=.12; p.l-=.02; if(p.l<=0) return false; g.fillStyle=`rgba(${p.c},${p.l})`; g.beginPath(); g.arc(p.x,p.y,p.r,0,7); g.fill(); return true; });
   if(flash>0){ g.fillStyle=`rgba(255,220,230,${flash})`; g.fillRect(0,0,W,H); flash=Math.max(0,flash-.05); }
 }
-// one throw: the moons fly in from the front (or from where you flicked), tumble in 3D, bounce off the back wall and settle on the chosen faces.
-// aim: optional { x: −1…1 sideways, power: 0…1 } from a flick; it only changes the flight, never the result.
+// ---- throwing: the dice are held in the ROLL button, dragged up (growing as they near the table) and flicked into the box,
+// where a small physics simulation bounces them off the felt, the walls and each other until friction stops them.
+// The simulation runs first; then each die's tumble is worked out backwards from where it stops, so it rolls along its
+// path and comes to rest exactly on the face the engine chose.
+const hand = (()=>{ const c=document.createElement("canvas"); Object.assign(c.style,{position:"fixed",inset:"0",width:"100%",height:"100%",pointerEvents:"none",zIndex:"40"}); document.body.appendChild(c);
+  const x=c.getContext("2d"); let w=0, h=0; const size=()=>{ const d=Math.min(2.5,devicePixelRatio||1); w=innerWidth; h=innerHeight; c.width=w*d; c.height=h*d; x.setTransform(d,0,0,d,0,0); };
+  size(); addEventListener("resize",size); return { x, clear(){ x.clearRect(0,0,w,h); }, size }; })();
+let inFlight=false;                                             // while true the dice live on the hand layer, not the table canvas
+const box = () => { const z=$("zone").getBoundingClientRect(), r=R0(); return { z, r, left:z.left+r*.95, right:z.right-r*.95, top:z.top+r*.95+12, bottom:z.bottom-r*1.75 }; };
+const btnPos = () => { const b=$("go").getBoundingClientRect(); return [b.left+b.width/2, b.top+b.height/2]; };
+// size of a die at screen height y: full size inside the box, shrinking to 30% at the ROLL button
+const sizeAt = y => { const B=box(), by=btnPos()[1], top=B.z.bottom-B.r*.5, k=Math.max(0,Math.min(1,(by-y)/(by-top))); return B.r*1.08*(.3+.7*k); };
+
+function simulate(starts){ const B=box(), r=B.r, dt=1/120, G=2400, out=[], events=[];
+  const D=starts.map(s=>({ x:s.x, y:s.y, z:r*.7, vx:s.vx, vy:s.vy, vz:260+Math.random()*120, inBox:false, A:0 }));
+  for(let step=0; step<120*6; step++){ const t=step*dt;
+    for(const d of D){ d.vz-=G*dt; d.x+=d.vx*dt; d.y+=d.vy*dt; d.z+=d.vz*dt;
+      if(d.z<=0){ d.z=0; if(d.vz<-90){ events.push({t,k:"floor",v:-d.vz}); d.vz=-d.vz*.42; d.vx*=.86; d.vy*=.86; } else d.vz=0; }
+      const sp=Math.hypot(d.vx,d.vy);
+      if(d.z===0 && sp>0){ const dec=Math.min(sp, (190+sp*1.9)*dt); d.vx-=d.vx/sp*dec; d.vy-=d.vy/sp*dec; }     // rolling friction on the felt
+      if(!d.inBox && d.y<B.bottom) d.inBox=true;
+      if(d.x<B.left){ d.x=B.left; if(d.vx<0){ events.push({t,k:"wall",v:-d.vx}); d.vx=-d.vx*.62; } }
+      if(d.x>B.right){ d.x=B.right; if(d.vx>0){ events.push({t,k:"wall",v:d.vx}); d.vx=-d.vx*.62; } }
+      if(d.y<B.top){ d.y=B.top; if(d.vy<0){ events.push({t,k:"wall",v:-d.vy}); d.vy=-d.vy*.58; } }
+      if(d.inBox && d.y>B.bottom){ d.y=B.bottom; if(d.vy>0){ events.push({t,k:"wall",v:d.vy}); d.vy=-d.vy*.55; } }
+      d.A+=Math.hypot(d.vx,d.vy,d.vz*.4)*dt; }
+    // the two dice knock into each other (equal mass, a little bounce lost)
+    const [a,b]=D, dx=b.x-a.x, dy=b.y-a.y, dist=Math.hypot(dx,dy), min=r*1.75;
+    if(dist<min && dist>0 && Math.abs(a.z-b.z)<r){ const nx=dx/dist, ny=dy/dist, push=(min-dist)/2; a.x-=nx*push; a.y-=ny*push; b.x+=nx*push; b.y+=ny*push;
+      const rel=(b.vx-a.vx)*nx+(b.vy-a.vy)*ny; if(rel<0){ const j=-(1+.75)*rel/2; a.vx-=j*nx; a.vy-=j*ny; b.vx+=j*nx; b.vy+=j*ny; events.push({t,k:"dice",v:-rel}); } }
+    out.push(D.map(d=>({x:d.x,y:d.y,z:d.z,A:d.A})));
+    if(step>40 && D.every(d=>d.inBox && d.z===0 && d.vz===0 && Math.hypot(d.vx,d.vy)<8)) break; }
+  return { frames:out, events, dt }; }
+
+// the throw. aim: { x, y, vx, vy } in screen pixels and pixels/second from a flick, or null (tap: they launch out of the button)
 async function throwMoons(d, aim){
-  const r=R0(), tgt=[[W*.36,H*.48],[W*.64,H*.48]], crash=d[0]===d[1], ax=aim?aim.x:0, pw=aim?aim.power:.5;
-  if(crash){ tgt[0]=[W*.5-r*1.05,H*.47]; tgt[1]=[W*.5+r*1.05,H*.5]; }
-  const from = aim ? [[moons[0].x,moons[0].y],[moons[1].x,moons[1].y]] : [[W*.8,H*1.25],[W*.95,H*1.35]];
-  const wall=[[W*(.42+ax*.25),H*.14],[W*(.6+ax*.25),H*.12]], dur=1500-pw*400, t0=performance.now();
+  const B=box(), r=B.r, crash=d[0]===d[1];
+  if(!aim){ const [bx,by]=btnPos(); aim={ x:bx, y:by, vx:(Math.random()-.5)*360, vy:-(1250+Math.random()*350) }; }
+  const spd=Math.hypot(aim.vx,aim.vy), vy=Math.min(-950,aim.vy), vx=Math.max(-900,Math.min(900,aim.vx)), k=Math.min(1.6,Math.max(1,spd/1500));
+  const starts=[{x:aim.x-r*.55, y:aim.y, vx:vx*k-60, vy:vy*k*(1+Math.random()*.1)},{x:aim.x+r*.55, y:aim.y+r*.2, vx:vx*k+60, vy:vy*k*(.92+Math.random()*.1)}];
+  const sim=simulate(starts), F=sim.frames, last=F[F.length-1];
   const fin=[D8.finalFor(d[0],(Math.random()-.5)*.5), D8.finalFor(d[1],(Math.random()-.5)*.5)];
-  const spin=[0,1].map(()=>({ axis:[Math.random()-.5,Math.random()-.5,Math.random()-.5], turns:(2.4+Math.random()*1.4+pw)*Math.PI*2 }));
-  SFX.throw(); let lastTick=0;
-  await new Promise(done=>{ const f=now=>{ const k=Math.min(1,(now-t0)/dur);
-      moons.forEach((m,i)=>{ const k1=Math.min(1,k/.45), k2=Math.max(0,(k-.45)/.55), e2=1-Math.pow(1-k2,3);
-        if(k<.45){ m.x=from[i][0]+(wall[i][0]-from[i][0])*k1; m.y=from[i][1]+(wall[i][1]-from[i][1])*k1 - Math.sin(k1*Math.PI)*H*.08; }
-        else { m.x=wall[i][0]+(tgt[i][0]-wall[i][0])*e2; m.y=wall[i][1]+(tgt[i][1]-wall[i][1])*e2 - Math.abs(Math.sin(e2*Math.PI*2))*H*.05*(1-e2); }
-        const th=spin[i].turns*Math.pow(1-k,2.4); m.M=D8.mul(fin[i],D8.axisRot(spin[i].axis,th)); });
-      if(k>.45 && !f.bounced){ f.bounced=true; SFX.bounce(); }
-      if(k>.5 && now-lastTick>110*(1+k*2) && k<.95){ lastTick=now; SFX.tick(); }
-      draw(); if(k<1) requestAnimationFrame(f); else done(); }; requestAnimationFrame(f); });
-  moons[0].M=fin[0]; moons[1].M=fin[1]; SFX.land();
-  if(crash){ // they roll into each other
-    await anim(260,k=>{ moons[0].x=tgt[0][0]+r*.05*k; moons[1].x=tgt[1][0]-r*.05*k; });
-    SFX.land();
-    await anim(380,k=>{ const e=1-Math.pow(1-k,2); moons[0].x=tgt[0][0]-r*.5*e; moons[1].x=tgt[1][0]+r*.5*e; });
+  const axes=[0,1].map(()=>[Math.random()-.5,Math.random()-.5,Math.random()*.4]);
+  inFlight=true; ruler=null; draw(); SFX.throw();
+  let ev=0; const t0=performance.now(), dur=F.length*sim.dt*1000;
+  await new Promise(done=>{ const f=now=>{ const el=Math.max(0,now-t0), idx=Math.min(F.length-1, Math.floor(el/1000/sim.dt)), fr=F[idx];
+      while(ev<sim.events.length && sim.events[ev].t*1000<=el){ const e=sim.events[ev++]; if(e.v>120) (e.k==="dice"?SFX.clack:e.k==="wall"?SFX.bounce:SFX.tick)(Math.min(1,e.v/1400)); }
+      hand.clear(); const x=hand.x;
+      [0,1].map(i=>({i, p:fr[i]})).sort((a,b)=>a.p.y-b.p.y).forEach(({i,p})=>{ const s=sizeAt(p.y), th=(last[i].A-p.A)/r;       // roll angle = distance still to travel ÷ radius
+        D8.render(x, p.x, p.y-p.z, s*(1+p.z*.0018), D8.mul(fin[i],D8.axisRot(axes[i],th)), i, 1, p.z); });
+      if(el<dur) requestAnimationFrame(f); else done(); }; requestAnimationFrame(f); });
+  // hand back to the table canvas, exactly where they stopped
+  const zr=B.z; moons.forEach((m,i)=>{ m.x=last[i].x-zr.left; m.y=last[i].y-zr.top; m.M=fin[i]; }); inFlight=false; hand.clear(); draw(); SFX.land();
+  if(crash){ // they drift together and knock
+    const from=moons.map(m=>[m.x,m.y]), cy=(from[0][1]+from[1][1])/2, cx=(from[0][0]+from[1][0])/2, L=from[0][0]<=from[1][0]?0:1, tgt=[];
+    tgt[L]=[cx-r*1.02,cy]; tgt[1-L]=[cx+r*1.02,cy];
+    await anim(420,k=>{ const e=1-Math.pow(1-k,2); moons.forEach((m,i)=>{ m.x=from[i][0]+(tgt[i][0]-from[i][0])*e; m.y=from[i][1]+(tgt[i][1]-from[i][1])*e; }); });
+    SFX.clack(1);
+    await anim(320,k=>{ const e=1-Math.pow(1-k,2); moons[L].x=tgt[L][0]-r*.45*e; moons[1-L].x=tgt[1-L][0]+r*.45*e; });
   }
   ruler={d, a:0}; await anim(250,k=>{ ruler.a=k; });
 }
-function anim(ms,fn){ return new Promise(done=>{ const t0=performance.now(); const f=n=>{ const k=Math.min(1,(n-t0)/ms); fn(k); draw(); if(k<1) requestAnimationFrame(f); else done(); }; requestAnimationFrame(f); }); }
-// hold-and-flick: press on the roll area to pick the moons up and shake them; flick upward to throw
-(function flick(){ const z=$("zone"); let start=null, pid=null, samples=[];
-  z.addEventListener("pointerdown",e=>{ if(rolling || !hasAction()) return; Sound.unlock(); Music.start(); start={x:e.clientX,y:e.clientY,t:performance.now()}; pid=e.pointerId; samples=[[e.clientX,e.clientY,performance.now()]];
-    z.setPointerCapture(pid); ruler=null; shaking={}; SFX.rattle(); });
-  z.addEventListener("pointermove",e=>{ if(!shaking || e.pointerId!==pid) return; samples.push([e.clientX,e.clientY,performance.now()]); if(samples.length>6) samples.shift(); });
-  const end=e=>{ if(!shaking || e.pointerId!==pid) return; shaking=null; SFX.stopRattle();
-    const now=performance.now(), recent=samples.filter(q=>now-q[2]<140), a=recent[0]||[e.clientX,e.clientY,now-16], b=[e.clientX,e.clientY,now], dt=Math.max(16,b[2]-a[2]),   /* speed of the last flick only, not since the press */ vy=(b[1]-a[1])/dt, vx=(b[0]-a[0])/dt;
-    if(vy < -.35){ const power=Math.min(1,(-vy-.35)/1.6), sx=Math.max(-1,Math.min(1,vx/Math.max(.4,-vy))); doRoll({ x:sx, power }); }
-    else { rest(); draw(); say("Flick upward to throw, or tap ROLL."); } };
-  z.addEventListener("pointerup",end); z.addEventListener("pointercancel",end); })();
-(function idle(){ if(!rolling && (debris.length||flash||shaking)) draw(); requestAnimationFrame(idle); })();
+function anim(ms,fn){ return new Promise(done=>{ const t0=performance.now(); const f=n=>{ const k=Math.max(0,Math.min(1,(n-t0)/ms)); fn(k); draw(); if(k<1) requestAnimationFrame(f); else done(); }; requestAnimationFrame(f); }); }
+
+// press and hold ROLL: the dice appear small in the button and follow your finger, growing as they near the table; flick up to throw. A tap just rolls.
+(function grip(){ const go=$("go"); let held=null, samples=[];
+  const drawHeld=()=>{ if(!held) return; hand.clear(); const t=performance.now()/1000, [fx,fy]=held.at;
+    [0,1].forEach(i=>{ const s=sizeAt(fy), px=fx+(i?1:-1)*s*.95+Math.sin(t*30+i*2)*s*.08, py=fy-s*.1+Math.cos(t*26+i)*s*.07;
+      D8.render(hand.x, px, py, s, D8.mul(D8.axisRot([1,1-i,.4],t*7+i),D8.finalFor(1+i)), i, 1, s*.25); });
+    requestAnimationFrame(drawHeld); };
+  go.addEventListener("pointerdown",e=>{ if(go.disabled || rolling) return; e.preventDefault(); Sound.unlock(); Music.start(); go.setPointerCapture(e.pointerId);
+    held={ id:e.pointerId, at:[e.clientX,e.clientY], start:[e.clientX,e.clientY,performance.now()] }; samples=[[e.clientX,e.clientY,performance.now()]]; SFX.rattle(); drawHeld(); });
+  go.addEventListener("pointermove",e=>{ if(!held || e.pointerId!==held.id) return; held.at=[e.clientX,e.clientY]; samples.push([e.clientX,e.clientY,performance.now()]); if(samples.length>8) samples.shift(); });
+  const end=e=>{ if(!held || e.pointerId!==held.id) return; const h=held; held=null; SFX.stopRattle(); hand.clear();
+    const now=performance.now(), moved=h.start[1]-e.clientY, recent=samples.filter(q=>now-q[2]<140), a=recent[0]||[e.clientX,e.clientY,now-16], dt=Math.max(16,now-a[2]);
+    const vx=(e.clientX-a[0])/dt*1000, vy=(e.clientY-a[1])/dt*1000;
+    if(e.type==="pointercancel") return;
+    if(moved<25) doRoll(null);                                    // a tap: they launch from the button
+    else if(vy<-300) doRoll({ x:e.clientX, y:e.clientY, vx, vy });  // a flick
+    else doRoll({ x:e.clientX, y:e.clientY, vx:vx*.5, vy:-1100 }); }; // slid up and let go: toss them in
+  go.addEventListener("pointerup",end); go.addEventListener("pointercancel",end);
+  go.onclick=e=>{ if(e.detail===0) doRoll(null); };               // keyboard
+})();
+(function idle(){ if(!rolling && (debris.length||flash)) draw(); requestAnimationFrame(idle); })();
 
 // ---- a roll ----
 async function doRoll(aim){
@@ -693,15 +734,16 @@ const Cine = (()=>{ const c=document.createElement("canvas"); c.id="cine"; Objec
     }); }
   return { collision, orbit };
 })();
-$("go").onclick=()=>{ Sound.unlock(); Music.start(); doRoll(null); };
+
 
 // ---- sound ----
 const SFX = {
   chip(){ Sound.tone(2200,.03,{type:"triangle",vol:.05}); Sound.tone(1600,.05,{type:"triangle",vol:.04,at:.03}); },
   no(){ Sound.tone(220,.15,{type:"square",vol:.03,lp:900}); },
   throw(){ Sound.noise(.5,{vol:.05,type:"bandpass",freq:1200,sweep:2,attack:.05}); },
-  tick(){ Sound.thud(.06,900); },
-  bounce(){ Sound.thud(.22,500); Sound.tone(320,.08,{type:"sine",vol:.05}); },
+  tick(v=.4){ Sound.thud(.05+.12*v,900); },
+  clack(v=.6){ Sound.tone(1800+Math.random()*400,.04,{type:"triangle",vol:.03+.06*v}); Sound.thud(.1+.15*v,1200); },
+  bounce(v=.6){ Sound.thud(.1+.2*v,500); Sound.tone(300+Math.random()*60,.07,{type:"sine",vol:.02+.05*v}); },
   land(){ Sound.thud(.18,300); Sound.thud(.14,260); },
   crash(){ Sound.noise(.8,{vol:.18,type:"lowpass",freq:1400,sweep:.2}); Sound.tone(110,.7,{type:"sawtooth",vol:.06,slide:.4,lp:600}); Sound.thud(.5,180); },
   whoosh(){ Sound.noise(.6,{vol:.07,type:"bandpass",freq:600,sweep:4,attack:.4}); Sound.tone(200,.55,{type:"sawtooth",vol:.03,slide:2.5,lp:1500}); },

@@ -6,7 +6,7 @@ const fonts=ff("Bungee","bungee/files/bungee-latin-400-normal.woff2")+ff("Monoto
 (async()=>{ const b=await chromium.launch(); const p=await b.newPage({viewport:{width:390,height:844}}); const errs=[]; p.on('pageerror',e=>errs.push(e.message));
  await p.setContent('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>'+fs.readFileSync('moons.html','utf8').replace('<style>','<style>'+fonts)+'</body></html>');
  await p.waitForTimeout(700);
- const R=async(d)=>{ await p.evaluate(d=>{ FORCE.dice=d; },d); await p.click('#go'); await p.waitForTimeout(500); await p.waitForFunction(()=>!rolling,null,{timeout:8000}); return p.evaluate(()=>({credits, point, table:tableTotal()})); };
+ const R=async(d)=>{ await p.evaluate(d=>{ FORCE.dice=d; },d); await p.click('#go'); await p.waitForTimeout(500); await p.waitForFunction(()=>!rolling,null,{timeout:20000}); return p.evaluate(()=>({credits, point, table:tableTotal()})); };
  await p.click('.spot.with'); await p.click('.spot[data-spot="3"]'); await p.click('.spot.collide');   // 5 + 5 + 5
  await p.screenshot({path:OUT+'/m1_bets.png'});
  const a=await R([2,5]); await p.screenshot({path:OUT+'/m2_point.png'});           // gap 3 come-out: point 3; gap-3 bet wins ×1.7 → 8; collide loses
