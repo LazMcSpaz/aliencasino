@@ -49,11 +49,20 @@ body{margin:0;background:radial-gradient(90% 55% at 50% 30%,#241653 0%,var(--voi
 .spot{position:relative;border:0;cursor:pointer;color:var(--ink);font:600 .7rem var(--f-tech);border-radius:10px;background:#ffffff0c;box-shadow:inset 0 0 0 1.5px #ffffff2a;padding:6px 4px;min-height:52px;
   display:grid;align-content:center;justify-items:center;gap:1px;transition:box-shadow .2s,background .2s}
 .spot:disabled{opacity:.4;cursor:default}
+.spot.held:disabled{opacity:1}   /* a locked-in bet stays bright */
 .spot .nm{font:400 .74rem/1 var(--f-sign);letter-spacing:.04em}
 .spot .px{font:600 .62rem var(--f-tech);color:var(--dim)}
 .spot.win{background:#7dff7a30;box-shadow:inset 0 0 0 2px var(--win),0 0 16px #7dff7a66}
 .spot.lose{background:#ff4d6d22;box-shadow:inset 0 0 0 2px var(--crash)}
 .spot.point{box-shadow:inset 0 0 0 2.5px var(--moonA),0 0 14px #bfefff88}
+.streakspot{min-height:40px;grid-template-columns:auto 1fr;justify-items:start;align-items:center;gap:10px;padding:6px 12px}
+.streakspot .nm{color:var(--gold);font-size:.7rem}
+.ladder{display:flex;gap:5px;justify-self:end}
+.rung{display:grid;place-items:center;min-width:38px;padding:3px 4px;border-radius:7px;font:600 .58rem/1.15 var(--f-tech);color:var(--dim);background:#ffffff0a;box-shadow:inset 0 0 0 1px #ffffff22;text-align:center}
+.rung b{display:block;font:400 .7rem var(--f-sign);color:#fff3c4}
+.rung.lit{background:#ffc84533;box-shadow:inset 0 0 0 1.5px var(--gold),0 0 12px #ffc84566;color:#fff}
+.rung.pop{animation:rungPop .6s cubic-bezier(.3,1.7,.5,1)}
+@keyframes rungPop{0%{transform:scale(.7)}60%{transform:scale(1.25)}}
 .gaps{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
 .gaps .spot{min-height:56px;padding:5px 2px}
 .gaps .spot .nm{font-size:1.15rem;color:var(--moonA)}
@@ -117,6 +126,7 @@ body{margin:0;background:radial-gradient(90% 55% at 50% 30%,#241653 0%,var(--voi
     </div>
     <div class="layout" id="layout">
       <div class="gaps" id="gaps"></div>
+      <button class="spot streakspot" data-spot="streak"><span class="nm">ORBIT STREAK</span><span class="ladder" id="ladder"></span></button>
       <div class="lane">
         <button class="spot with" data-spot="with"><span class="nm">WITH</span><span class="px">the moons · ×2</span></button>
         <button class="spot collide" data-spot="collide"><span class="nm">COLLIDE</span><span class="px">×7.5</span></button>
@@ -142,10 +152,12 @@ body{margin:0;background:radial-gradient(90% 55% at 50% 30%,#241653 0%,var(--voi
 </div>
 <div class="sheet" id="sheet" hidden><div class="card chrome" role="dialog" aria-label="How to play">
   <h2>How to play</h2>
-  <p>Roll two 8-sided moons. What counts is the <b>gap</b> between them. If they <b>match</b>, they collide: that's the crash.</p>
+  <p>Roll two 8-sided moon crystals: tap <b>ROLL</b>, or press on the table to pick them up, shake, and flick upward to throw.</p>
+  <p>What counts is the <b>gap</b> between them. If they <b>match</b>, they collide: that's the crash.</p>
   <p><b>First roll:</b> a 1 and an 8 (gap 7, "full orbit") wins straight away. A collision loses. Any other gap becomes <b>the point</b>.</p>
   <p><b>Then:</b> keep rolling. Roll the point's gap again and <b>WITH</b> wins. Collide first and <b>AGAINST</b> wins.</p>
   <p><b>Gap bets</b> (the row of numbers) win if that gap comes up before a collision. <b>COLLIDE</b> bets the very next roll is a match.</p>
+  <p><b>Orbit streak</b> (place it before a run starts) pays if you hit 3 or more points in a row before a collision: the more points, the bigger the payout.</p>
   <table id="paytable"></table>
   <div class="dbg"><button class="chrome" id="fpoint">Debug: next roll gap 3</button><button class="chrome" id="fhit">Debug: hit the point</button><button class="chrome" id="fcrash">Debug: collide next</button><button class="chrome" id="close">Close</button></div>
 </div></div>
@@ -158,20 +170,23 @@ const ART = {"bar": "data:image/webp;base64,UklGRiYuAABXRUJQVlA4WAoAAAAQAAAAxwAA
 // any other gap becomes THE POINT. Then keep rolling: hit the point's gap again → win; collide first → crash.
 // Bets: WITH the moons (pass, ×2), AGAINST (don't pass, ×2; a double-1 or double-8 collision on the come-out is a push),
 // GAP bets 1–7 (that gap before a collision; stays up until it resolves), COLLISION (next roll is doubles, one roll only).
+// ORBIT STREAK (like craps' Fire Bet): placed at the start of a run; counts points hit in a row and pays when a collision ends the run
+// (or straight away at the top rung). STREAK_PAY[k] = return for reaching k points.
 // Payouts are "returns": ×2 means a 5 chip comes back as 10; odd amounts round down, like a real table. Payback per bet is checked by tools/sim.js.
 const FACES = 8;
 const GAP_PAY = { 1: 1.5, 2: 1.6, 3: 1.7, 4: 1.9, 5: 2.2, 6: 2.8, 7: 4.7 };
 const LINE_PAY = 2, COLLIDE_PAY = 7.5, NATURAL = 7;
+const STREAK_PAY = { 3: 3, 4: 8, 5: 16, 6: 30 }, STREAK_TOP = 6;
 const CHIPS = [1, 5, 25, 100], START = 500;
 const FORCE = { dice: null };                       // debug: force the next roll, e.g. [3, 3]
 
 let credits = START, point = null, streak = 0;
-let bets = { with: 0, against: 0, gaps: {}, collide: 0 };
+let bets = { with: 0, against: 0, gaps: {}, collide: 0, streak: 0 };
 let history = [];                                   // chips placed since the last roll, newest last (UNDO)
 
-const tableTotal = () => bets.with + bets.against + bets.collide + Object.values(bets.gaps).reduce((a, b) => a + b, 0);
+const tableTotal = () => bets.with + bets.against + bets.collide + bets.streak + Object.values(bets.gaps).reduce((a, b) => a + b, 0);
 // where a chip may go right now: line bets only before a point is set (and are locked in while it's on)
-function canBet(spot) { if (spot === "with" || spot === "against") return point === null; return true; }
+function canBet(spot) { if (spot === "with" || spot === "against") return point === null; if (spot === "streak") return point === null && streak === 0; return true; }
 function placeBet(spot, amt) {
   if (amt > credits || !canBet(spot)) return false; credits -= amt;
   if (typeof spot === "number") bets.gaps[spot] = (bets.gaps[spot] || 0) + amt; else bets[spot] += amt;
@@ -185,8 +200,8 @@ const hasAction = () => point !== null || tableTotal() > 0;
 function roll() {
   if (!hasAction()) return null;
   const d = FORCE.dice || [1 + Math.floor(Math.random() * FACES), 1 + Math.floor(Math.random() * FACES)]; FORCE.dice = null;
-  const gap = Math.abs(d[0] - d[1]), crash = gap === 0, comeOut = point === null, pointBefore = point;
-  const res = { dice: d, gap, crash, comeOut, pointBefore, outcomes: [], natural: false, made: false, sevenOut: false };
+  const gap = Math.abs(d[0] - d[1]), crash = gap === 0, comeOut = point === null, pointBefore = point, streakBefore = streak;
+  const res = { dice: d, gap, crash, comeOut, pointBefore, streakBefore, outcomes: [], natural: false, made: false, sevenOut: false };
   const pay = (spot, amt, mult, label) => { const w = Math.floor(amt * mult); credits += w; res.outcomes.push({ spot, amt, win: w, label }); };
   const lose = (spot, amt, label) => res.outcomes.push({ spot, amt, win: 0, label });
   // collision: a one-roll bet
@@ -205,6 +220,10 @@ function roll() {
     if (gap === point) { res.made = true; streak++; if (bets.with) pay("with", bets.with, LINE_PAY, "Point hit!"); if (bets.against) lose("against", bets.against); bets.with = bets.against = 0; point = null; }
     else if (crash) { res.sevenOut = true; streak = 0; if (bets.with) lose("with", bets.with); if (bets.against) pay("against", bets.against, LINE_PAY, "Against wins"); bets.with = bets.against = 0; point = null; }
   }
+  // orbit streak: pays when the run ends, or at once on reaching the top rung
+  if (bets.streak) { const reached = res.made ? streak : (res.crash ? res.streakBefore : streak);
+    if (res.made && streak >= STREAK_TOP) { pay("streak", bets.streak, STREAK_PAY[STREAK_TOP], `Orbit streak ×${STREAK_TOP}!`); bets.streak = 0; }
+    else if (res.crash) { const rung = Math.min(STREAK_TOP, reached); if (STREAK_PAY[rung]) pay("streak", bets.streak, STREAK_PAY[rung], `Orbit streak ×${rung}`); else lose("streak", bets.streak); bets.streak = 0; } }
   res.pointAfter = point; res.streak = streak; history = [];
   res.totalWin = res.outcomes.reduce((a, o) => a + o.win, 0); return res;
 }
@@ -309,7 +328,8 @@ $("layout").addEventListener("click", e=>{ const b=e.target.closest(".spot"); if
   if(!canBet(s)){ say("WITH and AGAINST are locked in while a point is on."); SFX.no(); return; }
   if(placeBet(s,chip)){ SFX.chip(); hint(s); } else { say("Not enough gold bars for that chip."); SFX.no(); }
   paint(); });
-function hint(s){ if(s==="with") say(point===null?"With the moons: gap 7 wins now, a collision loses, anything else sets the point.":"");
+function hint(s){ if(s==="streak"){ say(`Orbit streak: hit 3 or more points in a row before a collision. Pays ×3 / ×8 / ×16 / ×30.`); return; }
+   if(s==="with") say(point===null?"With the moons: gap 7 wins now, a collision loses, anything else sets the point.":"");
   else if(s==="against") say("Against: you win if the moons collide before the point.");
   else if(s==="collide") say("Collide: the very next roll is a match. Pays ×7.5.");
   else say(`Gap ${s}: wins if a gap of ${s} comes before a collision. Pays ×${GAP_PAY[s]}.`); }
@@ -319,15 +339,17 @@ $("clear").onclick=()=>{ if(rolling) return; clearBets(); Sound.tap(); paint(); 
 
 function paint(){
   const B = view ? view.bets : bets, P = view ? view.point : point, ST = view ? view.streak : streak;
-  const tot = B.with + B.against + B.collide + Object.values(B.gaps).reduce((a,b)=>a+b,0);
+  const tot = B.with + B.against + B.collide + (B.streak||0) + Object.values(B.gaps).reduce((a,b)=>a+b,0);
   if(!view) $("credits").textContent=credits; $("bet").textContent=tot;
   document.querySelectorAll(".spot").forEach(b=>{ const s=isNaN(+b.dataset.spot)?b.dataset.spot:+b.dataset.spot, amt=typeof s==="number"?(B.gaps[s]||0):B[s];
     let c=b.querySelector(".chipon"); if(amt){ if(!c){ c=document.createElement("span"); c.className="chipon"; b.appendChild(c); } c.textContent=amt; c.style.setProperty("--cc",shadeFor(amt)); c.style.color=amt>=25?"#fff":"#1a1530"; } else c?.remove();
-    b.disabled = rolling || !canBet(s); b.classList.toggle("point", s===P); });
+    b.classList.toggle("held", amt>0); b.disabled = rolling || !canBet(s); b.classList.toggle("point", s===P); });
   const p=$("puck"); p.classList.toggle("on", P!==null); p.querySelector("b").textContent = P===null ? "OFF" : P;
   p.querySelector("span").textContent = P===null ? "POINT" : "GAP";
   $("streak").textContent = ST>1 ? `ORBIT STREAK ×${ST}` : ""; $("streak").classList.toggle("show", ST>1);
-  const go=$("go"); go.disabled = rolling || !hasAction(); go.querySelector("small").textContent = rolling ? "rolling…" : !hasAction() ? "place a bet" : point===null ? "come-out" : `point: gap ${point}`;
+  const go=$("go"); go.disabled = rolling || !hasAction(); go.querySelector("small").textContent = rolling ? "rolling…" : shaking ? "flick!" : !hasAction() ? "place a bet" : point===null ? "come-out" : `point: gap ${point}`;
+  { const L=$("ladder"); if(!L.children.length) for(const k of [3,4,5,6]) L.insertAdjacentHTML("beforeend",`<span class="rung" data-k="${k}"><b>${k}${k===6?"+":""}</b>×${STREAK_PAY[k]}</span>`);
+    L.querySelectorAll(".rung").forEach(e=>{ const lit=ST>=+e.dataset.k; if(lit && !e.classList.contains("lit")){ e.classList.add("lit","pop"); setTimeout(()=>e.classList.remove("pop"),600); } else if(!lit) e.classList.remove("lit"); }); }
   $("undo").disabled = rolling || !history.length; $("clear").disabled = rolling || !history.length;
 }
 // dealer bubble
@@ -346,48 +368,111 @@ function popOn(el, txt){ const r=el.getBoundingClientRect(), t=$("table").getBou
   e.animate([{transform:"translate(-50%,-30%) scale(.6)",opacity:0},{transform:"translate(-50%,-80%) scale(1.1)",opacity:1,offset:.25},{transform:"translate(-50%,-170%)",opacity:0}],{duration:1300,easing:"ease-out"}).finished.then(()=>e.remove()); }
 function countTo(el,from,to,ms=600){ const t0=performance.now(); const f=n=>{ const k=Math.min(1,(n-t0)/ms); el.textContent=Math.round(from+(to-from)*k); if(k<1) requestAnimationFrame(f); }; requestAnimationFrame(f); }
 
-// ---- the moons: drawn on a canvas, tumbling up the felt, bouncing off the back wall, then settling side by side ----
+// ---- the moons: two 8-sided moon crystals (octahedra) rendered in 3D on a canvas ----
+// Each die has a rotation matrix M. A throw tumbles it with M(t) = final · spin(axis, θ(t)) and θ easing to 0, so it lands
+// exactly on the face the engine chose, turned so that face's number reads upright. Opposite faces add up to 9, like a real d8.
+const D8 = (()=>{
+  const S3=Math.sqrt(3), FACES=[];
+  const NUM={"+++":1,"---":8,"+-+":2,"-+-":7,"++-":3,"--+":6,"-++":4,"+--":5};
+  for(const sx of [1,-1]) for(const sy of [1,-1]) for(const sz of [1,-1]){ const key=(sx>0?"+":"-")+(sy>0?"+":"-")+(sz>0?"+":"-");
+    const v=[[sx,0,0],[0,sy,0],[0,0,sz]], apex=v[(sx*sy*sz>0)?1:2];                 // which corner counts as "up" when reading the number
+    const rest=v.filter(p=>p!==apex), mid=[(rest[0][0]+rest[1][0])/2,(rest[0][1]+rest[1][1])/2,(rest[0][2]+rest[1][2])/2];
+    FACES.push({ v, n:[sx/S3,sy/S3,sz/S3], num:NUM[key], up:norm([apex[0]-mid[0],apex[1]-mid[1],apex[2]-mid[2]]), right:norm([rest[1][0]-rest[0][0],rest[1][1]-rest[0][1],rest[1][2]-rest[0][2]]),
+      spots:[0,1,2].map(()=>[Math.random()*.5-.25,Math.random()*.5-.25,.05+Math.random()*.08]) }); }
+  // fix each face's "right" so (right, up) is a proper reading frame facing outward
+  for(const f of FACES){ const c=cross(f.right,f.up); if(dot(c,f.n)<0) f.right=f.right.map(q=>-q); }
+  function norm(v){ const l=Math.hypot(...v)||1; return v.map(q=>q/l); }
+  function dot(a,b){ return a[0]*b[0]+a[1]*b[1]+a[2]*b[2]; }
+  function cross(a,b){ return [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]]; }
+  const mul=(A,B)=>A.map((row,i)=>[0,1,2].map(j=>row[0]*B[0][j]+row[1]*B[1][j]+row[2]*B[2][j]));
+  const ap=(M,v)=>[M[0][0]*v[0]+M[0][1]*v[1]+M[0][2]*v[2], M[1][0]*v[0]+M[1][1]*v[1]+M[1][2]*v[2], M[2][0]*v[0]+M[2][1]*v[1]+M[2][2]*v[2]];
+  function axisRot(ax,t){ const [x,y,z]=norm(ax), c=Math.cos(t), s=Math.sin(t), C=1-c;
+    return [[c+x*x*C, x*y*C-z*s, x*z*C+y*s],[y*x*C+z*s, c+y*y*C, y*z*C-x*s],[z*x*C-y*s, z*y*C+x*s, c+z*z*C]]; }
+  const VIEW=axisRot([1,0,0],-.42);                              // we look down at the table at an angle
+  // the orientation that shows face `num` to the camera, reading upright, with a small random twist
+  const VT=[[VIEW[0][0],VIEW[1][0],VIEW[2][0]],[VIEW[0][1],VIEW[1][1],VIEW[2][1]],[VIEW[0][2],VIEW[1][2],VIEW[2][2]]], CAM=ap(VT,[0,0,1]);   // the camera direction, in table space
+  function finalFor(num, twist=0){ const f=FACES.find(q=>q.num===num), ax=cross(f.n,CAM), ang=Math.acos(Math.max(-1,Math.min(1,dot(f.n,CAM))));
+    let M = Math.hypot(...ax)<1e-6 ? (ang>1?axisRot([1,0,0],Math.PI):[[1,0,0],[0,1,0],[0,0,1]]) : axisRot(ax,ang);   // face straight at the camera…
+    const u=ap(VIEW,ap(M,f.up)); M=mul(axisRot(CAM,Math.atan2(u[0],u[1])+twist),M); return M; }                              // …and its number upright
+  const LIGHT=norm([-.45,.7,.75]);
+  const BASE=[[150,214,236],[196,170,240]], INK=["#0e3a50","#35196a"];
+  // draw a die. ctx: canvas context; (x,y) centre; s: size (circumradius); M: rotation; i: which moon (colour)
+  function render(ctx, x, y, s, M, i, glow=1){
+    const R=mul(VIEW,M), pr=v=>{ const p=ap(R,v); return [x+p[0]*s, y-p[1]*s, p[2]]; };
+    const faces=FACES.map(f=>{ const n=ap(R,f.n), P=f.v.map(pr); return { f, n, P, z:(P[0][2]+P[1][2]+P[2][2])/3 }; }).filter(q=>q.n[2]>.01).sort((a,b)=>a.z-b.z);
+    // soft contact shadow on the felt
+    ctx.save(); ctx.translate(x+s*.15,y+s*.85); ctx.scale(1,.33); const sg=ctx.createRadialGradient(0,0,0,0,0,s*.95); sg.addColorStop(0,"rgba(0,0,0,.42)"); sg.addColorStop(1,"rgba(0,0,0,0)"); ctx.fillStyle=sg; ctx.beginPath(); ctx.arc(0,0,s*.95,0,7); ctx.fill(); ctx.restore();
+    for(const q of faces){ const [a,b,c]=q.P, d=Math.max(0,dot(q.n,LIGHT)), base=BASE[i], k=.38+.72*d, spec=Math.pow(d,14)*.55;
+      const col=(m,add=0)=>`rgb(${Math.min(255,base[0]*m+add)|0},${Math.min(255,base[1]*m+add)|0},${Math.min(255,base[2]*m+add)|0})`;
+      const top=[a,b,c].reduce((p,v)=>v[1]<p[1]?v:p), bot=[a,b,c].reduce((p,v)=>v[1]>p[1]?v:p);
+      const gr=ctx.createLinearGradient(top[0],top[1],bot[0],bot[1]); gr.addColorStop(0,col(k*1.12,spec*255)); gr.addColorStop(1,col(k*.82));
+      ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.lineTo(c[0],c[1]); ctx.closePath(); ctx.fillStyle=gr; ctx.fill();
+      // moon-rock speckles, in the face's own plane
+      const gx=(a[0]+b[0]+c[0])/3, gy=(a[1]+b[1]+c[1])/3, ru=ap(R,q.f.right), uu=ap(R,q.f.up);
+      ctx.save(); ctx.clip(); ctx.transform(ru[0]*s,-ru[1]*s,-uu[0]*s,uu[1]*s,gx,gy);
+      for(const [px,py,pr2] of q.f.spots){ ctx.fillStyle="rgba(0,0,0,.13)"; ctx.beginPath(); ctx.arc(px,py,pr2,0,7); ctx.fill(); ctx.strokeStyle="rgba(255,255,255,.18)"; ctx.lineWidth=.012; ctx.beginPath(); ctx.arc(px-.01,py-.01,pr2,Math.PI,1.6*Math.PI); ctx.stroke(); }
+      // the number, drawn flat on the face (foreshortened with it)
+      if(q.n[2]>.72){ ctx.globalAlpha=Math.min(1,(q.n[2]-.72)*5);   // only the face pointing at you shows its number
+        ctx.fillStyle=INK[i]; ctx.scale(.01,.01); ctx.font=`400 64px "Bungee",Impact,sans-serif`; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(q.f.num,0,6); }
+      ctx.restore();
+      ctx.strokeStyle=`rgba(255,255,255,${.25+.45*d})`; ctx.lineWidth=Math.max(1,s*.02); ctx.lineJoin="round"; ctx.stroke(); }
+    // silhouette edge
+    const hull=silhouette(R,x,y,s); ctx.beginPath(); hull.forEach((p,j)=>j?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1])); ctx.closePath(); ctx.strokeStyle="rgba(10,6,25,.6)"; ctx.lineWidth=Math.max(1,s*.025); ctx.stroke();
+    return hull; }
+  // outline of the die on screen (convex hull of its projected corners)
+  function silhouette(R,x,y,s){ const pts=[[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]].map(v=>{ const p=ap(R,v); return [x+p[0]*s, y-p[1]*s]; });
+    pts.sort((a,b)=>a[0]-b[0]||a[1]-b[1]); const cr=(o,a,b)=>(a[0]-o[0])*(b[1]-o[1])-(a[1]-o[1])*(b[0]-o[0]); const lo=[], up=[];
+    for(const p of pts){ while(lo.length>=2&&cr(lo[lo.length-2],lo[lo.length-1],p)<=0) lo.pop(); lo.push(p); }
+    for(const p of pts.slice().reverse()){ while(up.length>=2&&cr(up[up.length-2],up[up.length-1],p)<=0) up.pop(); up.push(p); }
+    return lo.slice(0,-1).concat(up.slice(0,-1)); }
+  // a die rendered once to its own canvas (for the cut-scenes); .hull is its outline in the canvas's centre-origin coordinates
+  function art(num, i, s, twist=0){ const n=Math.ceil(s*2.6), c=document.createElement("canvas"); c.width=c.height=n; const M=finalFor(num,twist);
+    const hull=render(c.getContext("2d"), n/2, n/2, s, M, i); c.hull=hull.map(([px,py])=>[px-n/2,py-n/2]); return c; }
+  return { render, finalFor, axisRot, mul, art };
+})();
 const cv=$("dice"), g=cv.getContext("2d"); let W=300, H=200, dpr=1;
 function layout(){ const r=$("zone").getBoundingClientRect(); dpr=Math.min(3,devicePixelRatio||1); W=r.width; H=r.height; cv.width=W*dpr; cv.height=H*dpr; g.setTransform(dpr,0,0,dpr,0,0); draw(); }
-const CRATERS=[0,1].map(()=>Array.from({length:7},()=>[Math.random()*1.4-.7,Math.random()*1.4-.7,.08+Math.random()*.16]));
-let moons=[{x:0,y:0,face:4,rot:0},{x:0,y:0,face:5,rot:0}], ruler=null, flash=0, debris=[];
-const R0 = () => Math.min(W*.13, H*.2);
-function rest(){ const r=R0(); moons[0].x=W*.36; moons[1].x=W*.64; moons[0].y=moons[1].y=H*.5; }
-function drawMoon(m,i){ const r=R0(), col=i?["#f5ecff","#cdb4f0","#6a4f99"]:["#f2fcff","#a9dcef","#3f7891"];
-  g.save(); g.translate(m.x,m.y); g.shadowColor="#000b"; g.shadowBlur=14; g.shadowOffsetY=r*.25;
-  const gr=g.createRadialGradient(-r*.35,-r*.4,r*.1,0,0,r); gr.addColorStop(0,col[0]); gr.addColorStop(.6,col[1]); gr.addColorStop(1,col[2]); g.fillStyle=gr; g.beginPath(); g.arc(0,0,r,0,7); g.fill(); g.restore();
-  g.save(); g.translate(m.x,m.y); g.beginPath(); g.arc(0,0,r,0,7); g.clip(); g.rotate(m.rot);
-  for(const [cx,cy,cr] of CRATERS[i]){ g.fillStyle="#0000001c"; g.beginPath(); g.arc(cx*r,cy*r,cr*r,0,7); g.fill(); g.strokeStyle="#ffffff30"; g.lineWidth=1; g.beginPath(); g.arc(cx*r-1,cy*r-1,cr*r,Math.PI,1.5*Math.PI); g.stroke(); }
-  g.restore();
-  g.save(); g.translate(m.x,m.y); g.fillStyle=i?"#3b1f6e":"#103a52";   /* numbers stay upright; only the craters spin */ g.font=`400 ${r*.95}px "Bungee",Impact,sans-serif`; g.textAlign="center"; g.textBaseline="middle"; g.fillText(m.face,0,r*.06); g.restore(); }
+let moons=[{x:0,y:0,M:D8.finalFor(4,-.2)},{x:0,y:0,M:D8.finalFor(5,.15)}], ruler=null, flash=0, debris=[], shaking=null;
+const R0 = () => Math.min(W*.14, H*.22);
+function rest(){ moons[0].x=W*.36; moons[1].x=W*.64; moons[0].y=moons[1].y=H*.48; }
+function drawMoon(m,i){ D8.render(g, m.x, m.y, R0()*1.08, m.M, i); }
 function draw(){ g.clearRect(0,0,W,H);
   // the gap ruler: 1–8 track with both moons marked and the gap between them lit
-  if(ruler){ const y=H*.86, x0=W*.12, x1=W*.88, step=(x1-x0)/7, [a,b]=ruler.d, lo=Math.min(a,b), hi=Math.max(a,b), crash=lo===hi;
+  if(ruler){ const y=H*.88, x0=W*.12, x1=W*.88, step=(x1-x0)/7, [a,b]=ruler.d, lo=Math.min(a,b), hi=Math.max(a,b), crash=lo===hi;
     g.globalAlpha=ruler.a; g.strokeStyle="#ffffff30"; g.lineWidth=2; g.beginPath(); g.moveTo(x0,y); g.lineTo(x1,y); g.stroke();
     if(!crash){ g.strokeStyle="#bfefff"; g.lineWidth=5; g.shadowColor="#bfefff"; g.shadowBlur=10; g.beginPath(); g.moveTo(x0+(lo-1)*step,y); g.lineTo(x0+(hi-1)*step,y); g.stroke(); g.shadowBlur=0;
       g.fillStyle="#bfefff"; g.font=`400 ${Math.max(10,H*.07)}px "Bungee",Impact,sans-serif`; g.textAlign="center"; g.fillText(`GAP ${hi-lo}`, x0+((lo+hi)/2-1)*step, y-12); }
     for(let k=1;k<=8;k++){ const x=x0+(k-1)*step, on=k===a||k===b; g.fillStyle=on?(crash?"#ff4d6d":"#fff"):"#ffffff40"; g.beginPath(); g.arc(x,y,on?6:3,0,7); g.fill();
       g.fillStyle=on?"#fff":"#ffffff60"; g.font=`600 ${Math.max(9,H*.055)}px "Chakra Petch",system-ui`; g.textAlign="center"; g.fillText(k,x,y+16); }
     g.globalAlpha=1; }
-  moons.forEach(drawMoon);
+  // held and shaken before a flick: the moons rattle in the hand near the front of the table
+  if(shaking){ const t=performance.now()/1000;
+    moons.forEach((m,i)=>{ const jx=Math.sin(t*38+i*2)*R0()*.12, jy=Math.cos(t*31+i)*R0()*.1;
+      m.x=W*(.42+i*.16)+jx; m.y=H*.8+jy; m.M=D8.mul(D8.axisRot([1,1-i,.4],t*9+i),D8.finalFor(1+i)); }); }
+  moons.slice().sort((a,b)=>a.y-b.y).forEach(m=>drawMoon(m,moons.indexOf(m)));
+  if(shaking){ g.fillStyle="rgba(255,255,255,.75)"; g.font=`600 ${Math.max(10,H*.055)}px "Chakra Petch",system-ui`; g.textAlign="center"; g.fillText("flick up to throw",W/2,H*.97); }
   debris=debris.filter(p=>{ p.x+=p.vx; p.y+=p.vy; p.vy+=.12; p.l-=.02; if(p.l<=0) return false; g.fillStyle=`rgba(${p.c},${p.l})`; g.beginPath(); g.arc(p.x,p.y,p.r,0,7); g.fill(); return true; });
   if(flash>0){ g.fillStyle=`rgba(255,220,230,${flash})`; g.fillRect(0,0,W,H); flash=Math.max(0,flash-.05); }
 }
-// one throw: both moons come in from the front-right, tumble to the back wall, bounce, and settle on their faces
-async function throwMoons(d){
-  const r=R0(), tgt=[[W*.36,H*.5],[W*.64,H*.5]], crash=d[0]===d[1];
-  if(crash){ tgt[0]=[W*.5-r*1.02,H*.48]; tgt[1]=[W*.5+r*1.02,H*.52]; }
-  const start=[[W*.8,H*1.25],[W*.95,H*1.35]], wall=[[W*.42,H*.22],[W*.62,H*.2]], dur=1200, t0=performance.now(); let lastFace=0;
-  SFX.throw();
+// one throw: the moons fly in from the front (or from where you flicked), tumble in 3D, bounce off the back wall and settle on the chosen faces.
+// aim: optional { x: −1…1 sideways, power: 0…1 } from a flick; it only changes the flight, never the result.
+async function throwMoons(d, aim){
+  const r=R0(), tgt=[[W*.36,H*.48],[W*.64,H*.48]], crash=d[0]===d[1], ax=aim?aim.x:0, pw=aim?aim.power:.5;
+  if(crash){ tgt[0]=[W*.5-r*1.05,H*.47]; tgt[1]=[W*.5+r*1.05,H*.5]; }
+  const from = aim ? [[moons[0].x,moons[0].y],[moons[1].x,moons[1].y]] : [[W*.8,H*1.25],[W*.95,H*1.35]];
+  const wall=[[W*(.42+ax*.25),H*.14],[W*(.6+ax*.25),H*.12]], dur=1500-pw*400, t0=performance.now();
+  const fin=[D8.finalFor(d[0],(Math.random()-.5)*.5), D8.finalFor(d[1],(Math.random()-.5)*.5)];
+  const spin=[0,1].map(()=>({ axis:[Math.random()-.5,Math.random()-.5,Math.random()-.5], turns:(2.4+Math.random()*1.4+pw)*Math.PI*2 }));
+  SFX.throw(); let lastTick=0;
   await new Promise(done=>{ const f=now=>{ const k=Math.min(1,(now-t0)/dur);
-      moons.forEach((m,i)=>{ const k1=Math.min(1,k/.55), k2=Math.max(0,(k-.55)/.45), e2=1-Math.pow(1-k2,3);
-        if(k<.55){ m.x=start[i][0]+(wall[i][0]-start[i][0])*k1; m.y=start[i][1]+(wall[i][1]-start[i][1])*k1; }
-        else { m.x=wall[i][0]+(tgt[i][0]-wall[i][0])*e2; m.y=wall[i][1]+(tgt[i][1]-wall[i][1])*e2 - Math.sin(e2*Math.PI)*H*.06; }
-        m.rot += (1-k)*.45*(i?-1:1); });
-      if(k<.9 && now-lastFace>70){ lastFace=now; moons.forEach(m=>m.face=1+Math.floor(Math.random()*8)); SFX.tick(); }
-      if(k>=.55 && !f.bounced){ f.bounced=true; SFX.bounce(); }
+      moons.forEach((m,i)=>{ const k1=Math.min(1,k/.45), k2=Math.max(0,(k-.45)/.55), e2=1-Math.pow(1-k2,3);
+        if(k<.45){ m.x=from[i][0]+(wall[i][0]-from[i][0])*k1; m.y=from[i][1]+(wall[i][1]-from[i][1])*k1 - Math.sin(k1*Math.PI)*H*.08; }
+        else { m.x=wall[i][0]+(tgt[i][0]-wall[i][0])*e2; m.y=wall[i][1]+(tgt[i][1]-wall[i][1])*e2 - Math.abs(Math.sin(e2*Math.PI*2))*H*.05*(1-e2); }
+        const th=spin[i].turns*Math.pow(1-k,2.4); m.M=D8.mul(fin[i],D8.axisRot(spin[i].axis,th)); });
+      if(k>.45 && !f.bounced){ f.bounced=true; SFX.bounce(); }
+      if(k>.5 && now-lastTick>110*(1+k*2) && k<.95){ lastTick=now; SFX.tick(); }
       draw(); if(k<1) requestAnimationFrame(f); else done(); }; requestAnimationFrame(f); });
-  moons[0].face=d[0]; moons[1].face=d[1]; SFX.land();
+  moons[0].M=fin[0]; moons[1].M=fin[1]; SFX.land();
   if(crash){ // they roll into each other
     await anim(260,k=>{ moons[0].x=tgt[0][0]+r*.05*k; moons[1].x=tgt[1][0]-r*.05*k; });
     SFX.land();
@@ -396,14 +481,24 @@ async function throwMoons(d){
   ruler={d, a:0}; await anim(250,k=>{ ruler.a=k; });
 }
 function anim(ms,fn){ return new Promise(done=>{ const t0=performance.now(); const f=n=>{ const k=Math.min(1,(n-t0)/ms); fn(k); draw(); if(k<1) requestAnimationFrame(f); else done(); }; requestAnimationFrame(f); }); }
-(function idle(){ if(!rolling && (debris.length||flash)) draw(); requestAnimationFrame(idle); })();
+// hold-and-flick: press on the roll area to pick the moons up and shake them; flick upward to throw
+(function flick(){ const z=$("zone"); let start=null, pid=null, samples=[];
+  z.addEventListener("pointerdown",e=>{ if(rolling || !hasAction()) return; Sound.unlock(); Music.start(); start={x:e.clientX,y:e.clientY,t:performance.now()}; pid=e.pointerId; samples=[[e.clientX,e.clientY,performance.now()]];
+    z.setPointerCapture(pid); ruler=null; shaking={}; SFX.rattle(); });
+  z.addEventListener("pointermove",e=>{ if(!shaking || e.pointerId!==pid) return; samples.push([e.clientX,e.clientY,performance.now()]); if(samples.length>6) samples.shift(); });
+  const end=e=>{ if(!shaking || e.pointerId!==pid) return; shaking=null; SFX.stopRattle();
+    const now=performance.now(), recent=samples.filter(q=>now-q[2]<140), a=recent[0]||[e.clientX,e.clientY,now-16], b=[e.clientX,e.clientY,now], dt=Math.max(16,b[2]-a[2]),   /* speed of the last flick only, not since the press */ vy=(b[1]-a[1])/dt, vx=(b[0]-a[0])/dt;
+    if(vy < -.35){ const power=Math.min(1,(-vy-.35)/1.6), sx=Math.max(-1,Math.min(1,vx/Math.max(.4,-vy))); doRoll({ x:sx, power }); }
+    else { rest(); draw(); say("Flick upward to throw, or tap ROLL."); } };
+  z.addEventListener("pointerup",end); z.addEventListener("pointercancel",end); })();
+(function idle(){ if(!rolling && (debris.length||flash||shaking)) draw(); requestAnimationFrame(idle); })();
 
 // ---- a roll ----
-async function doRoll(){
+async function doRoll(aim){
   if(rolling) return; const c0=credits, snap={ bets:JSON.parse(JSON.stringify(bets)), point, streak };
   const res=roll(); if(!res) return;
   view=snap; rolling=true; ruler=null; document.querySelectorAll(".spot").forEach(b=>b.classList.remove("win","lose")); $("win").textContent=0; paint();
-  say(line("roll")); await throwMoons(res.dice);
+  say(line("roll")); await throwMoons(res.dice, aim);
   // the big moments play out over the whole screen before anything on the table changes
   if(res.crash){ say(line("crash")); await Cine.collision(res.dice, res.comeOut ? "Come-out crash" : snap.point!==null ? `Crashed before gap ${snap.point}` : ""); }
   else if(res.natural){ say(line("natural")); await Cine.orbit(res.dice, "FULL ORBIT!", "1 and 8 · first-roll winner"); }
@@ -412,6 +507,7 @@ async function doRoll(){
   // now the table settles: winning and losing spots flash on the chips as they were, then pay out and clear
   for(const o of res.outcomes){ const el=spotEl(o.spot); if(!el) continue; el.classList.add(o.win>0?"win":"lose"); if(o.win) popOn(el,"+"+o.win); }
   if(res.outcomes.some(o=>o.win)) SFX.win(); else if(res.outcomes.length) SFX.lose();
+  { const st=res.outcomes.find(o=>o.spot==="streak" && o.win); if(st){ banner(`STREAK PAYS ×${Math.round(st.win/st.amt)}`, `+${st.win} gold bars`, "var(--gold)"); SFX.fanfare(); } }
   countTo($("win"),0,res.totalWin,600); countTo($("credits"),c0,credits,600);
   await wait(1000); view=null; rolling=false; paint();
 }
@@ -443,15 +539,7 @@ const Cine = (()=>{ const c=document.createElement("canvas"); c.id="cine"; Objec
     for(let i=0;i<30;i++){ const a=i/30*Math.PI*2+rnd(-.05,.05), wd=rnd(.012,.05), len=n/2*rnd(.7,1); const gr=g2.createRadialGradient(0,0,0,0,0,len); gr.addColorStop(0,"rgba(255,235,170,.55)"); gr.addColorStop(1,"rgba(255,200,90,0)");
       g2.fillStyle=gr; g2.beginPath(); g2.moveTo(0,0); g2.arc(0,0,len,a-wd,a+wd); g2.closePath(); g2.fill(); } return s; })();
 
-  // ---- the moons, pre-rendered (same look as on the table) ----
-  function moonArt(face,i,r){ const pad=3, n=Math.ceil(r*2+pad*2), s=document.createElement("canvas"); s.width=s.height=n; const m=s.getContext("2d"); m.translate(n/2,n/2);
-    const col=i?["#f8f0ff","#cdb4f0","#5e4590"]:["#f4fdff","#a9dcef","#356a82"];
-    const gr=m.createRadialGradient(-r*.35,-r*.4,r*.05,0,0,r); gr.addColorStop(0,col[0]); gr.addColorStop(.62,col[1]); gr.addColorStop(1,col[2]); m.fillStyle=gr; m.beginPath(); m.arc(0,0,r,0,7); m.fill();
-    m.save(); m.beginPath(); m.arc(0,0,r,0,7); m.clip();
-    for(const [cx,cy,cr] of CRATERS[i]){ const g3=m.createRadialGradient(cx*r+cr*r*.25,cy*r+cr*r*.25,0,cx*r,cy*r,cr*r); g3.addColorStop(0,"rgba(0,0,0,.22)"); g3.addColorStop(.85,"rgba(0,0,0,.12)"); g3.addColorStop(1,"rgba(255,255,255,.18)");
-      m.fillStyle=g3; m.beginPath(); m.arc(cx*r,cy*r,cr*r,0,7); m.fill(); }
-    const rim=m.createRadialGradient(0,0,r*.75,0,0,r); rim.addColorStop(0,"rgba(0,0,0,0)"); rim.addColorStop(1,"rgba(0,0,0,.35)"); m.fillStyle=rim; m.fillRect(-r,-r,r*2,r*2); m.restore();
-    m.fillStyle=i?"#3b1f6e":"#103a52"; m.font=`400 ${r*.95}px "Bungee",Impact,sans-serif`; m.textAlign="center"; m.textBaseline="middle"; m.fillText(face,0,r*.06); return s; }
+  // ---- the dice are drawn by D8 (above); cut-scenes use D8.art for the shards ----
   const drawArt=(art,px,py,rot=0,sc=1)=>{ x.save(); x.translate(px,py); x.rotate(rot); x.scale(sc,sc); x.drawImage(art,-art.width/2,-art.height/2); x.restore(); };
 
   const title=(big,small,col,k)=>{ if(k<=0) return; const sc = k<.12 ? 2.2-1.2*ease.out3(k/.12) : 1+.03*Math.sin(k*6), a=Math.min(1,k/.06)*(k>.86?Math.max(0,(1-k)/.14):1);
@@ -461,7 +549,7 @@ const Cine = (()=>{ const c=document.createElement("canvas"); c.id="cine"; Objec
     const tg=x.createLinearGradient(0,-fs/2,0,fs/2); tg.addColorStop(0,"#fff"); tg.addColorStop(.45,col); tg.addColorStop(1,col);
     x.shadowColor=col; x.shadowBlur=fs*.45; x.fillStyle=col; x.fillText(big,0,0);      // glow pass in a flat colour (Safari mis-draws shadows on gradient text)
     x.shadowBlur=0; x.shadowColor="transparent"; x.fillStyle=tg; x.fillText(big,0,0); x.restore(); };   // no line underneath: the title says it all
-  const vignette=a=>{ if(a<=0) return; const g2=x.createRadialGradient(w/2,h*.46,Math.min(w,h)*.15,w/2,h*.46,Math.max(w,h)*.75); g2.addColorStop(0,`rgba(8,5,22,${a*.88})`); g2.addColorStop(1,`rgba(2,1,8,${Math.min(1,a*1.05)})`); x.fillStyle=g2; x.fillRect(0,0,w,h); };
+  const vignette=a=>{ if(a<=0) return; const g2=x.createRadialGradient(w/2,h*.46,Math.min(w,h)*.15,w/2,h*.46,Math.max(w,h)*.75); g2.addColorStop(0,`rgba(8,5,22,${a*.94})`); g2.addColorStop(1,`rgba(2,1,8,${Math.min(1,a*1.05)})`); x.fillStyle=g2; x.fillRect(0,0,w,h); };
   const run=(ms,frame)=>new Promise(done=>{ size(); const SL=window.__cineSlow||1, t0=performance.now(); let last=t0; const f=n=>{ const t=(n-t0)*SL, dt=Math.min(40,n-last)/16.67*SL; last=n;   /* __cineSlow: debug slow motion */ x.clearRect(0,0,w,h); frame(t,dt); if(t<ms) requestAnimationFrame(f); else { x.clearRect(0,0,w,h); done(); } }; requestAnimationFrame(f); });
   function shake(px,ms){ $("app").animate(Array.from({length:14},(_,i)=>{ const k=Math.pow(1-i/14,1.6); return {transform:`translate(${rnd(-1,1)*px*k}px,${rnd(-1,1)*px*k*.7}px) rotate(${rnd(-1,1)*k*.6}deg)`}; }).concat([{transform:"none"}]),{duration:ms,easing:"linear"}); }
 
@@ -470,7 +558,7 @@ const Cine = (()=>{ const c=document.createElement("canvas"); c.id="cine"; Objec
       for(let j=0;j<7;j++){ a+=rnd(-.5,.5); px+=Math.cos(a)*seg; py+=Math.sin(a)*seg; pts.push([px,py]); if(j===2&&Math.random()<.6) out.push(branch(px,py,a+rnd(-1,1)*.9,seg*.7)); } out.push(pts); }
     function branch(bx,by,a,seg){ const p=[[bx,by]]; for(let j=0;j<4;j++){ a+=rnd(-.45,.45); bx+=Math.cos(a)*seg; by+=Math.sin(a)*seg; p.push([bx,by]); } return p; }
     return out; }
-  function drawCracks(cr, r, prog, heat){ x.save(); x.beginPath(); x.arc(0,0,r*.99,0,7); x.clip(); x.lineCap="round"; x.lineJoin="round";
+  function drawCracks(cr, r, prog, heat, hull){ x.save(); x.beginPath(); if(hull) hull.forEach((p,j)=>j?x.lineTo(p[0],p[1]):x.moveTo(p[0],p[1])); else x.arc(0,0,r*.99,0,7); x.clip(); x.lineCap="round"; x.lineJoin="round";
     for(const pts of cr){ const n=Math.max(1,Math.floor((pts.length-1)*prog)); x.beginPath(); x.moveTo(pts[0][0],pts[0][1]); for(let j=1;j<=n;j++) x.lineTo(pts[j][0],pts[j][1]);
       x.strokeStyle="rgba(20,10,30,.9)"; x.lineWidth=r*.07; x.stroke(); x.strokeStyle=`rgba(255,${170+60*heat},${90+80*heat},${.6+.4*heat})`; x.lineWidth=r*.03; x.shadowColor="#ffb050"; x.shadowBlur=r*.25*heat; x.stroke(); x.shadowBlur=0; }
     x.restore(); }
@@ -493,7 +581,7 @@ const Cine = (()=>{ const c=document.createElement("canvas"); c.id="cine"; Objec
 
   // ================= COLLISION =================
   async function collision(d, sub){
-    size(); const r=Math.min(w,h)*.17, cx=w/2, cy=h*.47, arts=[moonArt(d[0],0,r),moonArt(d[1],1,r)], cracks=[makeCracks(r,-1),makeCracks(r,1)];
+    size(); const r=Math.min(w,h)*.17, cx=w/2, cy=h*.47, arts=[D8.art(d[0],0,r*1.08),D8.art(d[1],1,r*1.08)], cracks=[makeCracks(r,-1),makeCracks(r,1)];
     const T_TOUCH=680, T_BREAK=1000, END=2900; let shards=null, fire=[], smoke=[], embers=[], dust=[], sparks=[], broke=false, touched=false; const ph=[rnd(0,6),rnd(0,6),rnd(0,6)];
     const lines=Array.from({length:22},()=>({y:rnd(-1.2,1.2), l:rnd(.5,1.4), s:rnd(.6,1.3), side:Math.random()<.5?-1:1}));
     SFX.whoosh();
@@ -505,15 +593,16 @@ const Cine = (()=>{ const c=document.createElement("canvas"); c.id="cine"; Objec
           const gl=x.createLinearGradient(xx,yy,xx-L.side*len,yy); gl.addColorStop(0,`rgba(220,240,255,${.35*k})`); gl.addColorStop(1,"rgba(220,240,255,0)"); x.strokeStyle=gl; x.lineWidth=1.5+L.l; x.beginPath(); x.moveTo(xx,yy); x.lineTo(xx-L.side*len,yy); x.stroke(); }
         [-1,1].forEach((sd,i)=>{ const px=cx+sd*(off+r*.98);
           blit(i?SP.violet:SP.cyan,px,cy,r*3,.35);
-          for(let g=5;g>=1;g--){ x.globalAlpha=.09*k; drawArt(arts[i],px+sd*g*vel*.9,cy,t*.004*sd); } x.globalAlpha=1;     // motion smear
-          drawArt(arts[i],px,cy,t*.004*sd); });
+          const M=D8.mul(D8.finalFor(d[i]),D8.axisRot([.3,1,.5*sd],(1-k)*9));
+          for(let g2=4;g2>=1;g2--){ x.globalAlpha=.1*k; D8.render(x,px+sd*g2*vel*.9,cy,r*1.08,M,i); } x.globalAlpha=1;     // motion smear
+          D8.render(x,px,cy,r*1.08,M,i); });
         return; }
       // ---- contact: they grind into each other, flattening at the seam, cracks racing across both ----
       if(!touched){ touched=true; SFX.crunch(); shake(9,260); }
       if(t<T_BREAK){ const k=(t-T_TOUCH)/(T_BREAK-T_TOUCH), ov=r*.42*ease.out2(k), chord=Math.sqrt(Math.max(0,r*r-(r-ov)*(r-ov))), heat=Math.min(1,k*1.6);
         [-1,1].forEach((sd,i)=>{ const px=cx+sd*(r-ov); blit(i?SP.violet:SP.cyan,px,cy,r*2.8,.3);
           x.save(); x.beginPath(); if(sd<0) x.rect(0,0,cx,h); else x.rect(cx,0,w-cx,h); x.clip();
-          x.save(); x.translate(px,cy); x.scale(1-.07*k,1+.05*k); x.drawImage(arts[i],-arts[i].width/2,-arts[i].height/2); drawCracks(cracks[i],r,Math.min(1,k*1.3),heat); x.restore(); x.restore(); });
+          x.save(); x.translate(px,cy); x.scale(1-.07*k,1+.05*k); x.drawImage(arts[i],-arts[i].width/2,-arts[i].height/2); drawCracks(cracks[i],r,Math.min(1,k*1.3),heat,arts[i].hull); x.restore(); x.restore(); });
         // white-hot seam where they meet
         blit(SP.fire,cx,cy,r*(.9+k*1.4),.9*heat,true,1.6); blit(SP.white,cx,cy,r*.7,heat,true,2.4);
         const sg=x.createLinearGradient(cx,cy-chord,cx,cy+chord); sg.addColorStop(0,"rgba(255,255,255,0)"); sg.addColorStop(.5,`rgba(255,250,230,${heat})`); sg.addColorStop(1,"rgba(255,255,255,0)");
@@ -558,9 +647,9 @@ const Cine = (()=>{ const c=document.createElement("canvas"); c.id="cine"; Objec
 
   // ================= ORBIT (point hit / full orbit) =================
   async function orbit(d, big, sub){
-    size(); const r=Math.min(w,h)*.105, cx=w/2, cy=h*.47, arts=[moonArt(d[0],0,r),moonArt(d[1],1,r)], col=big==="FULL ORBIT!"?"#ffc845":"#7dff7a";
+    size(); const r=Math.min(w,h)*.105, cx=w/2, cy=h*.47, arts=[D8.art(d[0],0,r*1.08),D8.art(d[1],1,r*1.08)], col=big==="FULL ORBIT!"?"#ffc845":"#7dff7a";
     const LOCK=720, END=2500; let locked=false; const sparkles=[];
-    const pos=(tt,i)=>{ tt=Math.max(0,tt); const sp=Math.min(1,tt/LOCK), ang=tt*.0098+(i?Math.PI:0)+.6, rad = tt<LOCK ? r*(3.6-2.2*ease.out3(sp)) : r*1.4+Math.sin((tt-LOCK)*.004)*r*.12;
+    const pos=(tt,i)=>{ tt=Math.max(0,tt); const sp=Math.min(1,tt/LOCK), ang=tt*.0098+(i?Math.PI:0)+.6, rad = tt<LOCK ? r*(3.8-1.8*ease.out3(sp)) : r*2+Math.sin((tt-LOCK)*.004)*r*.12;
       return { x:cx+Math.cos(ang)*rad, y:cy+Math.sin(ang)*rad*.5, z:Math.sin(ang) }; };          // z: in front (+) or behind (−) for depth
     const TRAIL=[[150,240,255],[205,160,255]];
     function ribbon(t,i,fade){ const N=56, step=11, pts=[]; for(let k=0;k<=N;k++){ const tt=t-k*step; if(tt<0) break; pts.push(pos(tt,i)); } if(pts.length<3) return;
@@ -579,18 +668,18 @@ const Cine = (()=>{ const c=document.createElement("canvas"); c.id="cine"; Objec
       vignette(Math.min(1,t/320)*.75*fade);
       // soft rays and glow behind, once the moons lock into orbit
       if(t>LOCK-120){ const q=Math.min(1,(t-LOCK+120)/500)*fade; x.save(); x.globalCompositeOperation="lighter"; x.globalAlpha=q*.7; x.translate(cx,cy); x.rotate(t*.00025); const S=Math.max(w,h)*1.5; x.drawImage(RAYS,-S/2,-S/2,S,S); x.rotate(-t*.0006); x.globalAlpha=q*.35; x.drawImage(RAYS,-S*.35,-S*.35,S*.7,S*.7); x.restore();
-        blit(SP.gold,cx,cy,r*7,q*.55); }
+        blit(SP.gold,cx,cy,r*6,q*.28); }
       const P=[pos(t,0),pos(t,1)], order=P[0].z<P[1].z?[0,1]:[1,0];
       // the moon behind draws first (with its trail), so the orbit reads in depth
       for(const i of order){ ribbon(t,i,fade); const p=P[i], sc=1+p.z*.12, dim=.75+.25*(p.z+1)/2;
-        blit(i?SP.violet:SP.cyan,p.x,p.y,r*3*sc,.4*fade); x.save(); x.globalAlpha=fade; x.translate(p.x,p.y); x.scale(sc,sc); x.drawImage(arts[i],-arts[i].width/2,-arts[i].height/2);
-        if(dim<1){ x.globalCompositeOperation="source-atop"; x.fillStyle=`rgba(10,6,30,${1-dim})`; x.fillRect(-arts[i].width/2,-arts[i].height/2,arts[i].width,arts[i].height); } x.restore();
+        blit(i?SP.violet:SP.cyan,p.x,p.y,r*3*sc,.4*fade); x.globalAlpha=fade*dim;
+        D8.render(x,p.x,p.y,r*1.08*sc,D8.mul(D8.finalFor(d[i]),D8.axisRot([.4,1,.2*(i?-1:1)],Math.max(0,1900-t)*.006)),i); x.globalAlpha=1;
         if(Math.random()<.7*dt) sparkles.push({x:p.x+rnd(-r*.4,r*.4),y:p.y+rnd(-r*.4,r*.4),vx:rnd(-.6,.6),vy:rnd(-.6,.6),l:1,s:rnd(4,9),dec:rnd(.012,.025),tw:rnd(0,6)}); }
       // the lock: a bloom, a horizontal flare, an expanding soft ring and a burst of glints
       if(t>=LOCK && !locked){ locked=true; SFX.fanfare(); shake(7,380);
         for(let j=0;j<90;j++){ const a=rnd(0,Math.PI*2), sp=rnd(1.5,9); sparkles.push({x:cx,y:cy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp*.75,l:1,s:rnd(5,13),dec:rnd(.008,.016),tw:rnd(0,6),g:true}); } }
       if(locked){ const s=t-LOCK;
-        blit(SP.white,cx,cy,r*(4+s*.012),Math.max(0,1-s/450)*fade); blit(SP.white,cx,cy,w*1.9,Math.max(0,1-s/650)*.85*fade,true,.03);
+        blit(SP.white,cx,cy,r*(3+s*.01),Math.max(0,1-s/380)*.8*fade); blit(SP.white,cx,cy,w*1.9,Math.max(0,1-s/650)*.85*fade,true,.03);
         for(const [dl,str] of [[0,1],[160,.6]]){ const q=(s-dl)/900; if(q>=0&&q<=1){ const R=r*1.2+ease.out3(q)*Math.max(w,h)*.7; blit(SP.ring,cx,cy,R*2,(1-q)*str*fade,true,.62); } } }
       // glints: soft core + four-point flare that twinkles
       x.save(); x.globalCompositeOperation="lighter";
@@ -604,7 +693,7 @@ const Cine = (()=>{ const c=document.createElement("canvas"); c.id="cine"; Objec
     }); }
   return { collision, orbit };
 })();
-$("go").onclick=()=>{ Sound.unlock(); Music.start(); doRoll(); };
+$("go").onclick=()=>{ Sound.unlock(); Music.start(); doRoll(null); };
 
 // ---- sound ----
 const SFX = {
@@ -616,6 +705,8 @@ const SFX = {
   land(){ Sound.thud(.18,300); Sound.thud(.14,260); },
   crash(){ Sound.noise(.8,{vol:.18,type:"lowpass",freq:1400,sweep:.2}); Sound.tone(110,.7,{type:"sawtooth",vol:.06,slide:.4,lp:600}); Sound.thud(.5,180); },
   whoosh(){ Sound.noise(.6,{vol:.07,type:"bandpass",freq:600,sweep:4,attack:.4}); Sound.tone(200,.55,{type:"sawtooth",vol:.03,slide:2.5,lp:1500}); },
+  rattle(){ clearInterval(SFX._rt); SFX._rt=setInterval(()=>{ Sound.thud(.07+Math.random()*.05,700+Math.random()*500); },95); },
+  stopRattle(){ clearInterval(SFX._rt); },
   crunch(){ Sound.noise(.32,{vol:.12,type:"bandpass",freq:900,q:.8,sweep:.5}); Sound.thud(.35,220); Sound.tone(90,.3,{type:"sawtooth",vol:.05,slide:.6,lp:500}); },
   boom(){ Sound.noise(1.6,{vol:.24,type:"lowpass",freq:1800,sweep:.08}); Sound.tone(70,1.2,{type:"sine",vol:.2,slide:.4}); Sound.tone(140,.6,{type:"sawtooth",vol:.06,slide:.3,lp:500}); Sound.thud(.6,160); Sound.thud(.4,100); },
   rise(){ Sound.tone(300,.65,{type:"triangle",vol:.04,slide:2.2}); Sound.noise(.6,{vol:.03,type:"highpass",freq:2000,sweep:3,attack:.5}); },
@@ -639,7 +730,7 @@ const Music = (()=>{ let timer=null, step=0, nextT=0; const CH=[[0,4,7,11],[-3,0
 
 // ---- wiring ----
 $("snd").addEventListener("click",()=>{ Sound.on=!Sound.on; $("snd").setAttribute("aria-pressed",String(Sound.on)); });
-$("info").addEventListener("click",()=>{ $("paytable").innerHTML=`<tr><td>With / Against the moons</td><td>×${LINE_PAY}</td></tr><tr><td>Collide (next roll matches)</td><td>×${COLLIDE_PAY}</td></tr>`+
+$("info").addEventListener("click",()=>{ $("paytable").innerHTML=`<tr><td>With / Against the moons</td><td>×${LINE_PAY}</td></tr><tr><td>Collide (next roll matches)</td><td>×${COLLIDE_PAY}</td></tr>`+Object.entries(STREAK_PAY).map(([k,p])=>`<tr><td>Orbit streak · ${k}${+k===STREAK_TOP?'+':''} points in a row</td><td>×${p}</td></tr>`).join("")+
   Object.entries(GAP_PAY).map(([gg,p])=>`<tr><td>Gap ${gg} before a collision</td><td>×${p}</td></tr>`).join(""); $("sheet").hidden=false; });
 $("close").addEventListener("click",()=>$("sheet").hidden=true);
 $("sheet").addEventListener("click",e=>{ if(e.target.id==="sheet") $("sheet").hidden=true; });

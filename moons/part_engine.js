@@ -4,20 +4,23 @@
 // any other gap becomes THE POINT. Then keep rolling: hit the point's gap again → win; collide first → crash.
 // Bets: WITH the moons (pass, ×2), AGAINST (don't pass, ×2; a double-1 or double-8 collision on the come-out is a push),
 // GAP bets 1–7 (that gap before a collision; stays up until it resolves), COLLISION (next roll is doubles, one roll only).
+// ORBIT STREAK (like craps' Fire Bet): placed at the start of a run; counts points hit in a row and pays when a collision ends the run
+// (or straight away at the top rung). STREAK_PAY[k] = return for reaching k points.
 // Payouts are "returns": ×2 means a 5 chip comes back as 10; odd amounts round down, like a real table. Payback per bet is checked by tools/sim.js.
 const FACES = 8;
 const GAP_PAY = { 1: 1.5, 2: 1.6, 3: 1.7, 4: 1.9, 5: 2.2, 6: 2.8, 7: 4.7 };
 const LINE_PAY = 2, COLLIDE_PAY = 7.5, NATURAL = 7;
+const STREAK_PAY = { 3: 3, 4: 8, 5: 16, 6: 30 }, STREAK_TOP = 6;
 const CHIPS = [1, 5, 25, 100], START = 500;
 const FORCE = { dice: null };                       // debug: force the next roll, e.g. [3, 3]
 
 let credits = START, point = null, streak = 0;
-let bets = { with: 0, against: 0, gaps: {}, collide: 0 };
+let bets = { with: 0, against: 0, gaps: {}, collide: 0, streak: 0 };
 let history = [];                                   // chips placed since the last roll, newest last (UNDO)
 
-const tableTotal = () => bets.with + bets.against + bets.collide + Object.values(bets.gaps).reduce((a, b) => a + b, 0);
+const tableTotal = () => bets.with + bets.against + bets.collide + bets.streak + Object.values(bets.gaps).reduce((a, b) => a + b, 0);
 // where a chip may go right now: line bets only before a point is set (and are locked in while it's on)
-function canBet(spot) { if (spot === "with" || spot === "against") return point === null; return true; }
+function canBet(spot) { if (spot === "with" || spot === "against") return point === null; if (spot === "streak") return point === null && streak === 0; return true; }
 function placeBet(spot, amt) {
   if (amt > credits || !canBet(spot)) return false; credits -= amt;
   if (typeof spot === "number") bets.gaps[spot] = (bets.gaps[spot] || 0) + amt; else bets[spot] += amt;
@@ -31,8 +34,8 @@ const hasAction = () => point !== null || tableTotal() > 0;
 function roll() {
   if (!hasAction()) return null;
   const d = FORCE.dice || [1 + Math.floor(Math.random() * FACES), 1 + Math.floor(Math.random() * FACES)]; FORCE.dice = null;
-  const gap = Math.abs(d[0] - d[1]), crash = gap === 0, comeOut = point === null, pointBefore = point;
-  const res = { dice: d, gap, crash, comeOut, pointBefore, outcomes: [], natural: false, made: false, sevenOut: false };
+  const gap = Math.abs(d[0] - d[1]), crash = gap === 0, comeOut = point === null, pointBefore = point, streakBefore = streak;
+  const res = { dice: d, gap, crash, comeOut, pointBefore, streakBefore, outcomes: [], natural: false, made: false, sevenOut: false };
   const pay = (spot, amt, mult, label) => { const w = Math.floor(amt * mult); credits += w; res.outcomes.push({ spot, amt, win: w, label }); };
   const lose = (spot, amt, label) => res.outcomes.push({ spot, amt, win: 0, label });
   // collision: a one-roll bet
@@ -51,6 +54,10 @@ function roll() {
     if (gap === point) { res.made = true; streak++; if (bets.with) pay("with", bets.with, LINE_PAY, "Point hit!"); if (bets.against) lose("against", bets.against); bets.with = bets.against = 0; point = null; }
     else if (crash) { res.sevenOut = true; streak = 0; if (bets.with) lose("with", bets.with); if (bets.against) pay("against", bets.against, LINE_PAY, "Against wins"); bets.with = bets.against = 0; point = null; }
   }
+  // orbit streak: pays when the run ends, or at once on reaching the top rung
+  if (bets.streak) { const reached = res.made ? streak : (res.crash ? res.streakBefore : streak);
+    if (res.made && streak >= STREAK_TOP) { pay("streak", bets.streak, STREAK_PAY[STREAK_TOP], `Orbit streak ×${STREAK_TOP}!`); bets.streak = 0; }
+    else if (res.crash) { const rung = Math.min(STREAK_TOP, reached); if (STREAK_PAY[rung]) pay("streak", bets.streak, STREAK_PAY[rung], `Orbit streak ×${rung}`); else lose("streak", bets.streak); bets.streak = 0; } }
   res.pointAfter = point; res.streak = streak; history = [];
   res.totalWin = res.outcomes.reduce((a, o) => a + o.win, 0); return res;
 }
