@@ -36,6 +36,7 @@ function buildWarpStage(THREE, opts = {}) {
     shell: std("Shell", 0x2c2b34, .55, .38), shellDark: std("ShellDark", 0x17161d, .45, .45), metal: std("Metal", 0x8d8aa0, .85, .3),
     trim: std("GoldTrim", 0xffc845, .85, .28), purple: std("Purple", 0x7a2fd0, .4, .4), dark: std("Dark", 0x0b0a10, .3, .55),
     cyan: glow("HoloCyan", 0x5fe8ff), violet: glow("HoloViolet", 0xb48cff),
+    edge: glow("ScreenEdge", 0x5fe8ff, 1.8), plinthGlow: glow("PlinthGlow", 0x5fe8ff, 1.6),
     holo: new THREE.MeshBasicMaterial({ name: "HoloRing", color: 0x5fe8ff, transparent: true, opacity: .55, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }),
   };
   const T = opts.tex || {};
@@ -53,7 +54,7 @@ function buildWarpStage(THREE, opts = {}) {
   const root = new THREE.Group(); root.name = "WarpStage";
   // ---- the stage floor: a dark disc with glowing rings and spokes toward the podiums ----
   const stage = grp(root, "Stage");
-  const R_POD = 3.0;
+  const R_POD = 2.35, ARC = 66;                        // podium ring radius, and how far round each side the arc reaches (degrees)
   add(stage, new THREE.CylinderGeometry(4.1, 4.2, .08, 64), mat.shellDark, "StageDisc", [0, .04, 0]);
   add(stage, new THREE.TorusGeometry(4.1, .02, 6, 96), mat.cyan, "StageEdge", [0, .081, 0], [Math.PI / 2, 0, 0]);
   for (const r of [1.35, 2.2]) noShadow(add(stage, new THREE.TorusGeometry(r, .012, 6, 96), r < 2 ? mat.cyan : mat.violet, "StageRing", [0, .082, 0], [Math.PI / 2, 0, 0]));
@@ -64,16 +65,20 @@ function buildWarpStage(THREE, opts = {}) {
   // stepped octagonal plinth with a glowing step edge
   add(tower, new THREE.CylinderGeometry(1.05, 1.15, .22, 8), mat.shell, "PlinthLow", [0, .19, 0], [0, Math.PI / 8, 0]);
   add(tower, new THREE.CylinderGeometry(.82, .92, .2, 8), mat.shellDark, "PlinthHigh", [0, .4, 0], [0, Math.PI / 8, 0]);
-  noShadow(add(tower, new THREE.TorusGeometry(1.08, .015, 4, 8), mat.cyan, "PlinthGlow", [0, .301, 0], [Math.PI / 2, 0, Math.PI / 8]));
+  noShadow(add(tower, new THREE.TorusGeometry(1.08, .015, 4, 8), mat.plinthGlow, "PlinthGlow", [0, .301, 0], [Math.PI / 2, 0, Math.PI / 8]));
   add(tower, new THREE.CylinderGeometry(.85, .85, .02, 8), mat.trim, "PlinthTrim", [0, .5, 0], [0, Math.PI / 8, 0]);
   // a spine behind the screen, the frame round it, edge lights and side emitter fins
   add(tower, chamferBox(.5, SH + .3, .3, .05), mat.shellDark, "Spine", [0, .5 + (SH + .3) / 2, -.22]);
   add(tower, chamferBox(SW + .2, SH + .2, .16, .05), mat.shell, "ScreenFrame", [0, SY, 0]);
   add(tower, chamferBox(SW + .04, SH + .04, .02, .01), mat.dark, "ScreenBezel", [0, SY, .075]);
-  for (const sx of [-1, 1]) { noShadow(add(tower, chamferBox(.025, SH, .02, .006), mat.cyan, "EdgeLight", [sx * (SW / 2 + .07), SY, .085]));
+  const finLights = [], vents = [];
+  for (const sx of [-1, 1]) { noShadow(add(tower, chamferBox(.025, SH, .02, .006), mat.edge, "EdgeLight", [sx * (SW / 2 + .07), SY, .085]));
     const fin = grp(tower, "Fin" + (sx < 0 ? "L" : "R"), [sx * (SW / 2 + .14), SY - SH * .1, -.02]);
     add(fin, chamferBox(.12, SH * .7, .1, .03), mat.shell, "FinBody", [sx * .05, 0, 0], [0, 0, -sx * .05]);
-    for (let k = 0; k < 6; k++) noShadow(add(fin, chamferBox(.02, .14, .02, .005), k % 2 ? mat.violet : mat.cyan, "FinLight", [sx * .11, -SH * .28 + k * SH * .11, .03]));
+    for (let k = 0; k < 6; k++) { const lm = glow("FinLight", k % 2 ? 0xb48cff : 0x5fe8ff, 1.6); finLights.push({ m: lm, k, base: k % 2 ? 0xb48cff : 0x5fe8ff }); noShadow(add(fin, chamferBox(.02, .14, .02, .005), lm, "FinLight", [sx * .11, -SH * .28 + k * SH * .11, .03])); }
+    // steam vents near the foot of each arm: they blast at liftoff
+    add(fin, new THREE.CylinderGeometry(.045, .055, .08, 12), mat.metal, "SteamVent", [sx * .12, -SH * .3, .02], [0, 0, sx * Math.PI / 2]);
+    vents.push(new THREE.Vector3(sx * (SW / 2 + .14 + .2), SY - SH * .1 - SH * .3, .0));
     add(fin, chamferBox(.16, .06, .14, .02), mat.trim, "FinCap", [sx * .03, SH * .36, 0]); }
   { const back = grp(tower, "TowerBack", [0, SY, -.375]);
     for (let k = 0; k < 7; k++) add(back, chamferBox(.36, .05, .03, .01), mat.shell, "Vent", [0, -SH * .3 + k * .09, 0]);
@@ -95,13 +100,46 @@ function buildWarpStage(THREE, opts = {}) {
   const ringA = noShadow(add(tower, new THREE.TorusGeometry(1.35, .012, 4, 96), mat.holo, "HoloRing_A", [0, .9, 0], [Math.PI / 2, 0, 0]));
   const ringB = noShadow(add(tower, new THREE.TorusGeometry(1.15, .008, 4, 96), mat.holo, "HoloRing_B", [0, 1.4, 0], [Math.PI / 2 + .25, 0, 0]));
   const ringC = noShadow(add(tower, new THREE.TorusGeometry(.95, .01, 4, 96), mat.holo, "HoloRing_C", [0, SY + SH / 2 + .75, 0], [Math.PI / 2, 0, 0]));
+  // ---- the leaderboard: a second tall screen, half as wide, to the right of the main one ----
+  // it hangs a little higher than the main screen, held off the main screen's spine by two arms behind both screens
+  const LW = SW / 2, LH = SH * .82, LX = SW / 2 + .62 + LW / 2, LY = SY + SH / 2 + .22 - LH / 2;
+  const board = grp(root, "LeaderboardTower", [LX, 0, 0]);
+  add(board, chamferBox(.26, LH, .2, .04), mat.shellDark, "BoardSpine", [0, LY, -.16]);
+  { const x0 = .25, x1 = LX - .13, len = x1 - x0, arms = grp(root, "BoardArms");
+    for (const y of [LY + LH * .3, LY - LH * .28]) {
+      add(arms, chamferBox(len, .1, .1, .025), mat.shell, "Arm", [x0 + len / 2, y, -.26]);
+      add(arms, chamferBox(len * .8, .025, .02, .006), mat.violet, "ArmLight", [x0 + len / 2, y + .052, -.26]).castShadow = false;
+      add(arms, new THREE.CylinderGeometry(.018, .018, len * .7, 8), mat.metal, "Piston", [x0 + len / 2, y - .075, -.26], [0, 0, Math.PI / 2]);
+      for (const x of [x0, x1]) { add(arms, new THREE.CylinderGeometry(.075, .075, .16, 14), mat.metal, "ArmJoint", [x, y, -.26], [Math.PI / 2, 0, 0]);
+        add(arms, new THREE.CylinderGeometry(.08, .08, .02, 14), mat.trim, "JointCap", [x, y, -.17], [Math.PI / 2, 0, 0]); } } }
+  add(board, chamferBox(LW + .16, LH + .16, .14, .04), mat.shell, "BoardFrame", [0, LY, 0]);
+  for (const sx of [-1, 1]) noShadow(add(board, chamferBox(.02, LH, .02, .006), mat.edge, "BoardEdge", [sx * (LW / 2 + .055), LY, .075]));
+  add(board, chamferBox(LW + .26, .12, .18, .03), mat.trim, "BoardCap", [0, LY + LH / 2 + .1, 0]);
+  const PLAYERS = [["YOU", "#ffffff", 25, 2.0], ["QUELL", "#6f95ff", 250, 7.5], ["NIX", "#ffe14a", 50, 1.3], ["BLORB", "#ff5fae", 25, 4.2], ["KRILL", "#3fe6c8", 100, 1.6], ["VEXA", "#8dff6a", 10, 2.5], ["GLIM", "#ff8a3a", 100, 15]];
+  function boardTex(stage) {   // stage 0: bets in · 1: mid-flight, the careful ones bailed · 2: after the explosion
+    const c = document.createElement("canvas"); c.width = 320; c.height = Math.round(320 * LH / LW); const g = c.getContext("2d"), H = c.height, crash = 5.3, now = stage === 1 ? 3.6 : crash;
+    g.fillStyle = "#03101a"; g.fillRect(0, 0, 320, H); g.strokeStyle = "#5fe8ff14"; for (let y = 0; y < H; y += 4) { g.beginPath(); g.moveTo(0, y); g.lineTo(320, y); g.stroke(); }
+    g.strokeStyle = "#5fe8ff"; g.lineWidth = 4; g.strokeRect(8, 8, 304, H - 16);
+    g.textAlign = "center"; g.fillStyle = "#5fe8ff"; g.shadowColor = "#5fe8ff"; g.shadowBlur = 14; g.font = '400 34px "Bungee",Impact,sans-serif'; g.fillText("FLIGHT", 160, 70); g.fillText("BOARD", 160, 110); g.shadowBlur = 0;
+    g.font = '700 30px "Chakra Petch",monospace'; g.fillStyle = stage === 2 ? "#ff4d6d" : "#eafcff"; g.fillText(stage === 0 ? "LAUNCH IN 5" : stage === 1 ? "×" + now.toFixed(2) : "BOOM ×" + crash.toFixed(2), 160, 160);
+    const rowH = (H - 230) / PLAYERS.length;
+    PLAYERS.forEach(([name, col, bet, aim], i) => { const y = 200 + i * rowH, out = stage > 0 && aim <= now, lost = stage === 2 && !out;
+      g.fillStyle = out ? "#7dff9a1c" : lost ? "#ff4d6d18" : "#ffffff08"; g.fillRect(20, y, 280, rowH - 14);
+      g.fillStyle = col; g.shadowColor = col; g.shadowBlur = 10; g.beginPath(); g.arc(42, y + 32, 9, 0, 7); g.fill(); g.font = '400 30px "Bungee",Impact,sans-serif'; g.textAlign = "left"; g.fillText(name, 62, y + 42); g.shadowBlur = 0;
+      g.font = '700 26px "Chakra Petch",monospace'; g.textAlign = "right"; g.fillStyle = "#9fc7d6"; g.fillText(bet, 288, y + 42);
+      g.textAlign = "left"; g.font = '700 30px "Chakra Petch",monospace'; g.fillStyle = out ? "#7dff9a" : lost ? "#ff4d6d" : "#cfeeff";
+      g.fillText(out ? `+${Math.floor(bet * aim)} @ ×${aim.toFixed(2)}` : lost ? `LOST ${bet}` : stage ? "riding…" : `aiming ×${aim.toFixed(2)}`, 34, y + 92); });
+    return ctex(c); }
+  const boards = [0, 1, 2].map(boardTex);
+  const boardMat = new THREE.MeshBasicMaterial({ name: "Leaderboard", map: boards[0] });
+  noShadow(add(board, new THREE.PlaneGeometry(LW, LH), boardMat, "Leaderboard", [0, LY, .072]));
   // a soft holo light cone up the front of the screen
   { const c = document.createElement("canvas"); c.width = 64; c.height = 256; const g = c.getContext("2d"), gr = g.createLinearGradient(0, 256, 0, 0); gr.addColorStop(0, "rgba(95,232,255,.45)"); gr.addColorStop(1, "rgba(95,232,255,0)"); g.fillStyle = gr; g.fillRect(0, 0, 64, 256);
     const m = new THREE.MeshBasicMaterial({ map: ctex(c), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
     noShadow(add(tower, new THREE.CylinderGeometry(.9, 1.15, 1.1, 32, 1, true), m, "HoloCone", [0, 1.05, 0])); }
 
   // ---- the podiums: a semicircle facing the screen, one per player, each with its own stool ----
-  const SEATS = [["DRAX", 0xff5a4d], ["QUELL", 0x6f95ff], ["NIX", 0xffe14a], ["BLORB", 0xff5fae], ["YOU", 0xffffff], ["KRILL", 0x3fe6c8], ["VEXA", 0x8dff6a], ["GLIM", 0xff8a3a], ["ZORP", 0xb45cff]];
+  const SEATS = [["QUELL", 0x6f95ff], ["NIX", 0xffe14a], ["BLORB", 0xff5fae], ["YOU", 0xffffff], ["KRILL", 0x3fe6c8], ["VEXA", 0x8dff6a], ["GLIM", 0xff8a3a]];
   const hexc = c => "#" + c.toString(16).padStart(6, "0");
   function consoleTex(name, col) { const c = document.createElement("canvas"); c.width = 384; c.height = 240; const g = c.getContext("2d"), C = hexc(col);
     g.fillStyle = "#041019"; g.fillRect(0, 0, 384, 240); g.strokeStyle = "#5fe8ff22"; g.lineWidth = 1; for (let x = 0; x < 384; x += 16) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, 240); g.stroke(); } for (let y = 0; y < 240; y += 16) { g.beginPath(); g.moveTo(0, y); g.lineTo(384, y); g.stroke(); }
@@ -114,7 +152,7 @@ function buildWarpStage(THREE, opts = {}) {
       g.fillStyle = "#fff"; g.font = '400 24px "Bungee",Impact,sans-serif'; g.textAlign = "center"; g.fillText(lab, x + 82, y + 30); }
     return ctex(c); }
   const podLights = [];
-  SEATS.forEach(([name, col], i) => { const a = (-100 + i * 200 / (SEATS.length - 1)) * Math.PI / 180, x = Math.sin(a) * R_POD, z = Math.cos(a) * R_POD;
+  SEATS.forEach(([name, col], i) => { const a = (-ARC + i * 2 * ARC / (SEATS.length - 1)) * Math.PI / 180, x = Math.sin(a) * R_POD, z = Math.cos(a) * R_POD;
     const pod = grp(root, "Podium_" + name, [x, 0, z], [0, a + Math.PI, 0]);            // local −Z faces the screen... turned so its front (+Z) looks at the centre
     const accent = glow("Accent_" + name, col, 1.8), panel = new THREE.MeshBasicMaterial({ name: "Console_" + name, map: consoleTex(name, col) });
     add(pod, new THREE.CylinderGeometry(.34, .38, .06, 6), mat.shellDark, "PodFoot", [0, .03, 0], [0, Math.PI / 6, 0]);
@@ -146,9 +184,35 @@ function buildWarpStage(THREE, opts = {}) {
     return [tr("HoloRing_A", 0, 1), tr("HoloRing_B", .25, -1.3), tr("HoloRing_C", 0, .8)]; };
   const clips = [new THREE.AnimationClip("Idle", 8, ringTracks(8, 1)), new THREE.AnimationClip("Launch", 8, ringTracks(8, 3))];
   const LAUNCH = [[0, 0], [1.6, 1], [3.2, 2], [4.8, 3], [6.6, 4]];                      // seconds into the loop → which frame
-  let shown = -1;
-  const update = (t, mode) => { const f = mode === "Launch" ? LAUNCH.filter(([s]) => (t % 8) >= s).pop()[1] : 0;
+  const STAGE_COL = [0x5fe8ff, 0xff9a4a, 0xb48cff, 0xff5fae, 0xff2a3a];                  // pad, liftoff/clouds, orbit, nebula, explosion
+  const BOARD_AT = [0, 1, 1, 1, 2];
+  // steam: soft sprites that jet out sideways from the arms' vents, then rise and spread
+  const sc2 = document.createElement("canvas"); sc2.width = sc2.height = 64; { const g = sc2.getContext("2d"), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, "rgba(235,240,255,.8)"); gr.addColorStop(.5, "rgba(210,215,240,.35)"); gr.addColorStop(1, "rgba(200,205,235,0)"); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); }
+  const steamTex = ctex(sc2), puffs = [];
+  for (let i = 0; i < 140; i++) { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: steamTex, transparent: true, depthWrite: false, opacity: 0 })); s.name = "Steam"; s.visible = false; tower.add(s); puffs.push({ s, life: 0 }); }
+  let shown = -1, shownB = -1, lastT = 0, prevLoop = -1;
+  const col = new THREE.Color(), white = new THREE.Color(0xffffff);
+  const update = (t, mode) => { const dt = Math.min(.05, Math.max(0, t - lastT)); lastT = t; const lt = t % 8, launching = mode === "Launch";
+    const f = launching ? LAUNCH.filter(([s]) => lt >= s).pop()[1] : 0;
     if (f !== shown && frames[f]) { shown = f; screenMat.map = frames[f]; screenMat.needsUpdate = true; }
+    const bf = launching ? BOARD_AT[f] : 0; if (bf !== shownB) { shownB = bf; boardMat.map = boards[bf]; boardMat.needsUpdate = true; }
+    // screen lights: the colour of the flight stage; a white flash at liftoff; the explosion flashes red
+    col.setHex(STAGE_COL[f]); let k = 1.8;
+    if (launching && lt >= 1.6 && lt < 2.1) { col.lerp(white, 1 - (lt - 1.6) / .5); k = 3.2; }
+    if (launching && f === 4) k = 1.2 + 2.2 * (Math.sin(lt * 18) > 0 ? 1 : 0);
+    if (!launching) k = 1.6 + .25 * Math.sin(t * 1.5);
+    mat.edge.emissive.copy(col); mat.edge.emissiveIntensity = k; mat.plinthGlow.emissive.copy(col); mat.plinthGlow.emissiveIntensity = k * .9;
+    // fin lights: a slow shimmer while idle; during a flight they chase upward, faster as it climbs
+    finLights.forEach(({ m, k: j, base }) => { if (!launching || f === 0) { m.emissive.setHex(base); m.emissiveIntensity = 1.2 + .5 * Math.sin(t * 2 + j); return; }
+      const speed = 4 + f * 3, on = ((Math.floor(lt * speed) % 6) === j) || ((Math.floor(lt * speed) + 3) % 6 === j); m.emissive.copy(col); m.emissiveIntensity = on ? 3.4 : .5; });
+    // steam: a burst from both vents as the drone lifts off, tailing away
+    const loop = Math.floor(t / 8); if (loop !== prevLoop) prevLoop = loop;
+    const blasting = launching && lt >= 1.5 && lt < 3.0, rate = blasting ? (lt < 2.1 ? 150 : 90 * (3 - lt)) : 0;
+    let spawn = rate * dt + (Math.random() < (rate * dt % 1) ? 1 : 0);
+    for (const p of puffs) { if (spawn >= 1 && p.life <= 0) { spawn--; const v = vents[Math.random() < .5 ? 0 : 1], sx = Math.sign(v.x);
+        p.life = 1; p.s.visible = true; p.s.position.copy(v); p.vel = new THREE.Vector3(sx * (1.6 + Math.random() * 1.4), (Math.random() - .3) * .5, .2 + Math.random() * .6); p.size = .07; }
+      if (p.life > 0) { p.life -= dt * .9; p.vel.multiplyScalar(.95); p.vel.y += 1.1 * dt; p.s.position.addScaledVector(p.vel, dt); p.size += dt * .75;
+        p.s.scale.setScalar(p.size); p.s.material.opacity = Math.max(0, p.life) * .55; if (p.life <= 0) p.s.visible = false; } }
     podLights.forEach((m, i) => m.emissiveIntensity = 1.4 + .6 * Math.sin(t * 2 + i * .7)); };
   return { root, clips, height: 5.4, update };
 }
@@ -179,7 +243,7 @@ let bot, mixer, acts={}, cur=null, beacon=null, mode="Idle";
   const tex={}; for(const k of Object.keys(TEX_SRC)) tex[k]=await loadImg(TEX_SRC[k]);
   bot=buildWarpStage(THREE,{tex}); scene.add(bot.root);
   mixer=new THREE.AnimationMixer(bot.root); bot.clips.forEach(c=>acts[c.name]=mixer.clipAction(c)); beacon=null; play(); })();
-const NOTES={Idle:"The drone waits on the pad; holo rings turn; the podiums glow in each player's colour",Launch:"The big screen runs a whole flight: liftoff, clouds, orbit, nebula, then the explosion",Stop:""};
+const NOTES={Idle:"The drone waits on the pad; holo rings turn; the podiums glow in each player's colour",Launch:"A whole flight on the big screen; the lights change with each stage, the arms blast steam at liftoff, and the flight board updates",Stop:""};
 function play(){ document.getElementById("note").textContent=NOTES[mode];
   if(mode==="Stop"){ if(cur) cur.fadeOut(.3); cur=null; return; }
   const a=acts[mode]; if(a===cur) return; a.reset().setEffectiveWeight(1).play(); if(cur) cur.crossFadeTo(a,.35,false); cur=a; }

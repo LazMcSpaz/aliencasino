@@ -52,7 +52,7 @@ let bot, mixer, acts={}, cur=null, beacon=null, mode="Idle";
   const tex={}; for(const k of Object.keys(TEX_SRC)) tex[k]=await loadImg(TEX_SRC[k]);
   bot=buildWarpStage(THREE,{tex}); scene.add(bot.root);
   mixer=new THREE.AnimationMixer(bot.root); bot.clips.forEach(c=>acts[c.name]=mixer.clipAction(c)); beacon=null; play(); })();
-const NOTES={Idle:"The drone waits on the pad; holo rings turn; the podiums glow in each player's colour",Launch:"The big screen runs a whole flight: liftoff, clouds, orbit, nebula, then the explosion",Stop:""};
+const NOTES={Idle:"The drone waits on the pad; holo rings turn; the podiums glow in each player's colour",Launch:"A whole flight on the big screen; the lights change with each stage, the arms blast steam at liftoff, and the flight board updates",Stop:""};
 function play(){ document.getElementById("note").textContent=NOTES[mode];
   if(mode==="Stop"){ if(cur) cur.fadeOut(.3); cur=null; return; }
   const a=acts[mode]; if(a===cur) return; a.reset().setEffectiveWeight(1).play(); if(cur) cur.crossFadeTo(a,.35,false); cur=a; }
