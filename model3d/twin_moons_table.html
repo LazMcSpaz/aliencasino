@@ -1,0 +1,255 @@
+<title>Twin Moons Table 3D</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Monoton&family=Chakra+Petch:wght@500;700&display=swap">
+<style>
+:root{--bg:#0b0718;--bg2:#1e1240;--ink:#efe8ff;--dim:#9a8fc0;--rule:#ffffff1f;--gold:#ffc845;--pink:#ff5fae;color-scheme:dark}
+body{background:radial-gradient(120% 80% at 50% 30%,var(--bg2),var(--bg) 70%);color:var(--ink);font:500 14px "Chakra Petch",system-ui,sans-serif;height:100dvh;overflow:hidden}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.ui{position:fixed;left:0;right:0;bottom:0;padding:12px max(16px,env(safe-area-inset-right,0px)) calc(14px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));display:grid;gap:10px;justify-items:center;pointer-events:none;background:linear-gradient(transparent,#0b0718e6 40%)}
+.row{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;pointer-events:auto}
+.lab{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);width:100%;text-align:center}
+button{font:inherit;color:var(--ink);background:#ffffff0d;border:1px solid var(--rule);padding:7px 12px;border-radius:8px;cursor:pointer;clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px)}
+button[aria-pressed=true]{background:color-mix(in srgb,var(--gold) 22%,transparent);border-color:var(--gold);color:#fff}
+.mood button[aria-pressed=true]{background:color-mix(in srgb,var(--pink) 22%,transparent);border-color:var(--pink)}
+header{position:fixed;top:env(safe-area-inset-top,0px);left:0;right:0;padding:14px max(16px,env(safe-area-inset-left,0px));display:flex;justify-content:space-between;align-items:baseline;pointer-events:none}
+h1{margin:0;font-size:18px;font-weight:700;letter-spacing:.06em}h1 b{color:var(--gold)}
+.note{margin:0;color:var(--dim);font-size:12px;text-align:center;min-height:1.2em;pointer-events:none}
+header small{color:var(--dim);font-size:12px}
+</style>
+<canvas id="c"></canvas>
+<header><h1>TWIN <b>MOONS</b></h1><small>drag to orbit · pinch to zoom</small></header>
+<div class="ui">
+  <div class="row anim"><span class="lab">Animation</span><button data-a="Idle" aria-pressed="true">Idle</button><button data-a="Roll">Roll</button><button data-a="Stop">Hold still</button></div>
+  <p class="note" id="note"></p>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+// Twin Moons table (concept pass): a long craps-style table. Deep felt tub with raised padded rails, the inner walls lined with
+// crater-studded bumpers the moons bounce off, the betting layout from the game printed at both ends (mirrored, like a real
+// craps table) with the COLLIDE circle in the middle, and the robot dealer standing at the centre of the far long side
+// (the same face as the slot machines) holding a long hooked stick. Two 8-sided moon crystals sit on the felt.
+// Units are metres. The table runs along X; players stand on the +Z side and round the ends; the dealer is at −Z.
+// Node names: TwinMoonsTable, Table, Felt, Rail, Bumpers, Console, DealerScreen, StickArm, Stick, Moon_A, Moon_B.
+function buildMoonsTable(THREE, opts = {}) {
+  const std = (name, color, metalness, roughness, extra = {}) => new THREE.MeshStandardMaterial({ name, color, metalness, roughness, flatShading: true, ...extra });
+  const mat = {
+    shell: std("Shell", 0x2c2b34, .55, .38), shellDark: std("ShellDark", 0x1c1b22, .45, .45), metal: std("Metal", 0x8d8aa0, .85, .3),
+    trim: std("GoldTrim", 0xffc845, .85, .28), purple: std("Purple", 0x7a2fd0, .4, .4), dark: std("Dark", 0x0e0d13, .3, .55),
+    pad: new THREE.MeshStandardMaterial({ name: "Padding", color: 0x24183f, metalness: .1, roughness: .55, side: THREE.DoubleSide }),
+    apron: std("Apron", 0x2c2b34, .55, .38, { side: THREE.DoubleSide }),
+    led: new THREE.MeshStandardMaterial({ name: "Led", color: 0x000000, emissive: 0xb45cff, emissiveIntensity: 1.6, side: THREE.DoubleSide }),
+    moonA: std("MoonA", 0x96d6ec, .2, .35, { emissive: 0x2a6b85, emissiveIntensity: .35 }),
+    moonB: std("MoonB", 0xc4aaf0, .2, .35, { emissive: 0x4f2f85, emissiveIntensity: .35 }),
+  };
+  const T = opts.tex || {};
+  const ctex = c => { const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 8; return t; };
+
+  // ---- sizes ----
+  const OL = 3.5, OW = 1.7, OR = .5;                 // outer outline: length, width, corner radius
+  const RAIL = .16;                                  // rail width
+  const IL = OL - 2 * RAIL, IW = OW - 2 * RAIL, IR = OR - RAIL;
+  const FELT = .78, TOPY = 1.0, APRON = .56;         // felt height, rail top, bottom of the apron
+
+  // a rounded rectangle as a loop of points (x, z), counter-clockwise seen from above
+  function rrect(L, W, R, seg = 14) { const pts = [], hx = L / 2 - R, hz = W / 2 - R;
+    const c = [[hx, hz, 0], [-hx, hz, Math.PI / 2], [-hx, -hz, Math.PI], [hx, -hz, Math.PI * 1.5]];
+    for (const [cx, cz, a0] of c) for (let i = 0; i <= seg; i++) { const a = a0 + Math.PI / 2 * i / seg; pts.push([cx + Math.cos(a) * R, cz + Math.sin(a) * R]); }
+    return pts; }
+  const outer = rrect(OL, OW, OR), inner = rrect(IL, IW, IR);
+  const shape = (pts, hole) => { const s = new THREE.Shape(); pts.forEach(([x, z], i) => i ? s.lineTo(x, -z) : s.moveTo(x, -z)); s.closePath();
+    if (hole) { const h = new THREE.Path(); hole.slice().reverse().forEach(([x, z], i) => i ? h.lineTo(x, -z) : h.moveTo(x, -z)); h.closePath(); s.holes.push(h); } return s; };
+  // a vertical band following a loop (walls); u runs along the loop in metres / uScale
+  function band(pts, y0, y1, uScale = 1, inward = false) { const P = [], UV = [], idx = []; let s = 0;
+    const loop = pts.concat([pts[0]]);
+    loop.forEach(([x, z], i) => { if (i) s += Math.hypot(x - loop[i - 1][0], z - loop[i - 1][1]); P.push(x, y0, z, x, y1, z); UV.push(s / uScale, 0, s / uScale, 1); });
+    for (let i = 0; i < loop.length - 1; i++) { const a = i * 2, b = a + 1, c = a + 2, d = a + 3; inward ? idx.push(a, c, b, b, c, d) : idx.push(a, b, c, b, d, c); }
+    const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(P, 3)); g.setAttribute("uv", new THREE.Float32BufferAttribute(UV, 2)); g.setIndex(idx); g.computeVertexNormals(); return g; }
+  function chamferBox(w, h, d, c) {
+    const s = new THREE.Shape(), x = w / 2 - c, y = h / 2 - c; s.moveTo(-x, -y); s.lineTo(x, -y); s.lineTo(x, y); s.lineTo(-x, y); s.closePath();
+    const g = new THREE.ExtrudeGeometry(s, { depth: d - 2 * c, bevelEnabled: true, bevelThickness: c, bevelSize: c, bevelSegments: 1, curveSegments: 1 });
+    g.translate(0, 0, -(d - 2 * c) / 2); return g; }
+  function add(parent, geom, material, name, p = [0, 0, 0], r = [0, 0, 0]) {
+    const m = new THREE.Mesh(geom, material); m.name = name; m.position.set(...p); m.rotation.set(...r); m.castShadow = true; m.receiveShadow = true; parent.add(m); return m; }
+  const grp = (parent, name, p = [0, 0, 0]) => { const g = new THREE.Group(); g.name = name; g.position.set(...p); parent.add(g); return g; };
+  const loopTube = (pts, y, r, inset = 0) => { const v = pts.filter((_, i) => i % 2 === 0).map(([x, z]) => { const l = Math.hypot(x, z) || 1; return new THREE.Vector3(x - x / l * inset, y, z - z / l * inset); });
+    return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(v, true, "centripetal"), 220, r, 8, true); };
+
+  // ---- the felt: the game's betting layout, printed at both ends; COLLIDE and the gap ruler in the middle ----
+  const PX = 600;                                    // texture pixels per metre
+  const fc = document.createElement("canvas"); fc.width = Math.round(IL * PX); fc.height = Math.round(IW * PX);
+  { const g = fc.getContext("2d"), W = fc.width, H = fc.height, F = '"Bungee",Impact,sans-serif', F2 = '"Chakra Petch",system-ui,sans-serif';
+    const bg = g.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, W * .6); bg.addColorStop(0, "#2a2263"); bg.addColorStop(.6, "#16123a"); bg.addColorStop(1, "#0d0b26"); g.fillStyle = bg; g.fillRect(0, 0, W, H);
+    for (let i = 0; i < 2600; i++) { g.fillStyle = `rgba(255,255,255,${Math.random() * .025})`; g.fillRect(Math.random() * W, Math.random() * H, 2, 2); }   // felt grain
+    const rr = (x, y, w, h, r) => { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); };
+    const box = (x, y, w, h, stroke = "#ffffff55", fill = "#ffffff0c", lw = 4) => { rr(x, y, w, h, 18); g.fillStyle = fill; g.fill(); g.strokeStyle = stroke; g.lineWidth = lw; g.stroke(); };
+    const txt = (s, x, y, size, col, font = F, rot = 0) => { g.save(); g.translate(x, y); g.rotate(rot); g.font = `400 ${size}px ${font}`; g.fillStyle = col; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(s, 0, 0); g.restore(); };
+    const PAY = { 1: 1.5, 2: 1.6, 3: 1.7, 4: 1.9, 5: 2.2, 6: 2.8, 7: 4.7 };
+    // one end's layout. Both ends read from the players' side (+Z), so the right end is the left one mirrored, not turned round.
+    const half = (mir) => { const X = (x, w = 0) => mir ? W - x - w : x, R = r => mir ? -r : r;
+      const m = H * .07, x0 = m * .9, laneW = W * .075, y0 = m, h = H - 2 * m;
+      // WITH lane hugging the end wall (like a pass line), AGAINST just inside it
+      box(X(x0, laneW), y0, laneW, h, "#7dff7a", "#7dff7a14", 5); txt("WITH THE MOONS · ×2", X(x0 + laneW / 2), H / 2, laneW * .32, "#7dff7a", F, R(-Math.PI / 2));
+      const ax = x0 + laneW + 14, aw = laneW * .78; box(X(ax, aw), y0 + h * .12, aw, h * .76, "#ff4d6d", "#ff4d6d12", 5); txt("AGAINST · ×2", X(ax + aw / 2), H / 2, aw * .32, "#ff6b85", F, R(-Math.PI / 2));
+      // gap boxes 1–7 in a block (like the place numbers); 1 nearest the end
+      const gx = ax + aw + 34, gw = W * .2, cols = 7, cw = gw / cols, gy = y0 + h * .2, gh = h * .42;
+      for (let k = 0; k < cols; k++) { const bx = gx + k * cw + 5; box(X(bx, cw - 10), gy, cw - 10, gh); txt(String(k + 1), X(gx + (k + .5) * cw), gy + gh * .42, cw * .5, "#bfefff"); txt(`×${PAY[k + 1]}`, X(gx + (k + .5) * cw), gy + gh * .78, cw * .22, "#9a92c7", F2); }
+      txt("GAP", X(gx + gw / 2), gy - 30, 34, "#bfefff99");
+      // the orbit streak ladder under them
+      const sy = gy + gh + 24, sh = h * .17; box(X(gx + 5, gw - 10), sy, gw - 10, sh, "#ffc845", "#ffc84512", 4); txt("ORBIT", X(gx + gw * .25), sy + sh * .34, sh * .22, "#ffc845"); txt("STREAK", X(gx + gw * .25), sy + sh * .68, sh * .22, "#ffc845");
+      [[3, 3], [4, 8], [5, 16], ["6+", 30]].forEach(([n, p], i) => { const bx = gx + gw * .49 + i * gw * .125; box(X(bx, gw * .11), sy + sh * .16, gw * .11, sh * .68, "#ffffff33", "#ffffff0a", 3); txt(String(n), X(bx + gw * .055), sy + sh * .42, sh * .28, "#fff3c4"); txt(`×${p}`, X(bx + gw * .055), sy + sh * .74, sh * .17, "#9a92c7", F2); });
+      txt("TWIN MOONS", X(gx + gw / 2), y0 + h * .09, 46, "#eaf9ff55", '"Monoton",' + F); };
+    half(false); half(true);
+    // the middle: the COLLIDE circle (two moons kissing) and the gap ruler 1–8
+    const cx = W / 2, cy = H / 2, cr = H * .17;
+    const glow = g.createRadialGradient(cx, cy, 0, cx, cy, cr * 1.6); glow.addColorStop(0, "#ff4d6d40"); glow.addColorStop(1, "#ff4d6d00"); g.fillStyle = glow; g.beginPath(); g.arc(cx, cy, cr * 1.6, 0, 7); g.fill();
+    g.strokeStyle = "#ff4d6dcc"; g.lineWidth = 6; g.beginPath(); g.arc(cx, cy, cr, 0, 7); g.stroke(); g.setLineDash([14, 12]); g.lineWidth = 3; g.beginPath(); g.arc(cx, cy, cr * .86, 0, 7); g.stroke(); g.setLineDash([]);
+    for (const [dx, col] of [[-1, "#96d6ec"], [1, "#c4aaf0"]]) { g.fillStyle = col; g.beginPath(); g.arc(cx + dx * cr * .27, cy - cr * .12, cr * .3, 0, 7); g.fill(); g.fillStyle = "#0004"; g.beginPath(); g.arc(cx + dx * cr * .27 + cr * .07, cy - cr * .05, cr * .08, 0, 7); g.fill(); }
+    txt("COLLIDE", cx, cy + cr * .4, cr * .26, "#ffb3c1"); txt("×7.5", cx, cy + cr * .66, cr * .2, "#ff8aa0", F2);
+    for (const side of [-1, 1]) { const ry = cy + side * H * .36, x0 = cx - W * .085, x1 = cx + W * .085; g.strokeStyle = "#ffffff30"; g.lineWidth = 4; g.beginPath(); g.moveTo(x0, ry); g.lineTo(x1, ry); g.stroke();
+      for (let k = 1; k <= 8; k++) { const x = x0 + (x1 - x0) * (k - 1) / 7; g.fillStyle = "#ffffff70"; g.beginPath(); g.arc(x, ry, 7, 0, 7); g.fill(); txt(String(k), x, ry + side * -30, 26, "#ffffff80", F2, side > 0 ? 0 : Math.PI); } }
+  }
+  const feltTex = ctex(fc);
+  mat.felt = new THREE.MeshStandardMaterial({ name: "Felt", color: 0xffffff, map: feltTex, emissive: 0xffffff, emissiveMap: feltTex, emissiveIntensity: .25, roughness: .95, metalness: 0 });
+  // the bumper lining: dark metal studded with little glowing craters, in rows (the alien take on a craps table's rubber diamonds)
+  const bc = document.createElement("canvas"); bc.width = 512; bc.height = 128;
+  { const g = bc.getContext("2d"); const gr = g.createLinearGradient(0, 0, 0, 128); gr.addColorStop(0, "#3a2c66"); gr.addColorStop(1, "#140f2a"); g.fillStyle = gr; g.fillRect(0, 0, 512, 128);
+    for (let row = 0; row < 3; row++) for (let i = 0; i < 9; i++) { const x = (i + (row % 2) * .5) * 57 + 10, y = 24 + row * 40, r = 13;
+      g.beginPath(); g.moveTo(x, y - r); g.lineTo(x + r, y); g.lineTo(x, y + r); g.lineTo(x - r, y); g.closePath(); g.fillStyle = "#5a3fa0"; g.fill();
+      g.fillStyle = "#b45cff"; g.beginPath(); g.arc(x, y, 4, 0, 7); g.fill(); g.strokeStyle = "#ffffff30"; g.lineWidth = 2; g.stroke(); } }
+  const bumpTex = ctex(bc); bumpTex.wrapS = THREE.RepeatWrapping;
+  mat.bumper = new THREE.MeshStandardMaterial({ name: "Bumpers", color: 0xffffff, map: bumpTex, emissive: 0xffffff, emissiveMap: bumpTex, emissiveIntensity: .35, roughness: .5, metalness: .4, side: THREE.DoubleSide });
+
+  const root = new THREE.Group(); root.name = "TwinMoonsTable";
+  const table = grp(root, "Table");
+  // felt floor of the tub, UV'd straight onto the layout texture
+  { const g = new THREE.ShapeGeometry(shape(inner), 12); g.rotateX(-Math.PI / 2); const p = g.attributes.position, uv = [];
+    for (let i = 0; i < p.count; i++) uv.push(p.getX(i) / IL + .5, .5 - p.getZ(i) / IW); g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+    const m = add(table, g, mat.felt, "Felt", [0, FELT, 0]); m.castShadow = false; }
+  add(table, new THREE.ShapeGeometry(shape(inner), 12), mat.shellDark, "TubFloor", [0, FELT - .005, 0], [Math.PI / 2, 0, 0]);
+  // the tub walls: bumper lining from the felt up, then the rail
+  add(table, band(inner, FELT, FELT + .14, .6, true), mat.bumper, "Bumpers").castShadow = false;
+  add(table, band(inner, FELT + .14, TOPY, 1, true), mat.pad, "RailInner");
+  { const g = new THREE.ShapeGeometry(shape(outer, inner), 12); g.rotateX(-Math.PI / 2); add(table, g, mat.shellDark, "RailTop", [0, TOPY, 0]); }
+  add(table, loopTube(outer, TOPY + .035, .05, .05), mat.pad, "Armrest");                                        // padded armrest on the outer edge
+  add(table, loopTube(inner, TOPY + .004, .018, -.035), mat.dark, "ChipTrough");                               // the chip groove along the inner edge
+  add(table, loopTube(outer, TOPY - .01, .014, -.004), mat.trim, "RailTrim");
+  add(table, band(outer, APRON, TOPY), mat.apron, "Apron");
+  add(table, loopTube(outer, APRON + .01, .016, .004), mat.trim, "ApronTrim");
+  add(table, band(rrect(OL - .12, OW - .12, OR - .06), APRON - .03, APRON - .005, 1), mat.led, "UnderGlow").castShadow = false;   // purple light strip under the apron
+  add(table, new THREE.ShapeGeometry(shape(rrect(OL - .12, OW - .12, OR - .06)), 12), mat.shellDark, "Underside", [0, APRON - .005, 0], [Math.PI / 2, 0, 0]);
+  // the base: two plinths under the ends and a spine between them
+  for (const sx of [-1, 1]) { const b = grp(table, "Plinth" + (sx < 0 ? "L" : "R"), [sx * OL * .3, 0, 0]);
+    add(b, chamferBox(.5, APRON - .05, OW * .55, .05), mat.shell, "Leg", [0, (APRON - .05) / 2, 0]);
+    add(b, chamferBox(.62, .05, OW * .65, .02), mat.shellDark, "Foot", [0, .025, 0]);
+    add(b, chamferBox(.52, .03, OW * .57, .01), mat.trim, "LegBand", [0, APRON - .09, 0]); }
+  add(table, chamferBox(OL * .5, .22, .3, .04), mat.shellDark, "Spine", [0, .3, 0]);
+
+  // ---- chips resting in the trough at the players' places ----
+  const CH = { purple: [0xb45cff, 0x7f2fd0], orange: [0xff8a3a, 0xd9561a], lime: [0x8dff6a, 0x4cc72f], teal: [0x3fe6c8, 0x16a890], you: [0xd4cfe6, 0x9b96b2] };
+  const chipMat = {}; const chipGeo = new THREE.CylinderGeometry(.02, .02, .0065, 18);
+  const spots = [[-1.05, IW / 2 + .04, "orange"], [-.35, IW / 2 + .04, "you"], [.4, IW / 2 + .04, "lime"], [1.1, IW / 2 + .04, "teal"], [IL / 2 + .04, -.15, "purple"]];
+  for (const [x, z, who] of spots) for (let s = 0; s < 3; s++) { const n = 3 + Math.floor(Math.random() * 6), col = CH[who][s % 2];
+    const m = chipMat[col] || (chipMat[col] = std("Chip", col, .2, .45)); const st = grp(table, "Chips_" + who, [x + (Math.abs(z) > .3 ? s * .045 : 0), TOPY + .006, z + (Math.abs(z) > .3 ? 0 : s * .045)]);
+    for (let k = 0; k < n; k++) add(st, chipGeo, m, "Chip", [(Math.random() - .5) * .003, k * .0068, (Math.random() - .5) * .003]); }
+
+  // ---- the dealer: a robot console at the middle of the far long side, face on a tilted screen ----
+  const CZ = -(OW / 2 + .2), cons = grp(root, "Console", [0, 0, CZ]);
+  add(cons, chamferBox(.74, 1.3, .44, .05), mat.shell, "ConsoleBody", [0, .65, 0]);
+  add(cons, chamferBox(.8, .05, .5, .02), mat.trim, "ConsoleBand", [0, TOPY + .02, 0]);
+  add(cons, chamferBox(.82, .04, .52, .015), mat.shellDark, "ConsoleFoot", [0, .02, 0]);
+  for (const sx of [-1, 1]) add(cons, chamferBox(.025, .9, .02, .006), mat.led, "ConsoleLed", [sx * .38, .55, .2]);
+  // the slot machines' face, fitted onto a tall screen (its dark backdrop turned to pure black so it melts into the glass)
+  function fitTall(img) { const c = document.createElement("canvas"); c.width = 400; c.height = 560; const g = c.getContext("2d");
+    const t = document.createElement("canvas"); t.width = img.width; t.height = img.height; const tg = t.getContext("2d"); tg.drawImage(img, 0, 0);
+    const d = tg.getImageData(0, 0, t.width, t.height), px = d.data;
+    for (let i = 0; i < px.length; i += 4) { const L = Math.max(px[i], px[i + 1], px[i + 2]); if (L < 70) { const k = Math.max(0, (L - 45) / 25); px[i] *= k; px[i + 1] *= k; px[i + 2] *= k; } }
+    tg.putImageData(d, 0, 0); g.fillStyle = "#000"; g.fillRect(0, 0, 400, 560); const h = 400 * img.height / img.width; g.drawImage(t, 0, (560 - h) / 2, 400, h); return c; }
+  mat.face = new THREE.MeshStandardMaterial({ name: "DealerFace", color: 0x000000, emissive: 0xffffff, emissiveMap: T.face ? ctex(fitTall(T.face)) : null, emissiveIntensity: T.face ? 1 : 0 });
+  const scr = grp(cons, "ScreenMount", [0, 1.62, .06]); scr.rotation.x = -.12;
+  add(scr, chamferBox(.5, .66, .07, .02), mat.dark, "ScreenBezel");
+  add(scr, new THREE.PlaneGeometry(.44, .6), mat.face, "DealerScreen", [0, 0, .037]);
+  add(cons, chamferBox(.5, .5, .2, .03), mat.shellDark, "Neck", [0, 1.32, -.04]);
+  add(cons, chamferBox(.54, .06, .3, .02), mat.trim, "ScreenCap", [0, 1.98, .02]);
+  // the stick arm: a shoulder on the console's side, a long hooked stick that rakes the moons back
+  const SHY = TOPY + .32, arm = grp(cons, "StickArm", [.42, SHY, .1]);
+  add(arm, new THREE.SphereGeometry(.075, 14, 10), mat.metal, "StickShoulder");
+  add(arm, new THREE.CylinderGeometry(.09, .09, .06, 16), mat.trim, "StickCollar", [-.04, 0, 0], [0, 0, Math.PI / 2]);
+  const stick = grp(arm, "Stick");
+  add(stick, new THREE.CylinderGeometry(.012, .016, 1.05, 10), mat.metal, "StickShaft", [0, 0, .525], [Math.PI / 2, 0, 0]);
+  add(stick, new THREE.CylinderGeometry(.02, .02, .1, 10), mat.purple, "StickGrip", [0, 0, .06], [Math.PI / 2, 0, 0]);
+  const hook = grp(stick, "StickHook", [0, 0, 1.05]);
+  add(hook, chamferBox(.2, .035, .02, .006), mat.trim, "Hook", [0, -.02, 0]);
+  add(hook, new THREE.CylinderGeometry(.03, .03, .02, 12), mat.led, "HookGlow", [0, -.02, .012], [Math.PI / 2, 0, 0]);
+
+  // ---- the moons: two 8-sided crystals ----
+  const MS = .045, moonGeo = new THREE.OctahedronGeometry(MS, 0);
+  const moonA = add(root, moonGeo, mat.moonA, "Moon_A", [-.15, FELT + MS, .1]), moonB = add(root, moonGeo, mat.moonB, "Moon_B", [.05, FELT + MS, .16]);
+  root.traverse(o => { if (o.isMesh && !["Felt", "DealerScreen", "Bumpers", "RailInner", "Apron", "UnderGlow"].includes(o.name) && !o.name.startsWith("Chip")) { let g = o.geometry; if (g.index) g = g.toNonIndexed(); g.computeVertexNormals(); o.geometry = g; } });
+
+  // ---- animations ----
+  const Q = (x, y, z) => new THREE.Quaternion().setFromEuler(new THREE.Euler(x, y, z)).toArray();
+  const qT = (name, times, e) => new THREE.QuaternionKeyframeTrack(name + ".quaternion", times, e.flatMap(v => Q(...v)));
+  const pT = (name, times, v) => new THREE.VectorKeyframeTrack(name + ".position", times, v.flat());
+  const STICK_REST = [-.3, -.55, 0], STICK_OUT = [.49, -.42, 0];       // pitch (+ = down), yaw: resting raised; reaching out to the felt
+  const clips = [];
+  { const ts = [0, 2, 4]; clips.push(new THREE.AnimationClip("Idle", 4, [qT("Stick", ts, [STICK_REST, [STICK_REST[0] + .04, STICK_REST[1] + .05, 0], STICK_REST]),
+      qT("Moon_A", ts, [[.3, 0, .2], [.3, 1, .2], [.3, 2, .2]]), qT("Moon_B", ts, [[-.2, .5, .1], [-.2, -.5, .1], [-.2, -1.5, .1]]),
+      pT("Moon_A", ts, [[-.15, FELT + MS, .1], [-.15, FELT + MS + .015, .1], [-.15, FELT + MS, .1]]), pT("Moon_B", ts, [[.05, FELT + MS, .16], [.05, FELT + MS + .015, .16], [.05, FELT + MS, .16]])])); }
+  { // a throw from a player at the +X end: the moons fly down the table, hop on the felt, bang off the far bumpers, roll back and stop;
+    // then the stick reaches out and rakes them to the middle
+    const path = (x0, z0, xs, zs) => { const t = [], p = []; const hops = [[0, .35, .5], [.5, .1, .85], [.85, .05, 1.05]];   // start, height, land (seconds)
+      t.push(0); p.push([x0, FELT + .35, z0]);
+      const wallX = -IL / 2 + MS * 1.4, back = xs;                                                  // hits the far wall, then rolls back to xs
+      const land1 = [-.9, z0 * .6 + zs * .4];
+      for (const [k, x, z] of [[.45, land1[0], land1[1]], [.8, wallX, (land1[1] + zs) / 2], [1.15, back - .15, zs], [1.6, back, zs]]) { t.push(k); p.push([x, FELT + MS, z]); }
+      // little hops between the touches
+      const T2 = [], P2 = []; for (let i = 0; i < t.length; i++) { T2.push(t[i]); P2.push(p[i]); if (i < t.length - 1) { const h = i === 0 ? .1 : i === 1 ? .06 : .02; T2.push((t[i] + t[i + 1]) / 2); P2.push([(p[i][0] + p[i + 1][0]) / 2, Math.max(p[i][1], p[i + 1][1]) + h, (p[i][2] + p[i + 1][2]) / 2]); } }
+      T2.push(3.2, 4.2, 6); P2.push([back, FELT + MS, zs], [0, FELT + MS, .05 + zs * .2], [0, FELT + MS, .05 + zs * .2]); return [T2.map(x => x + .4), P2]; };
+    const [tA, pA] = path(IL / 2 - .3, .2, -.55, .15), [tB, pB] = path(IL / 2 - .25, .32, -.38, .32);
+    pA.unshift(pA[0]); tA.unshift(0); pB.unshift(pB[0]); tB.unshift(0);
+    const spinT = Array.from({ length: 25 }, (_, i) => i / 4), turns = t => t < .4 ? 0 : t > 2.2 ? 1 : (t - .4) / 1.8;
+    const rot = (seed) => spinT.map(t => { const k = 1 - Math.pow(1 - turns(t), 2); return [k * 9 + seed, k * 5, k * 7 - seed]; });
+    const sT = [0, 3.0, 3.6, 4.4, 5.2, 6], S = [STICK_REST, STICK_REST, STICK_OUT, [.46, -.12, 0], STICK_REST, STICK_REST];
+    clips.push(new THREE.AnimationClip("Roll", 6, [pT("Moon_A", tA, pA), pT("Moon_B", tB, pB), qT("Moon_A", spinT, rot(.3)), qT("Moon_B", spinT, rot(-.2)), qT("Stick", sT, S)])); }
+  return { root, clips, height: 2.1 };
+}
+
+const TEX_SRC = {"face": "data:image/webp;base64,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"};
+const cv=document.getElementById("c");
+const renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true});
+renderer.setPixelRatio(Math.min(2,devicePixelRatio)); renderer.outputEncoding=THREE.sRGBEncoding; renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.0;
+renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+const scene=new THREE.Scene(), cam=new THREE.PerspectiveCamera(35,1,.05,50);
+cam.position.set(2.6,2.4,3.4);
+const ctl=new THREE.OrbitControls(cam,cv); ctl.target.set(0,.85,-.1); ctl.enableDamping=true; ctl.minDistance=1.1; ctl.maxDistance=7; ctl.maxPolarAngle=Math.PI*.52; ctl.autoRotate=true; ctl.autoRotateSpeed=.8;
+cv.addEventListener("pointerdown",()=>ctl.autoRotate=false);
+scene.add(new THREE.HemisphereLight(0xbfb4ff,0x1a1030,.75));
+const key=new THREE.DirectionalLight(0xffffff,1.6); key.position.set(2,4,3); key.castShadow=true; key.shadow.bias=-.0006; key.shadow.normalBias=.02; key.shadow.mapSize.set(1024,1024); Object.assign(key.shadow.camera,{left:-3,right:3,top:3,bottom:-2.5}); key.shadow.mapSize.set(2048,2048); scene.add(key);
+const rim=new THREE.DirectionalLight(0xff5fae,1.1); rim.position.set(-2.5,2,-2.5); scene.add(rim);
+const fill=new THREE.PointLight(0x7dffb0,.5,3); fill.position.set(0,1.5,1.2); scene.add(fill);
+// floor: a soft glowing disc under the robot
+const fc=document.createElement("canvas"); fc.width=fc.height=256; const fg=fc.getContext("2d"), rg=fg.createRadialGradient(128,128,0,128,128,128);
+rg.addColorStop(0,"#3b2a7a"); rg.addColorStop(.55,"#1e1440"); rg.addColorStop(1,"rgba(11,7,24,0)"); fg.fillStyle=rg; fg.fillRect(0,0,256,256);
+const ft=new THREE.CanvasTexture(fc); ft.encoding=THREE.sRGBEncoding;
+const floor=new THREE.Mesh(new THREE.CircleGeometry(3.2,48),new THREE.MeshStandardMaterial({map:ft,transparent:true,roughness:.9})); floor.rotation.x=-Math.PI/2; floor.receiveShadow=true; scene.add(floor);
+const ring=new THREE.Mesh(new THREE.RingGeometry(2.45,2.47,64),new THREE.MeshBasicMaterial({color:0xffc845,transparent:true,opacity:.35})); ring.rotation.x=-Math.PI/2; ring.position.y=.002; scene.add(ring);
+
+const loadImg=s=>new Promise(r=>{const i=new Image(); i.onload=()=>r(i); i.onerror=()=>r(null); i.src=s;});
+let bot, mixer, acts={}, cur=null, beacon=null, mode="Idle";
+(async()=>{ try{ await Promise.race([Promise.all(["400 40px Bungee","400 40px Monoton","700 20px \"Chakra Petch\""].map(f=>document.fonts.load(f))), new Promise(r=>setTimeout(r,2500))]); }catch(e){}
+  const tex={face:await loadImg(TEX_SRC.face)};
+  bot=buildMoonsTable(THREE,{tex}); scene.add(bot.root);
+  mixer=new THREE.AnimationMixer(bot.root); bot.clips.forEach(c=>acts[c.name]=mixer.clipAction(c)); beacon=null; play(); })();
+const NOTES={Idle:"The moons sit on the felt; the dealer's stick waits, raised",Roll:"A throw from the end: the moons fly down the table, bounce off the far bumpers, and the stick rakes them back",Stop:""};
+function play(){ document.getElementById("note").textContent=NOTES[mode];
+  if(mode==="Stop"){ if(cur) cur.fadeOut(.3); cur=null; return; }
+  const a=acts[mode]; if(a===cur) return; a.reset().setEffectiveWeight(1).play(); if(cur) cur.crossFadeTo(a,.35,false); cur=a; }
+function setAnim(n){ document.querySelectorAll(".anim button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.a===n))); mode=n; play(); }
+document.querySelectorAll(".anim button").forEach(b=>b.onclick=()=>setAnim(b.dataset.a));
+function size(){ const w=innerWidth,h=innerHeight; renderer.setSize(w,h,false); cam.aspect=w/h; cam.fov=w<h?52:36; cam.updateProjectionMatrix(); }
+addEventListener("resize",size); size();
+const clock=new THREE.Clock();
+renderer.setAnimationLoop(()=>{ const dt=Math.min(.05,clock.getDelta()); if(mixer) mixer.update(dt); ctl.update();
+  if(bot && bot.update) bot.update(clock.elapsedTime); if(beacon) beacon.material.emissiveIntensity=1.1+.6*Math.sin(clock.elapsedTime*5); renderer.render(scene,cam); });
+</script>
