@@ -23,9 +23,11 @@ body{margin:0;background:radial-gradient(90% 55% at 50% 30%,#241653 0%,var(--voi
 .title{position:relative;justify-self:center;text-align:center;white-space:nowrap}
 .title .l2{display:block;font:400 1.75rem/1 "Monoton",var(--f-sign);color:#eaf9ff;text-shadow:0 0 4px #fff,0 0 10px var(--moonA),0 0 22px #5fb8ff,0 0 40px #5fb8ff88}
 .title .l1{position:absolute;right:-14px;bottom:-12px;font:400 1.25rem/1 "Yellowtail",cursive;color:#f6eaff;transform:rotate(-7deg);text-shadow:0 0 3px #fff,0 0 9px var(--moonB),0 0 18px #b45cff}
-.icons{justify-self:end;display:flex;gap:6px}
-.icon{--k:7px;width:38px;height:38px;display:grid;place-items:center;border:0;color:var(--dim);cursor:pointer;padding:0}
+.icons{justify-self:end;display:flex;gap:4px}
+.icon{--k:7px;width:34px;height:38px;display:grid;place-items:center;border:0;color:var(--dim);cursor:pointer;padding:0}
 .icon svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+.icon#shooter[aria-pressed="true"]{color:#c46bff}
+.go.auto:disabled{filter:none;cursor:default;color:#f6eaff;background:radial-gradient(circle at 35% 30%,#f1dcff,#b06bff 45%,#4a1f8a);box-shadow:0 6px 0 #2b1257,inset 0 -6px 14px #0004,inset 0 4px 10px #fff6,0 0 0 5px #0c0a1a,0 0 34px -6px #c46bff}
 .icon[aria-pressed="false"] .on{display:none}.icon[aria-pressed="true"] .off{display:none}
 /* the table: felt with the roll area at the back and the betting layout at the front */
 .table{position:relative;min-height:0;display:grid;grid-template-rows:1fr auto;border-radius:26px 26px 18px 18px;padding:10px;box-sizing:border-box;
@@ -122,6 +124,7 @@ body{margin:0;background:radial-gradient(90% 55% at 50% 30%,#241653 0%,var(--voi
     <div class="coins chrome"><i aria-hidden="true"></i><b id="credits">500</b></div>
     <div class="title" aria-label="Twin Moons"><span class="l2">TWIN</span><span class="l1">Moons</span></div>
     <div class="icons">
+      <button class="icon chrome" id="shooter" aria-pressed="false" aria-label="Let the aliens roll" title="Let the aliens roll"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9 9h.01M15 15h.01M15 9h.01M9 15h.01" stroke-width="3"/></svg></button>
       <button class="icon chrome" id="snd" aria-pressed="true" aria-label="Sound"><svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="on" d="M17 9a4 4 0 0 1 0 6"/><path class="off" d="M17 9l4 6M21 9l-4 6"/></svg></button>
       <button class="icon chrome" id="info" aria-label="How to play"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg></button>
     </div>
@@ -208,8 +211,8 @@ function clearBets() { while (history.length) undoBet(); }
 const hasAction = () => point !== null || tableTotal() > 0;
 
 // one roll: returns the dice and everything that was paid, lost or pushed
-function roll() {
-  if (!hasAction()) return null;
+function roll(force) {                 // force: someone else is shooting, so the dice roll even if you have nothing down
+  if (!hasAction() && !force) return null;
   const d = FORCE.dice || [1 + Math.floor(Math.random() * FACES), 1 + Math.floor(Math.random() * FACES)]; FORCE.dice = null;
   const gap = Math.abs(d[0] - d[1]), crash = gap === 0, comeOut = point === null, pointBefore = point, streakBefore = streak;
   const res = { dice: d, gap, crash, comeOut, pointBefore, streakBefore, outcomes: [], natural: false, made: false, sevenOut: false };
@@ -329,7 +332,7 @@ const wait = ms => new Promise(r=>setTimeout(r,ms));
 document.documentElement.style.setProperty("--bar", `url(${ART.bar})`);
 const SHADE = {1:"#ffffff",5:"#d4cfe6",25:"#9b96b2",100:"#4e4a66"};
 const shadeFor = v => SHADE[v>=100?100:v>=25?25:v>=5?5:1];
-let chip=5, rolling=false, view=null;   // view: what the table showed before the roll, held until the animations finish
+let chip=5, rolling=false, view=null, autoRoll=false;   // autoRoll: the aliens shoot and you just bet   // view: what the table showed before the roll, held until the animations finish
 
 // ---- the gap row ----
 for(let g=1; g<=7; g++){ const b=document.createElement("button"); b.className="spot"; b.dataset.spot=g; b.innerHTML=`<span class="nm">${g}</span><span class="px">×${GAP_PAY[g]}</span>`; $("gaps").appendChild(b); }
@@ -358,7 +361,8 @@ function paint(){
   const p=$("puck"); p.classList.toggle("on", P!==null); p.querySelector("b").textContent = P===null ? "OFF" : P;
   p.querySelector("span").textContent = P===null ? "POINT" : "GAP";
   $("streak").textContent = ST>1 ? `ORBIT STREAK ×${ST}` : ""; $("streak").classList.toggle("show", ST>1);
-  const go=$("go"); const opening=typeof Others!=="undefined" && Others.open; go.disabled = rolling || opening || !hasAction(); go.querySelector("small").textContent = rolling ? "rolling…" : opening ? "bets closing…" : shaking ? "flick!" : !hasAction() ? "place a bet" : point===null ? "come-out" : `point: gap ${point}`;
+  const go=$("go"); const opening=typeof Others!=="undefined" && Others.open; go.classList.toggle("auto", autoRoll); go.firstChild.textContent = autoRoll ? "ALIENS" : "ROLL";
+  go.disabled = autoRoll || rolling || opening || !hasAction(); go.querySelector("small").textContent = autoRoll ? (rolling ? "rolling…" : opening ? "place bets…" : "shoot next") : rolling ? "rolling…" : opening ? "bets closing…" : shaking ? "flick!" : !hasAction() ? "place a bet" : point===null ? "come-out" : `point: gap ${point}`;
   { const L=$("ladder"); if(!L.children.length) for(const k of [3,4,5,6]) L.insertAdjacentHTML("beforeend",`<span class="rung" data-k="${k}"><b>${k}${k===6?"+":""}</b>×${STREAK_PAY[k]}</span>`);
     L.querySelectorAll(".rung").forEach(e=>{ const lit=ST>=+e.dataset.k; if(lit && !e.classList.contains("lit")){ e.classList.add("lit","pop"); setTimeout(()=>e.classList.remove("pop"),600); } else if(!lit) e.classList.remove("lit"); }); }
   $("undo").disabled = rolling || !history.length; $("clear").disabled = rolling || !history.length;
@@ -609,7 +613,7 @@ const Others = (()=>{
     chips=chips.filter(q=>!(q.res==="lose"&&T-q.tr>900) && !(q.res==="win"&&T-q.tr>1800));
     // arms
     visits=visits.filter(v=>{ const s=(T-v.t0)/1000, w=v.w, [IN,HOLD,OUT]=PACE; if(s>IN+HOLD+OUT) return false;
-      const [px,py]=slotXY(v.spot,w);
+      const [px,py]=v.at ? v.at() : slotXY(v.spot,w);
       if(!v.dropped && s>=IN+HOLD*.5){ v.dropped=true; if(!rolling){ const had=chips.find(q=>q.w===w&&q.spot===v.spot&&!q.res); had ? had.amt+=v.amt : chips.push({ w, spot:v.spot, amt:v.amt, res:null }); SFX.chip();
         if(Math.random()<.25) talk(w, v.spot==="collide"?"collide":v.spot==="streak"?"streak":"bet"); } }
       const e = s<IN ? 1-Math.pow(1-s/IN,3) : s<IN+HOLD ? 1 : 1-Math.pow((s-IN-HOLD)/OUT,2);
@@ -617,7 +621,10 @@ const Others = (()=>{
       // long enough that the cut end (its width included) is past the table's edge, where the fade hides it
       const reach=toEdge(px,py,v.d), endW=W*.75/span, L=Math.max(TW*.55,(reach+24)/(1-endW*.6)), back=L*1.15*(1-e), tx=px+v.d[0]*back, ty=py+v.d[1]*back, k=L/span;
       const vx=(w.base[0]-w.tip[0])*W, vy=(w.base[1]-w.tip[1])*H, rot=Math.atan2(v.d[1],v.d[0])-Math.atan2(vy,vx);
-      if(w.holds && !v.dropped) drawChip(tx,ty,v.amt,w.chips);            // the chip in the curl / between the fingers, under the arm
+      if(w.holds && !v.dropped) drawChip(tx,ty,v.amt,w.chips);
+      if(v.throwing && s<IN+HOLD+.12){ const ge=Math.min(1,s/IN), q=1-Math.pow(1-ge,3);           // the dice fly off the table into its grip, then jiggle there
+        [0,1].forEach(i=>{ const f=v.from[i], gx=tx+(i?.6:-.6)*18+v.d[1]*6, gy=ty-6+Math.sin(T/40+i)*1.5*q, sz=f.r+(17-f.r)*q;
+          D8.render(x, f.x+(gx-f.x)*q, f.y+(gy-f.y)*q-Math.sin(ge*Math.PI)*f.r*.5, sz, D8.mul(D8.axisRot([1,1-i,.4],s*9+i),f.M), i, 1, 3); }); }            // the chip in the curl / between the fingers, under the arm
       x.save(); x.translate(tx,ty); x.rotate(rot); x.scale(k,k); x.shadowColor="#000b"; x.shadowBlur=14/k; x.shadowOffsetY=6/k;
       if(im.complete) x.drawImage(im,-w.tip[0]*W,-w.tip[1]*H,W,H); x.restore(); return true; });
     requestAnimationFrame(frame); }
@@ -635,7 +642,22 @@ const Others = (()=>{
       by.set(q.w,(by.get(q.w)||0)|(o[0]==="win"?2:1)); }
     // one reaction per alien whose chips were decided: winners usually crow, losers sometimes grumble
     let d=300; for(const [w,r] of by){ const kind=r&2?"win":"lose"; if(Math.random()<(kind==="win"?.7:.3)){ setTimeout(()=>talk(w,kind,true),d); d+=650; } } }
-  function openTable(ms){ openUntil=performance.now()+ms; last=0; paint(); return wait(ms).then(()=>{ openUntil=0; paint(); }); }
+  let wid=0;
+  function openTable(ms){ const id=++wid; openUntil=performance.now()+ms; last=0; paint(); return wait(ms).then(()=>{ if(id!==wid) return false; openUntil=0; paint(); return true; }); }
+  // the shooter: one alien holds the dice until the moons collide, then they pass to the next
+  let shooter=null;
+  function pickShooter(){ if(!shooter) shooter=pick(WHO); }
+  function nextShooter(){ shooter=WHO[(WHO.indexOf(shooter)+1)%WHO.length]; }
+  // the shooter's arm reaches into the roll area and lets go; resolves with the throw (screen position and velocity)
+  function shoot(){ pickShooter(); const w=shooter, z=$("zone").getBoundingClientRect(), t=tableRect(), zh=z.bottom-t.top;
+    const side = w.seat[0]<0 ? -1 : w.seat[0]>1 ? 1 : 0, tgt = side ? [TW*(side<0?.16:.84), zh*.62] : [TW*.5, zh*.86];
+    const sx=w.seat[0]*TW, sy=w.seat[1]*TH, l=Math.hypot(sx-tgt[0],sy-tgt[1]);
+    talk(w,"shoot",true); SFX.rattle();
+    return new Promise(done=>{ visits=visits.filter(v=>v.w!==w);
+      const zo=[z.left-t.left, z.top-t.top], from=moons.map(m=>({x:zo[0]+m.x, y:zo[1]+m.y, r:R0()*1.08, M:m.M})); inFlight=true; ruler=null; draw();   // the dice leave the table for its grip
+      visits.push({ w, from, at:()=>tgt, throwing:true, d:[(sx-tgt[0])/l,(sy-tgt[1])/l], t0:performance.now(), dropped:true });
+      setTimeout(()=>{ SFX.stopRattle(); const aimAt=[TW*.5, zh*.32], dx=aimAt[0]-tgt[0], dy=aimAt[1]-tgt[1], dl=Math.hypot(dx,dy), sp=1350+Math.random()*300;
+        done({ x:t.left+tgt[0], y:t.top+tgt[1], vx:dx/dl*sp, vy:dy/dl*sp }); }, (PACE[0]+PACE[1])*1000+120); }); }
   setInterval(()=>{ if(rolling || document.hidden) return; const T=performance.now();
     if(T<openUntil && visits.length<3 && chips.filter(q=>!q.res).length<12 && T-last>280) start(); }, 140);
   // ---- what they say: a bubble by their seat, outlined in their chip colour ----
@@ -644,6 +666,7 @@ const Others = (()=>{
     collide:["Smash 'em together!","Collide, collide!","I want fireworks."],
     streak: ["Long orbit tonight.","Streak's gonna run. I can feel it."],
     win:    ["HA! Pay up!","Called it!","Easy money.","Did you see that, human?","My lucky arm!","Woo! Drinks on me!","That's how it's done."],
+    shoot:  ["My roll!","Watch these moons fly.","Hot hands, coming through!","Blow on 'em for luck, human.","Daddy needs a new saucer!","Here we go!"],
     lose:   ["Rigged!","Ugh, my chips…","Next time.","These moons hate me.","Not again…","Hmph.","I meant to do that."] };
   let lastSaid=0;
   function talk(w, kind, force){ const T=performance.now(); if(!force && (T-lastSaid<900 || w.bubOn)) return; lastSaid=T;
@@ -658,15 +681,16 @@ const Others = (()=>{
     void el.offsetWidth; el.classList.add("show"); w.bubOn=true; clearTimeout(w.bubT);
     w.bubT=setTimeout(()=>{ el.classList.remove("show"); w.bubOn=false; }, 1900+text.length*40); }
   size(); addEventListener("resize",size); requestAnimationFrame(frame);
-  return { _who:WHO, settle, openTable, talk, get open(){ return performance.now()<openUntil; }, get chips(){ return chips; } };
+  return { _who:WHO, settle, openTable, talk, shoot, pickShooter, nextShooter, get open(){ return performance.now()<openUntil; }, get chips(){ return chips; } };
 })();
 
 // ---- a roll ----
-async function doRoll(aim){
+async function doRoll(aim, force){
   if(rolling) return; const c0=credits, snap={ bets:JSON.parse(JSON.stringify(bets)), point, streak };
-  const res=roll(); if(!res) return;
+  const res=roll(force); if(!res) return;
   view=snap; rolling=true; ruler=null; document.querySelectorAll(".spot").forEach(b=>b.classList.remove("win","lose")); $("win").textContent=0; paint();
-  say(line("roll")); await throwMoons(res.dice, aim);
+  if(typeof aim==="function") aim=await aim(); else say(line("roll"));
+  await throwMoons(res.dice, aim);
   // the big moments play out over the whole screen before anything on the table changes
   if(res.crash){ say(line("crash")); await Cine.collision(res.dice, res.comeOut ? "Come-out crash" : snap.point!==null ? `Crashed before gap ${snap.point}` : ""); }
   else if(res.natural){ say(line("natural")); await Cine.orbit(res.dice, "FULL ORBIT!", "1 and 8 · first-roll winner"); }
@@ -678,9 +702,14 @@ async function doRoll(aim){
   if(res.outcomes.some(o=>o.win)) SFX.win(); else if(res.outcomes.length) SFX.lose();
   { const st=res.outcomes.find(o=>o.spot==="streak" && o.win); if(st){ banner(`STREAK PAYS ×${Math.round(st.win/st.amt)}`, `+${st.win} gold bars`, "var(--gold)"); SFX.fanfare(); } }
   countTo($("win"),0,res.totalWin,600); countTo($("credits"),c0,credits,600);
+  if(res.crash && autoRoll) Others.nextShooter();                 // like craps: the shooter keeps the dice until the moons collide
   await wait(1000); view=null; rolling=false; paint();
-  Others.openTable(2600);                                          // the aliens get a quick window to bet before you can roll again
+  betWindow();                                                    // the aliens get a quick window to bet before the next roll
 }
+// between rolls: a betting window; when the aliens are shooting, it ends with their throw
+async function betWindow(){ const ok=await Others.openTable(autoRoll ? 4200 : 2600); if(ok && autoRoll && !rolling) doRoll(()=>Others.shoot(), true); }
+$("shooter").addEventListener("click",()=>{ autoRoll=!autoRoll; $("shooter").setAttribute("aria-pressed",String(autoRoll)); Sound.unlock(); Sound.tap();
+  say(autoRoll ? "The aliens will shoot. You just bet." : "You've got the dice again."); if(autoRoll){ Others.pickShooter(); if(!rolling) betWindow(); } paint(); });
 
 // ---- full-screen cut-scenes: the moons colliding, and the moons orbiting when a point is hit ----
 // Everything soft is drawn with pre-rendered glow sprites (additive light), the moons are pre-rendered once and then cut into
@@ -910,6 +939,6 @@ $("fhit").addEventListener("click",()=>{ $("sheet").hidden=true; if(point===null
 $("fcrash").addEventListener("click",()=>{ FORCE.dice=[4,4]; $("sheet").hidden=true; });
 document.addEventListener("pointerdown",()=>Sound.unlock(),{once:true});
 addEventListener("resize",()=>{ layout(); if(!rolling) rest(); draw(); });
-paint(); requestAnimationFrame(()=>{ layout(); rest(); draw(); setTimeout(()=>say("Place a bet, then roll the moons."),400); Others.openTable(2600); });
+paint(); requestAnimationFrame(()=>{ layout(); rest(); draw(); setTimeout(()=>say("Place a bet, then roll the moons."),400); betWindow(); });
 document.fonts && document.fonts.load('20px "Bungee"').then(()=>draw()).catch(()=>{});
 </script>

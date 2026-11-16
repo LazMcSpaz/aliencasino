@@ -31,8 +31,8 @@ function clearBets() { while (history.length) undoBet(); }
 const hasAction = () => point !== null || tableTotal() > 0;
 
 // one roll: returns the dice and everything that was paid, lost or pushed
-function roll() {
-  if (!hasAction()) return null;
+function roll(force) {                 // force: someone else is shooting, so the dice roll even if you have nothing down
+  if (!hasAction() && !force) return null;
   const d = FORCE.dice || [1 + Math.floor(Math.random() * FACES), 1 + Math.floor(Math.random() * FACES)]; FORCE.dice = null;
   const gap = Math.abs(d[0] - d[1]), crash = gap === 0, comeOut = point === null, pointBefore = point, streakBefore = streak;
   const res = { dice: d, gap, crash, comeOut, pointBefore, streakBefore, outcomes: [], natural: false, made: false, sevenOut: false };
