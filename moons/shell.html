@@ -103,6 +103,17 @@ body{margin:0;background:radial-gradient(90% 55% at 50% 30%,#241653 0%,var(--voi
 .card table{width:100%;border-collapse:collapse;margin:8px 0}.card td{padding:4px 0;border-bottom:1px solid #ffffff14}.card td:last-child{text-align:right}
 .card .dbg{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
 .card .dbg button{--k:6px;border:0;font:600 .75rem var(--f-tech);color:var(--ink);padding:7px 10px;cursor:pointer}
+/* the other players: their arms are drawn over the table and fade out at its edges, so the cut ends never show */
+#others{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:5;border-radius:inherit;
+  -webkit-mask-image:linear-gradient(to right,transparent 0,#000 30px,#000 calc(100% - 30px),transparent 100%),linear-gradient(to bottom,#000 0,#000 calc(100% - 26px),transparent 100%);
+  -webkit-mask-composite:source-in;mask-image:linear-gradient(to right,transparent 0,#000 30px,#000 calc(100% - 30px),transparent 100%),linear-gradient(to bottom,#000 0,#000 calc(100% - 26px),transparent 100%);mask-composite:intersect}
+.abub{position:absolute;z-index:7;max-width:52%;width:max-content;padding:6px 10px;border-radius:13px;background:#140d27ee;border:2px solid var(--bc);color:#fff;font:600 .74rem/1.25 var(--f-tech);
+  box-shadow:0 4px 14px #0009;opacity:0;transform:scale(.85);transition:opacity .18s,transform .24s cubic-bezier(.3,1.6,.5,1);pointer-events:none}
+.abub.show{opacity:1;transform:none}
+.abub::after{content:"";position:absolute;width:10px;height:10px;background:#140d27;border:2px solid var(--bc);box-sizing:border-box;transform:rotate(45deg)}
+.abub.t-bottom::after{bottom:-6px;left:calc(var(--to,50%) - 5px);border-left:0;border-top:0}
+.abub.t-left::after{left:-6px;top:calc(var(--to,50%) - 5px);border-right:0;border-top:0}
+.abub.t-right::after{right:-6px;top:calc(var(--to,50%) - 5px);border-left:0;border-bottom:0}
 .say{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
 </style>
 
@@ -200,7 +211,7 @@ function paint(){
   const p=$("puck"); p.classList.toggle("on", P!==null); p.querySelector("b").textContent = P===null ? "OFF" : P;
   p.querySelector("span").textContent = P===null ? "POINT" : "GAP";
   $("streak").textContent = ST>1 ? `ORBIT STREAK ×${ST}` : ""; $("streak").classList.toggle("show", ST>1);
-  const go=$("go"); go.disabled = rolling || !hasAction(); go.querySelector("small").textContent = rolling ? "rolling…" : shaking ? "flick!" : !hasAction() ? "place a bet" : point===null ? "come-out" : `point: gap ${point}`;
+  const go=$("go"); const opening=typeof Others!=="undefined" && Others.open; go.disabled = rolling || opening || !hasAction(); go.querySelector("small").textContent = rolling ? "rolling…" : opening ? "bets closing…" : shaking ? "flick!" : !hasAction() ? "place a bet" : point===null ? "come-out" : `point: gap ${point}`;
   { const L=$("ladder"); if(!L.children.length) for(const k of [3,4,5,6]) L.insertAdjacentHTML("beforeend",`<span class="rung" data-k="${k}"><b>${k}${k===6?"+":""}</b>×${STREAK_PAY[k]}</span>`);
     L.querySelectorAll(".rung").forEach(e=>{ const lit=ST>=+e.dataset.k; if(lit && !e.classList.contains("lit")){ e.classList.add("lit","pop"); setTimeout(()=>e.classList.remove("pop"),600); } else if(!lit) e.classList.remove("lit"); }); }
   $("undo").disabled = rolling || !history.length; $("clear").disabled = rolling || !history.length;
@@ -216,7 +227,7 @@ function say(t){ if(!t) return; $("say").textContent=t; const d=$("dealer"); d.q
   clearTimeout(say.t); say.t=setTimeout(()=>d.classList.remove("show"), 2200+t.length*40); }
 function banner(big, small, color){ const b=$("banner"); $("bannerBig").textContent=big; $("bannerSmall").textContent=small||""; b.style.setProperty("--bc", color||"var(--gold)");
   b.classList.add("show"); clearTimeout(banner.t); banner.t=setTimeout(()=>b.classList.remove("show"), 1800); }
-function popOn(el, txt){ const r=el.getBoundingClientRect(), t=$("table").getBoundingClientRect(), e=document.createElement("div"); e.className="pop"; e.textContent=txt;
+function popOn(el, txt, col){ const r=el.getBoundingClientRect(), t=$("table").getBoundingClientRect(), e=document.createElement("div"); e.className="pop"; e.textContent=txt; if(col){ e.style.color=col; e.style.textShadow=`0 0 8px ${col},0 1px 2px #000`; e.style.fontSize=".85rem"; }
   e.style.left=(r.left-t.left+r.width/2)+"px"; e.style.top=(r.top-t.top)+"px"; $("table").appendChild(e);
   e.animate([{transform:"translate(-50%,-30%) scale(.6)",opacity:0},{transform:"translate(-50%,-80%) scale(1.1)",opacity:1,offset:.25},{transform:"translate(-50%,-170%)",opacity:0}],{duration:1300,easing:"ease-out"}).finished.then(()=>e.remove()); }
 function countTo(el,from,to,ms=600){ const t0=performance.now(); const f=n=>{ const k=Math.max(0,Math.min(1,(n-t0)/ms)); el.textContent=Math.round(from+(to-from)*k); if(k<1) requestAnimationFrame(f); }; requestAnimationFrame(f); }
@@ -392,6 +403,117 @@ function anim(ms,fn){ return new Promise(done=>{ const t0=performance.now(); con
 })();
 (function idle(){ if(!rolling && (debris.length||flash)) draw(); requestAnimationFrame(idle); })();
 
+// ---- the other players: alien arms reach in from the edges of the table and bet too (their chips never touch your credits) ----
+// Between rolls a short betting window opens: the aliens drop chips quickly, then it closes and ROLL lights up again.
+// Their bets settle against the same roll as yours, with the same rules.
+const CHIP_SHADES = {
+  purple: {1:"#e2bcff", 5:"#b45cff", 25:"#7f2fd0", 100:"#4a1785"},
+  orange: {1:"#ffc79c", 5:"#ff8a3a", 25:"#d9561a", 100:"#8c3008"},
+  lime:   {1:"#d4ffbf", 5:"#8dff6a", 25:"#4cc72f", 100:"#26781a"},
+  teal:   {1:"#b8fff2", 5:"#3fe6c8", 25:"#16a890", 100:"#0a5e52"} };
+const Others = (()=>{
+  const c=document.createElement("canvas"); c.id="others"; $("table").appendChild(c); const x=c.getContext("2d"); let TW=300, TH=500;
+  const size=()=>{ const r=$("table").getBoundingClientRect(), d=Math.min(2.5,devicePixelRatio||1); TW=r.width; TH=r.height; c.width=TW*d; c.height=TH*d; x.setTransform(d,0,0,d,0,0); dirty=true; };
+  const WHO = [   // tip = where the chip is held (fraction of the sprite), base = the cut end that stays off the table
+    { img:"tentacle_purple", tip:[.70,.115], base:[.30,.975], holds:true,  chips:"purple" },
+    { img:"tentacle_orange", tip:[.36,.93],  base:[.55,.02],  holds:true,  chips:"orange" },
+    { img:"hand_pinch",      tip:[.86,.135], base:[.52,.985], holds:true,  chips:"lime" },
+    { img:"hand_closed",     tip:[.5,.2],    base:[.5,.985],  holds:false, chips:"teal" } ];
+  // seats round the table edge (fractions of the table: left side, right side, bottom). Shuffled each game; fixed within it.
+  const SEATS=[[-.18,.55],[-.18,.86],[1.18,.55],[1.18,.86],[.5,1.12]].sort(()=>Math.random()-.5);
+  WHO.forEach((w,i)=>{ w.seat=SEATS[i]; w.slot=i; w.im=new Image(); w.im.src=ART.arms[w.img]; });
+  const pick=a=>a[Math.floor(Math.random()*a.length)], AMTS=[1,5,5,5,25,25,100];
+  let chips=[], visits=[], last=0, openUntil=0, dirty=true;
+  const tableRect=()=>$("table").getBoundingClientRect();
+  // where an alien's chip sits on a spot: its own slot, clear of your chip badge in the top-right corner
+  function slotXY(spot, w){ const el=spotEl(spot), r=el.getBoundingClientRect(), t=tableRect(), s=w.slot;
+    let fx, fy;
+    if(spot==="streak"){ fx=.33+s*.045; fy=.5; }
+    else if(r.width/r.height>1.6){ fx=.16+s*.13; fy=.8; }
+    else { fx=s%2 ? .68 : .32; fy=s<2 ? .55 : .82; }
+    return [r.left-t.left+r.width*fx, r.top-t.top+r.height*fy]; }
+  const canAlien = s => s==="with"||s==="against" ? point===null : s==="streak" ? point===null && streak===0 : true;
+  function pickSpot(){ const r=Math.random();
+    const s = r<.15 ? "with" : r<.22 ? "against" : r<.34 ? "collide" : r<.39 ? "streak" : 1+Math.floor(Math.random()*7);
+    return canAlien(s) ? s : 1+Math.floor(Math.random()*7); }
+  function start(){ const busy=new Set(visits.map(v=>v.w)), free=WHO.filter(w=>!busy.has(w)); if(!free.length) return;
+    const w=pick(free), sx=w.seat[0]*TW, sy=w.seat[1]*TH;
+    // each alien mostly bets near its own seat: of a few random spots, take the nearest
+    let spot=null, xy=null, best=1e9; for(let k=0;k<4;k++){ const sp=pickSpot(), p=slotXY(sp,w), dd=Math.hypot(p[0]-sx,p[1]-sy); if(dd<best){ best=dd; spot=sp; xy=p; } }
+    const l=Math.hypot(sx-xy[0],sy-xy[1]);
+    visits.push({ w, spot, amt:pick(AMTS), d:[(sx-xy[0])/l,(sy-xy[1])/l], t0:performance.now(), dropped:false }); last=performance.now(); }
+  // distance from (px,py) to the table's edge along d
+  function toEdge(px,py,d){ let t=1e9; if(d[0]>0) t=Math.min(t,(TW-px)/d[0]); if(d[0]<0) t=Math.min(t,-px/d[0]); if(d[1]>0) t=Math.min(t,(TH-py)/d[1]); if(d[1]<0) t=Math.min(t,-py/d[1]); return t; }
+  const PACE=[.42,.22,.38];                                              // reach in, hold, pull back (seconds)
+  const denom=v=>v>=100?100:v>=25?25:v>=5?5:1, inkFor=hex=>{ const n=parseInt(hex.slice(1),16); return .3*(n>>16)+.59*(n>>8&255)+.11*(n&255)>150?"#1a1530":"#fff"; };
+  function drawChip(px,py,v,owner,a=1){ const r=9.5, col=CHIP_SHADES[owner][denom(v)], ink=inkFor(col); x.save(); x.globalAlpha=a;
+    x.save(); x.shadowColor="#000a"; x.shadowBlur=4; x.shadowOffsetY=2; x.fillStyle=col; x.beginPath(); x.arc(px,py,r,0,7); x.fill(); x.restore();
+    x.strokeStyle=ink; x.globalAlpha=a*.7; x.lineWidth=1.3; x.setLineDash([2.5,2.5]); x.beginPath(); x.arc(px,py,r*.76,0,7); x.stroke(); x.setLineDash([]); x.globalAlpha=a;
+    x.strokeStyle="#0008"; x.lineWidth=1; x.beginPath(); x.arc(px,py,r,0,7); x.stroke();
+    x.fillStyle=ink; x.font=`700 ${v>=100?7.5:9}px "Chakra Petch",system-ui`; x.textAlign="center"; x.textBaseline="middle"; x.fillText(v,px,py+.5); x.restore(); }
+  function frame(){ const T=performance.now();
+    if(!dirty && !visits.length && !chips.some(q=>q.res)){ requestAnimationFrame(frame); return; } dirty=false;
+    x.clearRect(0,0,TW,TH);
+    // chips on the table
+    for(const q of chips){ let a=1; if(q.res==="lose") a=Math.max(0,1-(T-q.tr)/900); if(q.res==="win") a=T-q.tr<1300?1:Math.max(0,1-(T-q.tr-1300)/500);
+      if(a<=0) continue; const [px,py]=slotXY(q.spot,q.w);
+      if(q.res==="win"){ x.fillStyle=`rgba(255,240,170,${(.35+.25*Math.sin(T/110))*a})`; x.beginPath(); x.arc(px,py,14,0,7); x.fill(); }
+      drawChip(px,py,q.amt,q.w.chips,a); }
+    chips=chips.filter(q=>!(q.res==="lose"&&T-q.tr>900) && !(q.res==="win"&&T-q.tr>1800));
+    // arms
+    visits=visits.filter(v=>{ const s=(T-v.t0)/1000, w=v.w, [IN,HOLD,OUT]=PACE; if(s>IN+HOLD+OUT) return false;
+      const [px,py]=slotXY(v.spot,w);
+      if(!v.dropped && s>=IN+HOLD*.5){ v.dropped=true; if(!rolling){ const had=chips.find(q=>q.w===w&&q.spot===v.spot&&!q.res); had ? had.amt+=v.amt : chips.push({ w, spot:v.spot, amt:v.amt, res:null }); SFX.chip();
+        if(Math.random()<.25) talk(w, v.spot==="collide"?"collide":v.spot==="streak"?"streak":"bet"); } }
+      const e = s<IN ? 1-Math.pow(1-s/IN,3) : s<IN+HOLD ? 1 : 1-Math.pow((s-IN-HOLD)/OUT,2);
+      const im=w.im, H=420, W=H*(im.naturalWidth||100)/(im.naturalHeight||420), span=H*Math.abs(w.base[1]-w.tip[1]);
+      // long enough that the cut end (its width included) is past the table's edge, where the fade hides it
+      const reach=toEdge(px,py,v.d), endW=W*.75/span, L=Math.max(TW*.55,(reach+24)/(1-endW*.6)), back=L*1.15*(1-e), tx=px+v.d[0]*back, ty=py+v.d[1]*back, k=L/span;
+      const vx=(w.base[0]-w.tip[0])*W, vy=(w.base[1]-w.tip[1])*H, rot=Math.atan2(v.d[1],v.d[0])-Math.atan2(vy,vx);
+      if(w.holds && !v.dropped) drawChip(tx,ty,v.amt,w.chips);            // the chip in the curl / between the fingers, under the arm
+      x.save(); x.translate(tx,ty); x.rotate(rot); x.scale(k,k); x.shadowColor="#000b"; x.shadowBlur=14/k; x.shadowOffsetY=6/k;
+      if(im.complete) x.drawImage(im,-w.tip[0]*W,-w.tip[1]*H,W,H); x.restore(); return true; });
+    requestAnimationFrame(frame); }
+  // how one of their bets comes out on this roll: "win", "lose", or null (it stays on the table)
+  function outcome(q, res){ const s=q.spot;
+    if(s==="collide") return res.crash ? ["win",COLLIDE_PAY] : ["lose"];
+    if(typeof s==="number") return res.crash ? ["lose"] : res.gap===s ? ["win",GAP_PAY[s]] : null;
+    if(s==="with"){ if(res.comeOut) return res.crash ? ["lose"] : res.natural ? ["win",LINE_PAY] : null; return res.made ? ["win",LINE_PAY] : res.sevenOut ? ["lose"] : null; }
+    if(s==="against"){ if(res.comeOut) return res.crash ? ["win",LINE_PAY] : res.natural ? ["lose"] : null; return res.sevenOut ? ["win",LINE_PAY] : res.made ? ["lose"] : null; }
+    if(s==="streak"){ if(res.made && res.streak>=STREAK_TOP) return ["win",STREAK_PAY[STREAK_TOP]];
+      if(res.crash){ const rung=Math.min(STREAK_TOP,res.streakBefore); return STREAK_PAY[rung] ? ["win",STREAK_PAY[rung]] : ["lose"]; } return null; } }
+  function settle(res){ const T=performance.now(), by=new Map();
+    for(const q of chips){ if(q.res) continue; const o=outcome(q,res); if(!o) continue; q.res=o[0]; q.tr=T;
+      if(o[0]==="win") popOn(spotEl(q.spot), "+"+Math.floor(q.amt*o[1]), CHIP_SHADES[q.w.chips][5]);
+      by.set(q.w,(by.get(q.w)||0)|(o[0]==="win"?2:1)); }
+    // one reaction per alien whose chips were decided: winners usually crow, losers sometimes grumble
+    let d=300; for(const [w,r] of by){ const kind=r&2?"win":"lose"; if(Math.random()<(kind==="win"?.7:.3)){ setTimeout(()=>talk(w,kind,true),d); d+=650; } } }
+  function openTable(ms){ openUntil=performance.now()+ms; last=0; paint(); return wait(ms).then(()=>{ openUntil=0; paint(); }); }
+  setInterval(()=>{ if(rolling || document.hidden) return; const T=performance.now();
+    if(T<openUntil && visits.length<3 && chips.filter(q=>!q.res).length<12 && T-last>280) start(); }, 140);
+  // ---- what they say: a bubble by their seat, outlined in their chip colour ----
+  const LINES = {
+    bet:    ["Come on, little moons!","Feeling lucky…","My tentacles are tingling.","This one's mine.","Don't copy me, human.","Mama needs new suction cups.","Watch and learn.","Gap, gap, gap…","Third time's the charm."],
+    collide:["Smash 'em together!","Collide, collide!","I want fireworks."],
+    streak: ["Long orbit tonight.","Streak's gonna run. I can feel it."],
+    win:    ["HA! Pay up!","Called it!","Easy money.","Did you see that, human?","My lucky arm!","Woo! Drinks on me!","That's how it's done."],
+    lose:   ["Rigged!","Ugh, my chips…","Next time.","These moons hate me.","Not again…","Hmph.","I meant to do that."] };
+  let lastSaid=0;
+  function talk(w, kind, force){ const T=performance.now(); if(!force && (T-lastSaid<900 || w.bubOn)) return; lastSaid=T;
+    const pool=LINES[kind], text=pool[(w.li=(((w.li??Math.floor(Math.random()*pool.length))+1+Math.floor(Math.random()*(pool.length-1)))%pool.length))];
+    let el=w.bub; if(!el){ el=w.bub=document.createElement("div"); el.className="abub"; el.style.setProperty("--bc", CHIP_SHADES[w.chips][5]); $("table").appendChild(el); }
+    el.textContent=text; el.className="abub";
+    const side = w.seat[0]<0 ? "left" : w.seat[0]>1 ? "right" : "bottom"; el.classList.add("t-"+side);
+    const bw=el.offsetWidth, bh=el.offsetHeight, ay=Math.min(w.seat[1],1)*TH;
+    let bx = side==="left" ? 8 : side==="right" ? TW-bw-8 : TW/2-bw/2, by = side==="bottom" ? TH-bh-10 : ay-bh/2;
+    by=Math.max(70,Math.min(TH-bh-6,by)); el.style.left=bx+"px"; el.style.top=by+"px";
+    el.style.setProperty("--to", (side==="bottom" ? bw/2 : Math.max(12,Math.min(bh-12,ay-by)))+"px");
+    void el.offsetWidth; el.classList.add("show"); w.bubOn=true; clearTimeout(w.bubT);
+    w.bubT=setTimeout(()=>{ el.classList.remove("show"); w.bubOn=false; }, 1900+text.length*40); }
+  size(); addEventListener("resize",size); requestAnimationFrame(frame);
+  return { _who:WHO, settle, openTable, talk, get open(){ return performance.now()<openUntil; }, get chips(){ return chips; } };
+})();
+
 // ---- a roll ----
 async function doRoll(aim){
   if(rolling) return; const c0=credits, snap={ bets:JSON.parse(JSON.stringify(bets)), point, streak };
@@ -405,10 +527,12 @@ async function doRoll(aim){
   else if(res.comeOut){ say(line("point",res.gap)); SFX.point(); }
   // now the table settles: winning and losing spots flash on the chips as they were, then pay out and clear
   for(const o of res.outcomes){ const el=spotEl(o.spot); if(!el) continue; el.classList.add(o.win>0?"win":"lose"); if(o.win) popOn(el,"+"+o.win); }
+  Others.settle(res);
   if(res.outcomes.some(o=>o.win)) SFX.win(); else if(res.outcomes.length) SFX.lose();
   { const st=res.outcomes.find(o=>o.spot==="streak" && o.win); if(st){ banner(`STREAK PAYS ×${Math.round(st.win/st.amt)}`, `+${st.win} gold bars`, "var(--gold)"); SFX.fanfare(); } }
   countTo($("win"),0,res.totalWin,600); countTo($("credits"),c0,credits,600);
   await wait(1000); view=null; rolling=false; paint();
+  Others.openTable(2600);                                          // the aliens get a quick window to bet before you can roll again
 }
 
 // ---- full-screen cut-scenes: the moons colliding, and the moons orbiting when a point is hit ----
@@ -639,6 +763,6 @@ $("fhit").addEventListener("click",()=>{ $("sheet").hidden=true; if(point===null
 $("fcrash").addEventListener("click",()=>{ FORCE.dice=[4,4]; $("sheet").hidden=true; });
 document.addEventListener("pointerdown",()=>Sound.unlock(),{once:true});
 addEventListener("resize",()=>{ layout(); if(!rolling) rest(); draw(); });
-paint(); requestAnimationFrame(()=>{ layout(); rest(); draw(); setTimeout(()=>say("Place a bet, then roll the moons."),400); });
+paint(); requestAnimationFrame(()=>{ layout(); rest(); draw(); setTimeout(()=>say("Place a bet, then roll the moons."),400); Others.openTable(2600); });
 document.fonts && document.fonts.load('20px "Bungee"').then(()=>draw()).catch(()=>{});
 </script>
