@@ -154,10 +154,12 @@ function buildWarpStage(THREE, opts = {}) {
 
   // ---- animations: the rings turn (faster during a launch); the screen runs through the flight; podium lights breathe ----
   const Q = (x, y, z) => new THREE.Quaternion().setFromEuler(new THREE.Euler(x, y, z)).toArray();
-  const ringTracks = (D, turns) => { const ts = Array.from({ length: 33 }, (_, i) => i / 32 * D);
-    const tr = (name, tilt, k) => new THREE.QuaternionKeyframeTrack(name + ".quaternion", ts, ts.flatMap(t => Q(Math.PI / 2 + tilt, 0, k * turns * Math.PI * 2 * t / D)));
-    return [tr("HoloRing_A", 0, 1), tr("HoloRing_B", .25, -1.3), tr("HoloRing_C", 0, .8)]; };
-  const clips = [new THREE.AnimationClip("Idle", 8, ringTracks(8, 1)), new THREE.AnimationClip("Launch", 8, ringTracks(8, 3))];
+  // each ring spins in its own plane and wobbles gently back and forth (whole wobble cycles per loop, so it repeats seamlessly)
+  const ringTracks = (D, turns, wob) => { const ts = Array.from({ length: 97 }, (_, i) => i / 96 * D);
+    const tr = (name, tilt, k, ph) => new THREE.QuaternionKeyframeTrack(name + ".quaternion", ts, ts.flatMap(t => { const u = Math.PI * 2 * t / D;
+      return Q(Math.PI / 2 + tilt + wob * Math.sin(u * 2 + ph), wob * .8 * Math.sin(u * 3 + ph * 1.7), k * turns * u); }));
+    return [tr("HoloRing_A", 0, 1, 0), tr("HoloRing_B", .25, -1.3, 2.1), tr("HoloRing_C", 0, .8, 4.2)]; };
+  const clips = [new THREE.AnimationClip("Idle", 8, ringTracks(8, 1, .07)), new THREE.AnimationClip("Launch", 8, ringTracks(8, 3, .11))];
   const LAUNCH = [[0, 0], [1.6, 1], [3.2, 2], [4.8, 3], [6.6, 4]];                      // seconds into the loop → which frame
   const STAGE_COL = [0x5fe8ff, 0xff9a4a, 0xb48cff, 0xff5fae, 0xff2a3a];                  // pad, liftoff/clouds, orbit, nebula, explosion
   const BOARD_AT = [0, 1, 1, 1, 2];
