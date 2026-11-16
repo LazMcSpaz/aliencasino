@@ -50,6 +50,8 @@ model3d/     the walking slot-machine robot
   gravity_viewer.src.html / build_gravity3d.py → gravity_table.html · capture_gravity.js grabs the bowl art → cap/gw_bowl.webp
   moons_model.js        the Twin Moons craps-style table (long felt tub, bumpers, mirrored layout, robot dealer, laser wall + end launcher)
   moons_viewer.src.html / build_moons3d.py → twin_moons_table.html · shotmoons.js takes test screenshots
+  warp_model.js         the Warp Drive stage: tall flight screen on a plinth, holo rings, 9 betting podiums with stools in a semicircle
+  warp_viewer.src.html / build_warp3d.py → warp_stage.html · capture_warp.js grabs flight frames from the game → cap/warp_*.webp
 ```
 
 ## How to rebuild
