@@ -1,0 +1,466 @@
+<!-- Warp Drive: page layout, styles and screen logic. build.py adds the engine and the shared sound engine and writes warp.html.
+     May use: part_engine.js (all game maths), Sound (shared synth). Must not: decide outcomes or change credits itself; the engine does that. -->
+<title>Warp Drive</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Chakra+Petch:wght@500;600;700&family=Monoton&family=Yellowtail&display=swap">
+<style>
+:root{--void:#07061a;--ink:#f1edff;--dim:#9a92c7;--gold:#ffc845;--warp:#5fd0ff;--hot:#ff4d6d;--win:#7dff7a;
+  --ui:color-mix(in srgb,#9b7bff 55%,#7fe3ff);--f-sign:"Bungee",Impact,sans-serif;--f-tech:"Chakra Petch",system-ui,sans-serif;color-scheme:dark}
+html,body{height:100%}
+body{margin:0;background:radial-gradient(90% 55% at 50% 30%,#1a1653 0%,var(--void) 72%);color:var(--ink);font:500 14px var(--f-tech);overflow:hidden;-webkit-tap-highlight-color:transparent;user-select:none}
+[hidden]{display:none!important}
+.app{position:relative;height:100dvh;max-width:480px;margin:0 auto;display:grid;grid-template-rows:auto auto 1fr auto auto;gap:6px;box-sizing:border-box;
+  padding:calc(8px + env(safe-area-inset-top,0px)) max(12px,env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) max(12px,env(safe-area-inset-left,0px))}
+.chrome{--k:9px;--ehi:color-mix(in srgb,var(--ui) 70%,transparent);--elo:color-mix(in srgb,var(--ui) 14%,transparent);position:relative;isolation:isolate;
+  clip-path:polygon(var(--k) 0,100% 0,100% calc(100% - var(--k)),calc(100% - var(--k)) 100%,0 100%,0 var(--k));background:linear-gradient(135deg,var(--ehi),var(--elo) 30%,var(--elo) 70%,var(--ehi))}
+.chrome::before{content:"";position:absolute;inset:1px;z-index:-1;clip-path:polygon(calc(var(--k) - .4px) 0,100% 0,100% calc(100% - var(--k) + .4px),calc(100% - var(--k) + .4px) 100%,0 100%,0 calc(var(--k) - .4px));
+  background:repeating-linear-gradient(0deg,#ffffff05 0 1px,transparent 1px 3px),linear-gradient(180deg,#221c44 0%,#120f27 55%,#0b091a 100%)}
+.hud{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;height:54px}
+.coins{display:flex;align-items:center;gap:7px;justify-self:start;padding:6px 14px 6px 7px}
+.coins i{width:26px;height:20px;background:var(--bar) center/contain no-repeat}
+.coins b{font:700 1.1rem/1 var(--f-tech)}
+.title{position:relative;justify-self:center;text-align:center;white-space:nowrap}
+.title .l2{display:block;font:400 1.75rem/1 "Monoton",var(--f-sign);color:#eafcff;text-shadow:0 0 4px #fff,0 0 10px var(--warp),0 0 22px #3f8cff,0 0 40px #3f8cff88}
+.title .l1{position:absolute;right:-16px;bottom:-12px;font:400 1.25rem/1 "Yellowtail",cursive;color:#fff0e0;transform:rotate(-7deg);text-shadow:0 0 3px #fff,0 0 9px #ff9a5a,0 0 18px #ff5f3a}
+.icons{justify-self:end;display:flex;gap:6px}
+.icon{--k:7px;width:38px;height:38px;display:grid;place-items:center;border:0;color:var(--dim);cursor:pointer;padding:0}
+.icon svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+.icon[aria-pressed="false"] .on{display:none}.icon[aria-pressed="true"] .off{display:none}
+/* the last few launches */
+.hist{display:flex;gap:5px;min-height:22px;overflow:hidden;mask-image:linear-gradient(to right,#000 80%,transparent)}
+.hist span{flex:none;padding:3px 8px;border-radius:9px;font:700 .72rem var(--f-tech);background:#ffffff0d;box-shadow:inset 0 0 0 1px #ffffff22}
+.hist .lo{color:#ff8aa0}.hist .mid{color:#bfefff}.hist .hi{color:#c99bff}.hist .mega{color:var(--gold);box-shadow:inset 0 0 0 1px var(--gold)}
+/* the flight */
+.sky{position:relative;min-height:0;border-radius:22px;overflow:hidden;background:#05041a;box-shadow:inset 0 0 0 3px #3a3270,inset 0 0 0 5px #0a0820,0 10px 30px #0008}
+#sky{position:absolute;inset:0;width:100%;height:100%}
+.mult{position:absolute;left:0;right:0;top:20%;text-align:center;pointer-events:none;font:400 3.4rem/1 var(--f-sign);color:#fff;text-shadow:0 0 18px var(--mc,#5fd0ff),0 0 4px #fff;transition:color .2s}
+.mult small{display:block;font:600 .8rem var(--f-tech);letter-spacing:.2em;color:var(--dim);text-shadow:none;margin-top:6px;text-transform:uppercase}
+.mult.boom{color:var(--hot);--mc:#ff4d6d}
+.bub{position:absolute;z-index:6;top:12px;left:50%;translate:-50% 0;max-width:80%;width:max-content;padding:7px 11px;border-radius:14px;background:#140d27ee;border:2px solid var(--gold);color:#fff;
+  font:600 .78rem/1.28 var(--f-tech);text-align:center;box-shadow:0 4px 14px #0009;opacity:0;transform:scale(.85);transition:opacity .18s,transform .24s cubic-bezier(.3,1.6,.5,1);pointer-events:none}
+.bub.show{opacity:1;transform:none}
+.bub b{display:block;font:400 .52rem/1 var(--f-sign);letter-spacing:.12em;color:var(--gold);margin-bottom:3px}
+.abub{position:absolute;z-index:7;max-width:60%;width:max-content;padding:5px 9px;border-radius:12px;background:#140d27ee;border:2px solid var(--bc);color:#fff;font:600 .72rem/1.25 var(--f-tech);
+  box-shadow:0 4px 14px #0009;opacity:0;transform:scale(.85);transition:opacity .18s,transform .24s cubic-bezier(.3,1.6,.5,1);pointer-events:none}
+.abub.show{opacity:1;transform:none}
+.abub::after{content:"";position:absolute;left:calc(var(--to,50%) - 5px);bottom:-6px;width:10px;height:10px;background:#140d27;border:2px solid var(--bc);border-left:0;border-top:0;box-sizing:border-box;transform:rotate(45deg)}
+/* the crew: the other players this round */
+.crew{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
+.mate{--k:7px;padding:5px 6px;min-width:0;display:grid;gap:1px;text-align:center;transition:transform .2s}
+.mate b{font:400 .62rem/1 var(--f-sign);color:var(--mc);letter-spacing:.04em}
+.mate span{font:600 .64rem var(--f-tech);color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mate em{font:700 .7rem var(--f-tech);font-style:normal;color:#fff;white-space:nowrap}
+.mate.out em{color:var(--win)}.mate.lost em{color:var(--hot)}.mate.idle{opacity:.45}
+.mate.pop{animation:pop .5s cubic-bezier(.3,1.7,.5,1)}
+@keyframes pop{50%{transform:scale(1.12)}}
+/* controls */
+.tools{display:flex;gap:5px;align-items:center;justify-content:center}
+.chip{flex:none;width:38px;height:38px;border-radius:50%;border:0;cursor:pointer;font:700 .86rem var(--f-tech);color:var(--ink2,#fff);
+  background:radial-gradient(circle at 50% 50%,var(--c) 0 48%,#ffc845 49% 53%,var(--c) 54% 64%,transparent 65%),repeating-conic-gradient(var(--c) 0 20deg,#ffc845 20deg 30deg);box-shadow:0 3px 0 #0008;transition:transform .12s}
+.chip:active{transform:translateY(2px)}
+.chip:disabled,.tbtn:disabled{opacity:.35;cursor:default}
+.tbtn{--k:7px;border:0;cursor:pointer;color:var(--ink);font:700 .66rem var(--f-tech);letter-spacing:.05em;padding:10px 8px;min-width:46px;flex:none}
+.auto{--k:7px;display:flex;align-items:center;gap:2px;padding:2px 3px;flex:none}
+.auto button{border:0;background:none;color:var(--ink);font:700 1rem var(--f-tech);width:22px;height:30px;cursor:pointer;padding:0}
+.auto button:disabled{opacity:.35}
+.auto label{display:grid;text-align:center;cursor:pointer;min-width:44px}
+.auto label span{font:600 .5rem var(--f-tech);letter-spacing:.14em;color:var(--dim)}
+.auto label b{font:700 .8rem var(--f-tech)}
+.auto.off label b{color:var(--dim)}
+.deck{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:12px;margin-top:4px}
+.readout{--k:8px;padding:7px 6px 8px;text-align:center;min-width:0}
+.readout span{display:block;font:600 .6rem/1 var(--f-tech);letter-spacing:.2em;color:var(--dim);text-transform:uppercase}
+.readout b{display:block;font:700 1.4rem/1.1 var(--f-tech);margin-top:3px}
+.readout.l{justify-self:end;width:100%;max-width:120px}.readout.r{justify-self:start;width:100%;max-width:120px}
+.go{position:relative;width:104px;height:104px;border-radius:50%;border:0;cursor:pointer;font:700 1rem/1.05 var(--f-tech);letter-spacing:.1em;color:#06202e;text-transform:uppercase;
+  background:radial-gradient(circle at 35% 30%,#f4fdff,#9fe3ff 45%,#2a7fb3);box-shadow:0 6px 0 #0f3d5a,inset 0 -6px 14px #0004,inset 0 4px 10px #fff8,0 0 0 5px #0c0a1a,0 0 34px -6px var(--warp);transition:transform .08s,filter .2s}
+.go small{display:block;font:700 .62rem var(--f-tech);letter-spacing:.04em;opacity:.8;margin-top:3px;text-transform:none}
+.go:active:not(:disabled){transform:translateY(4px)}
+.go:disabled{filter:grayscale(.8) brightness(.55);cursor:default}
+.go.cash{color:#132a06;background:radial-gradient(circle at 35% 30%,#f6fff0,#a8ff8a 45%,#2f9a1c);box-shadow:0 6px 0 #1a5410,inset 0 -6px 14px #0004,inset 0 4px 10px #fff8,0 0 0 5px #0c0a1a,0 0 40px -4px #7dff7a;animation:throb .6s ease-in-out infinite alternate}
+.go.cancel{color:#2a0610;background:radial-gradient(circle at 35% 30%,#fff0f3,#ff9aae 45%,#b3243f);box-shadow:0 6px 0 #5a1020,inset 0 -6px 14px #0004,inset 0 4px 10px #fff8,0 0 0 5px #0c0a1a}
+@keyframes throb{to{box-shadow:0 6px 0 #1a5410,inset 0 -6px 14px #0004,inset 0 4px 10px #fff8,0 0 0 5px #0c0a1a,0 0 60px 4px #7dff7a}}
+.sheet{position:fixed;inset:0;z-index:100;display:grid;place-items:center;background:#000b;padding:16px}
+.card{--k:14px;max-width:360px;max-height:86dvh;overflow:auto;padding:18px;font:500 .88rem/1.45 var(--f-tech)}
+.card h2{margin:0 0 8px;font:400 1.2rem var(--f-sign);color:var(--warp)}
+.card .dbg{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+.card .dbg button{--k:6px;border:0;font:600 .75rem var(--f-tech);color:var(--ink);padding:7px 10px;cursor:pointer}
+.app.shake{animation:shake .5s}
+@keyframes shake{20%{transform:translate(-7px,3px)}40%{transform:translate(7px,-3px)}60%{transform:translate(-4px,2px)}80%{transform:translate(2px,0)}}
+.say{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+</style>
+
+<div class="app" id="app">
+  <header class="hud">
+    <div class="coins chrome"><i aria-hidden="true"></i><b id="credits">500</b></div>
+    <div class="title" aria-label="Warp Drive"><span class="l2">WARP</span><span class="l1">Drive</span></div>
+    <div class="icons">
+      <button class="icon chrome" id="snd" aria-pressed="true" aria-label="Sound"><svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="on" d="M17 9a4 4 0 0 1 0 6"/><path class="off" d="M17 9l4 6M21 9l-4 6"/></svg></button>
+      <button class="icon chrome" id="info" aria-label="How to play"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg></button>
+    </div>
+  </header>
+  <div class="hist" id="hist" aria-label="Last launches"></div>
+  <section class="sky" id="skybox">
+    <canvas id="sky" aria-hidden="true"></canvas>
+    <div class="mult" id="mult" aria-live="off">×1.00<small id="multSub">get ready</small></div>
+    <div class="bub" id="dealer"><b>DEALER</b><span></span></div>
+    <p class="say" id="say" aria-live="polite"></p>
+  </section>
+  <div class="crew" id="crew"></div>
+  <section id="controls">
+    <div class="tools">
+      <button class="chip" data-v="1" style="--c:#ffffff;--ink2:#1a1530" aria-label="Add 1">1</button>
+      <button class="chip" data-v="5" style="--c:#d4cfe6;--ink2:#1a1530" aria-label="Add 5">5</button>
+      <button class="chip" data-v="25" style="--c:#9b96b2" aria-label="Add 25">25</button>
+      <button class="chip" data-v="100" style="--c:#4e4a66" aria-label="Add 100">100</button>
+      <button class="tbtn chrome" id="clear">CLEAR</button>
+      <div class="auto chrome off" id="auto"><button id="autoDn" aria-label="Lower auto cash-out">−</button><label id="autoTog"><span>AUTO</span><b id="autoV">OFF</b></label><button id="autoUp" aria-label="Raise auto cash-out">+</button></div>
+    </div>
+    <div class="deck">
+      <div class="readout chrome l"><span>Bet</span><b id="stake">10</b></div>
+      <button class="go" id="go">BET<small>next launch</small></button>
+      <div class="readout chrome r"><span>Win</span><b id="win">0</b></div>
+    </div>
+  </section>
+</div>
+<div class="sheet" id="sheet" hidden><div class="card chrome" role="dialog" aria-label="How to play">
+  <h2>How to play</h2>
+  <p>Set your bet with the chips, then tap <b>BET</b> before the launch.</p>
+  <p>The ship takes off and the multiplier climbs: ×1.5, ×2, ×10… Tap <b>CASH OUT</b> any time to win your bet × the multiplier.</p>
+  <p>But the warp core can blow at any moment, even right on the launch pad. If it blows before you cash out, you lose your bet.</p>
+  <p><b>AUTO</b> cashes you out by itself when the ship reaches the multiplier you set. Tap the middle to turn it on or off.</p>
+  <p>The crew are other players. Watch them bail out, or get greedy and go down with the ship.</p>
+  <div class="dbg"><button class="chrome" id="fpad">Debug: blow on the pad</button><button class="chrome" id="f3">Debug: blow at ×3</button><button class="chrome" id="f50">Debug: fly to ×50</button><button class="chrome" id="close">Close</button></div>
+</div></div>
+
+<script>
+const ART = {"bar": "data:image/webp;base64,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"};
+// Warp Drive: the game maths. A ship launches and its multiplier climbs; cash out before the warp core blows.
+// Pure logic: no drawing, no sound. The screen (shell.html) reads and calls these; tools/sim.js checks the payback in Node.
+// May use: nothing. Must not: touch the page.
+const EDGE = 0.96;            // payback: the chance the ship is still flying at ×m is EDGE / m, so every cash-out target returns ≈96%
+const GROWTH = 0.12;          // the multiplier climbs as e^(GROWTH · seconds): ×2 at ~5.8 s, ×10 at ~19 s, ×100 at ~38 s
+const MAX_MULT = 1000;        // the warp core always blows by ×1000
+const START = 500;
+let credits = START, history = [];
+let round = { bet: 0, auto: 0, cashed: null, crash: null };
+const FORCE = { crash: null };   // debug / tests: the next round's crash point
+
+const multAt = t => Math.exp(GROWTH * t);                 // multiplier after t seconds of flight
+const timeFor = m => Math.log(m) / GROWTH;                // seconds until the multiplier reaches m
+const floor2 = m => Math.floor(m * 100 + 1e-9) / 100;
+
+// where the warp core blows. P(crash ≥ m) = EDGE / m; about 4% of launches blow at ×1.00 on the pad
+function crashPoint() {
+  if (FORCE.crash) { const c = FORCE.crash; FORCE.crash = null; return c; }
+  const r = Math.random();
+  return Math.min(MAX_MULT, Math.max(1, floor2(EDGE / (1 - r))));
+}
+
+// betting happens in the window before a launch
+function placeBet(amt) { if (round.crash !== null || amt <= 0 || amt > credits) return false; credits -= amt; round.bet += amt; return true; }
+function cancelBet() { if (round.crash !== null) return 0; const b = round.bet; credits += b; round.bet = 0; return b; }
+function setAuto(m) { round.auto = m > 1 ? floor2(m) : 0; }
+
+// launch: the crash point is decided now and kept secret from the screen until it happens
+function launch() { round.crash = crashPoint(); round.cashed = null; return round.crash; }
+// cash out at multiplier m (the screen passes the live value, or the auto target). Fails once the ship has blown.
+function cashOut(m) {
+  if (!round.bet || round.cashed || round.crash === null) return 0;
+  m = floor2(m); if (m >= round.crash || m < 1) return 0;
+  const win = Math.floor(round.bet * m); credits += win; round.cashed = { m, win }; return win; }
+// has the ship blown by multiplier m?
+const blown = m => round.crash !== null && m >= round.crash;
+// after the explosion: record it and get ready for the next round (the auto target carries over)
+function endRound() {
+  const r = { crash: round.crash, bet: round.bet, cashed: round.cashed };
+  history.unshift(round.crash); history = history.slice(0, 14);
+  round = { bet: 0, auto: round.auto, cashed: null, crash: null }; return r; }
+
+if (typeof module !== "undefined") module.exports = { EDGE, GROWTH, MAX_MULT, multAt, timeFor, crashPoint, placeBet, cancelBet, setAuto, launch, cashOut, blown, endRound, FORCE,
+  get credits() { return credits; }, set credits(v) { credits = v; }, get round() { return round; } };
+
+// ---- Sound: all synthesized live with Web Audio, no sound files needed ----
+const Sound = (()=>{
+  let ctx=null, master=null, mbus=null, on=true, musicOn=true, mlevel=1;
+  try{ on = localStorage.getItem("slot-sound")!=="off"; musicOn = localStorage.getItem("slot-music")!=="off"; }catch(e){}
+  function ensure(){
+    if(!ctx){ const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return null;
+      ctx=new AC(); master=ctx.createGain(); master.gain.value=0.55;
+      const lim=ctx.createDynamicsCompressor(); lim.threshold.value=-10; lim.knee.value=6; lim.ratio.value=8; lim.attack.value=.003; lim.release.value=.15;
+      master.connect(lim).connect(ctx.destination);   // limiter: stops loud moments from overdriving a phone speaker
+      const hp=ctx.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=90; hp.Q.value=.7;
+      mbus=ctx.createGain(); mbus.gain.value=musicOn?mlevel:0; mbus.connect(hp).connect(master); decodeClips(); }
+    if(ctx.state==="suspended") ctx.resume();
+    return ctx;
+  }
+  // lp = low-pass filter cutoff (warmer, rounder sound); lpEnd = where the cutoff sweeps to; detune in cents; bus "music" goes through the music volume
+  function tone(freq, dur, {type="sine", vol=0.2, at=0, slide=0, attack=0.004, lp=0, lpEnd=0, q=1, detune=0, bus=null, vib=0}={}){
+    if(!on) return; const c=ensure(); if(!c) return; if(bus==="music") attack=Math.max(attack,.008);   // softer note starts = no clicks
+    const t=c.currentTime+Math.max(0,at), o=c.createOscillator(), g=c.createGain();
+    o.type=type; o.frequency.setValueAtTime(freq,t); if(detune) o.detune.value=detune;
+    if(slide) o.frequency.exponentialRampToValueAtTime(Math.max(30,freq*slide), t+dur);
+    if(vib){ const l=c.createOscillator(), lg=c.createGain(); l.frequency.value=5.5; lg.gain.value=freq*vib; l.connect(lg).connect(o.frequency); l.start(t); l.stop(t+dur+0.05); }
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol,t+attack); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    let node=o; if(lp){ const f=c.createBiquadFilter(); f.type="lowpass"; f.Q.value=q; f.frequency.setValueAtTime(lp,t); if(lpEnd) f.frequency.exponentialRampToValueAtTime(lpEnd,t+dur); node.connect(f); node=f; }
+    node.connect(g).connect(bus==="music"?mbus:master); o.start(t); o.stop(t+dur+0.05);
+  }
+  function thud(vol=0.25, freq=260){
+    if(!on) return; const c=ensure(); if(!c) return;
+    const len=Math.floor(c.sampleRate*0.09), buf=c.createBuffer(1,len,c.sampleRate), d=buf.getChannelData(0);
+    for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/len,3);
+    const src=c.createBufferSource(), f=c.createBiquadFilter(), g=c.createGain();
+    src.buffer=buf; f.type="lowpass"; f.frequency.value=freq; g.gain.value=vol;
+    src.connect(f).connect(g).connect(master); src.start();
+  }
+  // Recorded clips (base64 mp3 in SND_SRC) are decoded once the audio system wakes up, then played through the same volume control
+  const clips={};
+  function decodeClips(){ if(typeof SND_SRC==="undefined") return;
+    for(const [k,b64] of Object.entries(SND_SRC)){ if(clips[k]) continue; clips[k]="loading";
+      const bin=atob(b64.split(",")[1]), buf=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) buf[i]=bin.charCodeAt(i);
+      ctx.decodeAudioData(buf.buffer).then(ab=>{ clips[k]=ab; }).catch(()=>{ delete clips[k]; }); } }
+  function clip(name, {vol=1, at=0}={}){ // returns false if the clip isn't ready, so callers can fall back to synth sounds
+    if(!on) return true; const c=ensure(); const ab=clips[name]; if(!c || !(ab instanceof AudioBuffer)) return false;
+    const src=c.createBufferSource(), g=c.createGain(), t=c.currentTime+at; src.buffer=ab;
+    g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(vol,t+.005);   // 5 ms fade-in: no pop when a clip starts
+    src.connect(g).connect(master); src.start(t); return true; }
+  function noise(dur, {vol=0.2, at=0, type="lowpass", freq=1200, q=0.8, attack=0.004, sweep=0, bus=null}={}){   // filtered noise burst: gunshots, tyres, crowds, scribbles
+    if(!on) return; const c=ensure(); if(!c) return; if(bus==="music") attack=Math.max(attack,.01);   // no instant starts on music percussion
+    const t=c.currentTime+Math.max(0,at), len=Math.max(1,Math.floor(c.sampleRate*dur)), buf=c.createBuffer(1,len,c.sampleRate), d=buf.getChannelData(0);
+    for(let i=0;i<len;i++) d[i]=Math.random()*2-1;
+    const src=c.createBufferSource(), f=c.createBiquadFilter(), g=c.createGain();
+    src.buffer=buf; f.type=type; f.frequency.setValueAtTime(freq,t); f.Q.value=q; if(sweep) f.frequency.exponentialRampToValueAtTime(Math.max(40,freq*sweep), t+dur);
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol,t+attack); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    src.connect(f).connect(g).connect(bus==="music"?mbus:master); src.start(t); src.stop(t+dur+0.05);
+  }
+  const note = n => 440*Math.pow(2,(n-9)/12); // n = semitones above C4 (0 = C)
+  const arp = (notes, gap, opts) => notes.forEach((n,i)=>tone(note(n), opts.dur||0.18, {...opts, at:i*gap}));
+  return {
+    get on(){ return on; },
+    set on(v){ on=v; try{ localStorage.setItem("slot-sound", v?"on":"off"); }catch(e){} if(v) ensure(); },
+    unlock(){ if(on) ensure(); },
+    get musicOn(){ return musicOn; },
+    set musicOn(v){ musicOn=v; try{ localStorage.setItem("slot-music", v?"on":"off"); }catch(e){} if(mbus) mbus.gain.setTargetAtTime(v?mlevel:0, ctx.currentTime, .05); },
+    musicLevel(v){ mlevel=v; if(mbus && musicOn) mbus.gain.setTargetAtTime(v, ctx.currentTime, .08); },
+    now(){ return ctx ? ctx.currentTime : null; },
+    ready(){ return !!ctx && ctx.state==="running"; },
+    tap(){ tone(880,.05,{type:"triangle",vol:.08}); },
+    lines(n){ arp([0,4,7,12,16].slice(0,n), .045, {type:"triangle", vol:.09, dur:.12}); },
+    spinStart(){ tone(140,.4,{type:"sawtooth",vol:.05,slide:3}); tone(70,.25,{type:"sine",vol:.12,slide:.8}); },
+    tick(){ tone(1500+Math.random()*400,.02,{type:"square",vol:.018}); },
+    reelStop(i){ thud(.35, 240); tone(150-i*18,.14,{type:"sine",vol:.22,slide:.55}); },
+    wild(){ arp([24,28,31,36], .05, {type:"sine", vol:.08, dur:.25}); },
+    lose(){ tone(note(-5),.18,{type:"triangle",vol:.05}); tone(note(-8),.25,{type:"triangle",vol:.05,at:.12}); },
+    win(level){ // 0 small, 1 medium
+      if(level===0) arp([12,16,19], .07, {type:"triangle", vol:.12, dur:.2});
+      else { arp([7,12,16,19,24], .07, {type:"triangle", vol:.13, dur:.22}); arp([19,24], .1, {type:"sine", vol:.06, dur:.5, at:0}); }
+    },
+    bigWin(){
+      arp([0,4,7,12, 4,7,12,16, 7,12,16,19,24], .085, {type:"square", vol:.05, dur:.16});
+      [0,4,7,12].forEach(n=>tone(note(n),1.4,{type:"triangle",vol:.06,at:1.1,attack:.02}));
+      for(let i=0;i<10;i++) tone(2000+Math.random()*1500,.05,{type:"sine",vol:.03,at:1.1+i*.07});
+    },
+    noise, clip,
+    tone, arp, note, thud,
+    refill(){ for(let i=0;i<8;i++) tone(1800+i*120,.04,{type:"triangle",vol:.05,at:i*.04}); },
+  };
+})();
+const $ = id => document.getElementById(id);
+const wait = ms => new Promise(r=>setTimeout(r,ms));
+document.documentElement.style.setProperty("--bar", `url(${ART.bar})`);
+const fmt = m => "×" + (Math.floor(m*100+1e-9)/100).toFixed(2);
+const multColor = m => m<2 ? "#5fd0ff" : m<5 ? "#9b7bff" : m<10 ? "#ff5fae" : m<50 ? "#ffc845" : "#ffffff";
+
+// ---- state on screen ----
+let stake=10, phase="wait", t0=0, mult=1, flightT=0, winShown=0, autoOn=false, autoM=2;   // phase: wait (betting window) · flight · boom
+const WINDOW_MS = 6000;
+let windowEnd=0;
+
+// ---- the crew: four alien players who bet and bail out on their own ----
+const CREW = [
+  { name:"ZORP", col:"#b45cff", greed:[1.3,1.5,2,2,3], lines:"careful" },
+  { name:"GLIM", col:"#ff8a3a", greed:[2,3,5,8,15,40], lines:"wild" },
+  { name:"VEXA", col:"#8dff6a", greed:[1.5,2,2.5,3,5], lines:"cool" },
+  { name:"KRILL", col:"#3fe6c8", greed:[1.2,1.4,1.8,2.2,4,10], lines:"nervous" } ];
+CREW.forEach(c=>{ const el=document.createElement("div"); el.className="mate chrome idle"; el.style.setProperty("--mc",c.col); el.innerHTML=`<b>${c.name}</b><span>—</span><em>sitting out</em>`; $("crew").appendChild(el); c.el=el; });
+const pick = a => a[Math.floor(Math.random()*a.length)];
+const CREW_LINES = {
+  bet:{ careful:["Small and steady.","Just a little flutter."], wild:["All the way to the stars!","Moon or bust!"], cool:["Smooth flight, please.","I've got a good feeling."], nervous:["Oh no, oh no, I'm in.","Why do I do this to myself?"] },
+  out:{ careful:["Safe! Ha!","Bank it."], wild:["WOOO!","Told you!"], cool:["Easy.","Smooth."], nervous:["Phew! Phew!","I'm out, I'm OUT!"] },
+  lost:{ careful:["Should've bailed…","Ugh."], wild:["Worth it!","Next one, next one!"], cool:["Hmph.","Rigged."], nervous:["I KNEW it!","My savings!"] } };
+function crewTalk(c, kind){ if(Math.random()>.55 && kind!=="out") return; const pool=CREW_LINES[kind][c.lines]; let el=c.bub;
+  if(!el){ el=c.bub=document.createElement("div"); el.className="abub"; el.style.setProperty("--bc",c.col); $("skybox").appendChild(el); }
+  el.textContent=pick(pool); el.classList.remove("show"); const sb=$("skybox").getBoundingClientRect(), mb=c.el.getBoundingClientRect();
+  const bw=el.offsetWidth, cx=mb.left-sb.left+mb.width/2, x=Math.max(6,Math.min(sb.width-bw-6,cx-bw/2));
+  el.style.left=x+"px"; el.style.top=(sb.height-el.offsetHeight-12)+"px"; el.style.setProperty("--to",(cx-x)+"px"); void el.offsetWidth; el.classList.add("show");
+  clearTimeout(c.bt); c.bt=setTimeout(()=>el.classList.remove("show"),1800); }
+function crewBet(){ CREW.forEach((c,i)=>{ c.bet=0; c.out=null; c.el.className="mate chrome idle"; c.el.querySelector("span").textContent="—"; c.el.querySelector("em").textContent="sitting out";
+  if(Math.random()<.82) setTimeout(()=>{ if(phase!=="wait") return; c.bet=pick([5,10,10,25,25,50,100]); c.target=pick(c.greed)*(0.9+Math.random()*.25);
+    c.el.className="mate chrome pop"; c.el.querySelector("span").textContent=`bet ${c.bet}`; c.el.querySelector("em").textContent=`aiming ${fmt(c.target)}`; SFX.chip(); if(Math.random()<.35) crewTalk(c,"bet"); }, 500+Math.random()*(WINDOW_MS-1800)); }); }
+function crewTick(m){ for(const c of CREW) if(c.bet && !c.out && m>=c.target){ c.out={ m:c.target, win:Math.floor(c.bet*c.target) };
+  c.el.className="mate chrome out pop"; c.el.querySelector("em").textContent=`+${c.out.win} at ${fmt(c.target)}`; Fx.pod(c.col, "+"+c.out.win); SFX.bail(); crewTalk(c,"out"); } }
+function crewBoom(){ for(const c of CREW) if(c.bet && !c.out){ c.el.className="mate chrome lost"; c.el.querySelector("em").textContent=`lost ${c.bet}`; setTimeout(()=>crewTalk(c,"lost"),500+Math.random()*700); } }
+
+// ---- the flight picture: stars streaming past, the climb drawn as a glowing curve, the ship riding its tip ----
+const Fx = (()=>{ const cv=$("sky"), g=cv.getContext("2d"); let W=300, H=400, dpr=1;
+  const stars=Array.from({length:170},()=>({ x:Math.random(), y:Math.random(), z:.2+Math.random()*.8 }));
+  let pods=[], bits=[], flash=0, landmark=null, shipXY=[0,0], shipAng=0, shake=0;
+  const LANDMARKS=[[2,"LEAVING ORBIT","#5fd0ff"],[5,"ASTEROID BELT","#9b7bff"],[10,"NEBULA","#ff5fae"],[25,"DEEP SPACE","#ffc845"],[100,"LIGHTSPEED","#ffffff"]];
+  let nextLm=0;
+  function size(){ const r=cv.getBoundingClientRect(); dpr=Math.min(2.5,devicePixelRatio||1); W=r.width; H=r.height; cv.width=W*dpr; cv.height=H*dpr; g.setTransform(dpr,0,0,dpr,0,0); }
+  // the graph's frame: time across, multiplier up; both grow to keep the ship on screen
+  const PAD={l:34,r:56,t:70,b:44};
+  const scale=()=>({ tMax:Math.max(8,flightT*1.18), mMax:Math.max(2,mult*1.25) });
+  const toXY=(t,m,S)=>[PAD.l+(t/S.tMax)*(W-PAD.l-PAD.r), H-PAD.b-((m-1)/(S.mMax-1))*(H-PAD.t-PAD.b)];
+  function drawShip(x,y,a,thrust){ g.save(); g.translate(x,y); g.rotate(a);
+    // flame
+    if(thrust>0){ const L=22+thrust*26+Math.random()*8; const fl=g.createLinearGradient(-8,0,-8-L,0); fl.addColorStop(0,"#fff"); fl.addColorStop(.25,"#7fe3ff"); fl.addColorStop(.6,"#b45cff99"); fl.addColorStop(1,"#b45cff00");
+      g.fillStyle=fl; g.beginPath(); g.moveTo(-8,-5); g.quadraticCurveTo(-8-L*.6,-7,-8-L,0); g.quadraticCurveTo(-8-L*.6,7,-8,5); g.fill(); }
+    // fins
+    g.fillStyle="#7a2fd0"; g.beginPath(); g.moveTo(-4,-5); g.lineTo(-14,-15); g.lineTo(-10,-4); g.fill(); g.beginPath(); g.moveTo(-4,5); g.lineTo(-14,15); g.lineTo(-10,4); g.fill();
+    // hull
+    const hg=g.createLinearGradient(0,-8,0,8); hg.addColorStop(0,"#e9e6f5"); hg.addColorStop(.5,"#a9a3c4"); hg.addColorStop(1,"#5a5476");
+    g.fillStyle=hg; g.beginPath(); g.moveTo(22,0); g.quadraticCurveTo(12,-9,-10,-7); g.lineTo(-10,7); g.quadraticCurveTo(12,9,22,0); g.fill();
+    g.strokeStyle="#ffc845"; g.lineWidth=1.5; g.beginPath(); g.moveTo(-6,-6.5); g.lineTo(-6,6.5); g.stroke();
+    // cockpit dome with a little alien
+    g.fillStyle="#5fd0ff"; g.beginPath(); g.ellipse(7,-2,6,4,0,0,Math.PI*2); g.fill(); g.fillStyle="#2a8f5a"; g.beginPath(); g.arc(7,-2.5,2.4,0,7); g.fill();
+    g.fillStyle="#fff8"; g.beginPath(); g.ellipse(9,-4,2,1,0,0,7); g.fill();
+    g.restore(); }
+  function frame(now){ g.clearRect(0,0,W,H); const S=scale(), flying=phase==="flight";
+    // stars: stream down-left; faster and longer as the multiplier climbs (warp streaks)
+    const sp = flying ? Math.min(14, .4+Math.log(mult)*3.2) : phase==="wait" ? .15 : .05, col=multColor(flying?mult:1);
+    for(const s of stars){ s.x-=sp*s.z*.0022; s.y+=sp*s.z*.0013; if(s.x<0||s.y>1){ s.x=Math.random()*1.1; s.y=-.05+Math.random()*.4; if(Math.random()<.5){ s.x=1.02; s.y=Math.random(); } }
+      const x=s.x*W, y=s.y*H, L=sp*s.z*6; g.strokeStyle= sp>4 && s.z>.7 ? col : `rgba(255,255,255,${.25+s.z*.6})`; g.lineWidth=s.z*1.6; g.beginPath(); g.moveTo(x,y); g.lineTo(x+L*1.7,y-L); g.stroke(); }
+    // landmark banner sliding past
+    if(landmark){ const k=(now-landmark.t)/2200; if(k>1) landmark=null; else { g.save(); g.globalAlpha=Math.sin(k*Math.PI); g.font=`400 ${Math.min(22,W*.06)}px "Bungee",Impact,sans-serif`; g.textAlign="center"; g.fillStyle=landmark.c; g.shadowColor=landmark.c; g.shadowBlur=14; g.fillText(landmark.s, W/2, H*.62); g.restore(); } }
+    // axes
+    g.strokeStyle="#ffffff18"; g.lineWidth=1; g.font=`600 10px "Chakra Petch",system-ui`; g.fillStyle="#ffffff55"; g.textAlign="right";
+    const steps=[1.5,2,3,5,10,20,50,100,200,500,1000].filter(v=>v<S.mMax); const show=steps.filter((v,i)=>i%Math.ceil(steps.length/4)===0);
+    for(const v of show){ const y=toXY(0,v,S)[1]; g.beginPath(); g.moveTo(PAD.l,y); g.lineTo(W-PAD.r+30,y); g.stroke(); g.fillText(fmt(v).replace(".00",""),PAD.l-4,y+3); }
+    // the climb
+    if(phase!=="wait" && flightT>0){ const n=60, pts=[]; for(let i=0;i<=n;i++){ const t=flightT*i/n; pts.push(toXY(t,multAt(t),S)); }
+      const base=H-PAD.b, gr=g.createLinearGradient(0,PAD.t,0,base); gr.addColorStop(0,col+"55"); gr.addColorStop(1,col+"00");
+      g.fillStyle=gr; g.beginPath(); g.moveTo(pts[0][0],base); pts.forEach(p=>g.lineTo(p[0],p[1])); g.lineTo(pts[n][0],base); g.closePath(); g.fill();
+      g.strokeStyle=col; g.lineWidth=3; g.shadowColor=col; g.shadowBlur=12; g.beginPath(); pts.forEach((p,i)=>i?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1])); g.stroke(); g.shadowBlur=0;
+      const [x,y]=pts[n], [px,py]=pts[n-2]; shipXY=[x,y]; shipAng=Math.atan2(y-py,x-px); }
+    else { shipXY=toXY(0,1,S); shipAng=-.35; }
+    // the ship (gone once it blows)
+    if(phase!=="boom"){ const [x,y]=shipXY, j=flying?Math.min(2.5,mult*.12):0; drawShip(x+(Math.random()-.5)*j, y+(Math.random()-.5)*j, shipAng, flying?Math.min(1,.3+Math.log(mult)*.4):phase==="wait"&&windowEnd-performance.now()<1200?.2:0); }
+    // launch pad glow while waiting
+    if(phase==="wait"){ const [x,y]=toXY(0,1,S); const k=Math.max(0,1-(windowEnd-performance.now())/WINDOW_MS); g.fillStyle=`rgba(95,208,255,${.12+.25*k})`; g.beginPath(); g.ellipse(x,y+10,30+k*10,6,0,0,7); g.fill(); }
+    // escape pods bailing out
+    pods=pods.filter(p=>{ const k=(now-p.t)/1500; if(k>1) return false; p.x+=p.vx; p.y+=p.vy; p.vy+=.06; p.trail.push([p.x,p.y]); if(p.trail.length>14) p.trail.shift();
+      g.strokeStyle=p.c; g.lineWidth=2; g.globalAlpha=1-k; g.beginPath(); p.trail.forEach((q,i)=>i?g.lineTo(q[0],q[1]):g.moveTo(q[0],q[1])); g.stroke();
+      g.fillStyle="#fff"; g.beginPath(); g.arc(p.x,p.y,4,0,7); g.fill(); g.fillStyle=p.c; g.beginPath(); g.arc(p.x,p.y,2.4,0,7); g.fill();
+      g.font=`700 ${p.big?16:12}px "Chakra Petch",system-ui`; g.textAlign="center"; g.fillStyle=p.c; g.fillText(p.label,p.x,p.y-10); g.globalAlpha=1; return true; });
+    // explosion debris
+    bits=bits.filter(b=>{ b.life-=.016; if(b.life<=0) return false; b.x+=b.vx; b.y+=b.vy; b.vx*=.985; b.vy=b.vy*.985+.03; g.globalAlpha=Math.min(1,b.life*1.5);
+      if(b.glow){ const r=b.r*(1.6-b.life); const rg=g.createRadialGradient(b.x,b.y,0,b.x,b.y,r); rg.addColorStop(0,"#fff"); rg.addColorStop(.3,b.c); rg.addColorStop(1,"rgba(255,80,60,0)"); g.fillStyle=rg; g.beginPath(); g.arc(b.x,b.y,r,0,7); g.fill(); }
+      else { g.fillStyle=b.c; g.save(); g.translate(b.x,b.y); g.rotate(b.rot+=b.vr); g.fillRect(-b.r,-b.r/2,b.r*2,b.r); g.restore(); } g.globalAlpha=1; return true; });
+    if(flash>0){ g.fillStyle=`rgba(255,220,200,${flash})`; g.fillRect(0,0,W,H); flash=Math.max(0,flash-.05); }
+    requestAnimationFrame(frame); }
+  return { size, start(){ size(); requestAnimationFrame(frame); },
+    pod(c,label,big){ const [x,y]=shipXY; pods.push({ x, y, vx:-1.2-Math.random()*1.6, vy:-1.6-Math.random()*1.4, c, label, big, t:performance.now(), trail:[] }); },
+    boom(){ const [x,y]=shipXY; flash=.7; for(let i=0;i<5;i++) bits.push({ x, y, vx:(Math.random()-.5)*2, vy:(Math.random()-.5)*2, r:30+i*14, c:["#ffd76a","#ff8a3a","#ff4d6d"][i%3], life:1, glow:true });
+      for(let i=0;i<46;i++){ const a=Math.random()*7, s=1.5+Math.random()*6; bits.push({ x, y, vx:Math.cos(a)*s, vy:Math.sin(a)*s, r:1.5+Math.random()*3.5, c:pick(["#e9e6f5","#a9a3c4","#7a2fd0","#ffc845","#5fd0ff","#ff8a3a"]), life:.8+Math.random()*.9, rot:Math.random()*7, vr:(Math.random()-.5)*.4 }); } },
+    landmark(m){ while(nextLm<LANDMARKS.length && m>=LANDMARKS[nextLm][0]){ const [,s,c]=LANDMARKS[nextLm++]; landmark={ s, c, t:performance.now() }; SFX.milestone(); } },
+    resetLandmarks(){ nextLm=0; landmark=null; } };
+})();
+
+// ---- the round ----
+function paintHist(){ $("hist").innerHTML = history.map(m=>`<span class="${m<2?"lo":m<10?"mid":m<100?"hi":"mega"}">${fmt(m)}</span>`).join(""); }
+function paint(){
+  $("credits").textContent=credits; $("stake").textContent = round.bet || stake;
+  const go=$("go"), sm=go.querySelector("small"); go.className="go"; go.disabled=false;
+  const set=(big,small,cls,dis)=>{ go.firstChild.textContent=big; sm.textContent=small; if(cls) go.classList.add(cls); go.disabled=!!dis; };
+  if(phase==="wait"){ const s=Math.max(0,Math.ceil((windowEnd-performance.now())/1000));
+    if(round.bet) set("CANCEL",`launch in ${s}`,"cancel"); else set("BET",stake>credits?"not enough bars":`${stake} · launch in ${s}`,null,stake>credits||stake<=0); }
+  else if(phase==="flight"){ if(round.bet && !round.cashed) set("CASH OUT", "+"+Math.floor(round.bet*mult), "cash"); else set("WAIT", round.cashed?`banked +${round.cashed.win}`:"next launch soon", null, true); }
+  else set("WAIT", round.cashed?`banked +${round.cashed.win}`:"next launch soon", null, true);
+  document.querySelectorAll(".chip").forEach(b=>b.disabled = phase!=="wait" || !!round.bet);
+  $("clear").disabled = phase!=="wait" || !!round.bet;
+  $("auto").classList.toggle("off",!autoOn); $("autoV").textContent = autoOn ? fmt(autoM) : "OFF"; $("autoDn").disabled=$("autoUp").disabled=!autoOn;
+}
+function say(t){ if(!t) return; $("say").textContent=t; const d=$("dealer"); d.querySelector("span").textContent=t; d.classList.remove("show"); void d.offsetWidth; d.classList.add("show");
+  clearTimeout(say.t); say.t=setTimeout(()=>d.classList.remove("show"), 2000+t.length*40); }
+const LINES = { open:["Boarding now. Place your bets.","Next launch coming up. Who's flying?","Fuel's in. Bets, please."],
+  launch:["Liftoff!","Hold on to your tentacles!","Engines hot. Here we go!"],
+  boom:["Warp core breach!","Kaboom. The house thanks you.","She couldn't take it!","Boom. Sweep up the bits."],
+  pad:["It blew on the pad!","Didn't even leave the dock!"], big:["Look at her go!","Has anyone ever seen this?!"] };
+const bag={}; function line(k){ let b=bag[k]; if(!b||!b.length) b=bag[k]=LINES[k].slice().sort(()=>Math.random()-.5); return b.pop(); }
+
+async function betWindow(){ phase="wait"; windowEnd=performance.now()+WINDOW_MS; Fx.resetLandmarks(); mult=1; flightT=0;
+  $("mult").className="mult"; $("mult").firstChild.textContent="×1.00"; $("mult").style.setProperty("--mc","#5fd0ff"); $("multSub").textContent="boarding"; say(line("open")); crewBet();
+  let last=-1; while(performance.now()<windowEnd){ const s=Math.ceil((windowEnd-performance.now())/1000); if(s!==last){ last=s; $("multSub").textContent=`launch in ${s}`; if(s<=3) SFX.count(s); paint(); } await wait(100); }
+  flight(); }
+function flight(){ setAuto(autoOn?autoM:0); launch(); phase="flight"; t0=performance.now(); winShown=0; $("win").textContent=0; say(line("launch")); SFX.launch(); paint();
+  let lastWhole=1, bigSaid=false;
+  const tick=()=>{ flightT=(performance.now()-t0)/1000; let m=multAt(flightT);
+    if(blown(m)){ mult=round.crash; return boom(); }
+    // auto cash-out lands exactly on the target
+    if(round.bet && !round.cashed && round.auto && m>=round.auto){ doCash(round.auto); }
+    mult=m; crewTick(m); Fx.landmark(m);
+    $("mult").firstChild.textContent=fmt(m); $("mult").style.setProperty("--mc",multColor(m)); $("multSub").textContent= round.cashed ? `you banked ${fmt(round.cashed.m)}` : round.bet ? `cash out: +${Math.floor(round.bet*m)}` : "flying";
+    if(Math.floor(m)>lastWhole){ lastWhole=Math.floor(m); SFX.whole(lastWhole); }
+    if(m>20 && !bigSaid){ bigSaid=true; say(line("big")); }
+    Engine.level(m); paint(); requestAnimationFrame(tick); };
+  Engine.on(); requestAnimationFrame(tick); }
+function doCash(m){ const win=cashOut(m); if(!win) return; Fx.pod("#ffffff","+"+win,true); SFX.cash(); $("win").textContent=win; $("credits").textContent=credits;
+  say(`You bailed at ${fmt(round.cashed.m)}: +${win}!`); paint(); }
+async function boom(){ phase="boom"; Engine.off(); const pad=mult<=1; Fx.boom(); SFX.boom(); $("app").classList.remove("shake"); void $("app").offsetWidth; $("app").classList.add("shake");
+  $("mult").className="mult boom"; $("mult").firstChild.textContent=fmt(mult); $("multSub").textContent= pad ? "blew on the pad" : "warp core breach";
+  crewBoom(); const r=endRound(); paintHist(); say(line(pad?"pad":"boom")); if(r.bet && !r.cashed) SFX.lose(); paint();
+  await wait(3200); betWindow(); }
+
+// ---- controls ----
+document.querySelectorAll(".chip").forEach(b=>b.onclick=()=>{ Sound.unlock(); Music.start(); const v=+b.dataset.v; if(stake===10 && !paint.touched) stake=0; paint.touched=true; stake=Math.min(credits, stake+v); SFX.chip(); paint(); });
+$("clear").onclick=()=>{ stake=0; paint.touched=true; Sound.tap(); paint(); };
+$("go").onclick=()=>{ Sound.unlock(); Music.start();
+  if(phase==="wait"){ if(round.bet){ cancelBet(); Sound.tap(); } else if(placeBet(stake)){ SFX.chip(); SFX.lock(); } paint(); }
+  else if(phase==="flight" && round.bet && !round.cashed) doCash(mult); };
+$("autoTog").onclick=()=>{ autoOn=!autoOn; Sound.tap(); if(phase==="flight" && round.bet && !round.cashed) setAuto(autoOn?autoM:0); paint(); };
+const AUTOS=[1.2,1.5,1.8,2,2.5,3,4,5,7,10,15,20,50,100];
+const stepAuto=d=>{ let i=AUTOS.findIndex(v=>v>=autoM-1e-9); if(i<0) i=AUTOS.length-1; i=Math.max(0,Math.min(AUTOS.length-1,i+d)); autoM=AUTOS[i]; Sound.tap(); if(phase==="flight" && round.bet && !round.cashed) setAuto(autoM); paint(); };
+$("autoDn").onclick=()=>stepAuto(-1); $("autoUp").onclick=()=>stepAuto(1);
+
+// ---- sound ----
+const SFX = {
+  chip(){ Sound.tone(2200,.03,{type:"triangle",vol:.05}); Sound.tone(1600,.05,{type:"triangle",vol:.04,at:.03}); },
+  lock(){ Sound.tone(660,.08,{type:"square",vol:.03}); Sound.tone(990,.1,{type:"square",vol:.03,at:.07}); },
+  count(s){ Sound.tone(s===1?880:660,.09,{type:"sine",vol:.08}); },
+  launch(){ Sound.noise(1.6,{vol:.12,type:"lowpass",freq:300,sweep:5,attack:.05}); Sound.tone(70,1.2,{type:"sawtooth",vol:.05,slide:2.5,lp:500}); },
+  whole(n){ Sound.tone(Sound.note(12+Math.min(24,n*2)),.12,{type:"triangle",vol:.05}); },
+  milestone(){ Sound.arp([12,19,24],.06,{type:"sine",vol:.06,dur:.3}); },
+  cash(){ Sound.arp([12,16,19,24,28],.05,{type:"triangle",vol:.1,dur:.2}); Sound.noise(.3,{vol:.05,type:"highpass",freq:3000,sweep:.5}); },
+  bail(){ Sound.tone(1400,.08,{type:"sine",vol:.04,slide:1.6}); },
+  boom(){ Sound.noise(1.4,{vol:.32,type:"lowpass",freq:2400,sweep:.05,attack:.003}); Sound.tone(110,1,{type:"sawtooth",vol:.1,slide:.25,lp:900}); Sound.noise(.12,{vol:.2,type:"highpass",freq:1200}); },
+  lose(){ Sound.tone(Sound.note(-5),.2,{type:"triangle",vol:.05,at:.6}); Sound.tone(Sound.note(-8),.3,{type:"triangle",vol:.05,at:.78}); } };
+// the engine roar: a stream of short low pulses whose pitch and loudness climb with the multiplier
+const Engine = (()=>{ let timer=null, lvl=1;
+  return { on(){ if(timer) return; timer=setInterval(()=>{ if(!Sound.on) return; const k=Math.min(1,Math.log(lvl)/Math.log(50)), f=55+k*90;
+      Sound.tone(f,.16,{type:"sawtooth",vol:.022+k*.02,lp:400+k*1400}); Sound.noise(.14,{vol:.02+k*.03,type:"bandpass",freq:500+k*2500,q:.8}); }, 110); },
+    off(){ clearInterval(timer); timer=null; }, level(m){ lvl=m; } }; })();
+const Music = (()=>{ let timer=null, step=0, nextT=0; const CH=[[0,3,7,10],[-4,0,3,7],[-2,2,5,9],[-5,-2,2,5]];
+  function tick(){ if(!Sound.ready()) return; const now=Sound.now(), sd=60/96/2; if(nextT<now-.25) nextT=now+.05;
+    while(nextT<now+.12){ const at=nextT-now, k=step%16, ch=CH[Math.floor(step/16)%4];
+      if(Sound.on && Sound.musicOn && phase!=="flight"){ const M={bus:"music"};
+        if(k===0) ch.forEach(n=>Sound.tone(Sound.note(n),sd*15,{...M,at,type:"sine",vol:.014,attack:.4,vib:.004}));
+        if(k%4===0) Sound.tone(Sound.note(ch[0]-12),sd*1.5,{...M,at,type:"triangle",vol:.035,lp:600});
+        if(k%2===1) Sound.tone(Sound.note(ch[(k>>1)%4]+12),sd*.9,{...M,at,type:"sine",vol:.01,attack:.02}); }
+      step++; nextT+=sd; } }
+  return { start(){ if(!timer){ nextT=(Sound.now()||0)+.1; timer=setInterval(tick,25); } } };
+})();
+
+// ---- wiring ----
+$("snd").addEventListener("click",()=>{ Sound.on=!Sound.on; $("snd").setAttribute("aria-pressed",String(Sound.on)); });
+$("info").addEventListener("click",()=>{ $("sheet").hidden=false; });
+$("close").addEventListener("click",()=>$("sheet").hidden=true);
+$("sheet").addEventListener("click",e=>{ if(e.target.id==="sheet") $("sheet").hidden=true; });
+$("fpad").addEventListener("click",()=>{ FORCE.crash=1; $("sheet").hidden=true; });
+$("f3").addEventListener("click",()=>{ FORCE.crash=3; $("sheet").hidden=true; });
+$("f50").addEventListener("click",()=>{ FORCE.crash=50; $("sheet").hidden=true; });
+document.addEventListener("pointerdown",()=>Sound.unlock(),{once:true});
+addEventListener("resize",()=>Fx.size());
+paintHist(); paint(); requestAnimationFrame(()=>{ Fx.start(); betWindow(); });
+</script>

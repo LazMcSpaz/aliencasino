@@ -29,6 +29,10 @@ moons/       Twin Moons: alien craps — two 8-sided moons, the GAP between them
   part_engine.js   come-out / point rules, With / Against / Gap / Collide bets · tools/sim.js checks payback, tools/playtest.js browser test
   shell.html, build.py → moons.html
 
+warp/        Warp Drive: a "crash" game — the ship's multiplier climbs; cash out before the warp core blows
+  part_engine.js   crash point (payback ≈96% at any cash-out target), bets, cash out · tools/sim.js checks payback, tools/playtest.js browser test
+  shell.html       the flight (stars, climb curve, ship, explosion, escape pods), the alien crew, auto cash-out · build.py → warp.html
+
 model3d/     the walking slot-machine robot
   model.js         builds the robot in code (cabinet, corrugated legs and arms, claws, animations)
   viewer.src.html  the interactive 3D viewer page (template)
