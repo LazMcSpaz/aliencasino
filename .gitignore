@@ -2,3 +2,4 @@ node_modules/
 *.raw
 *.wav
 .DS_Store
+lobby/games/
