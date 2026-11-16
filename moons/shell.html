@@ -368,20 +368,25 @@ function anim(ms,fn){ return new Promise(done=>{ const t0=performance.now(); con
 
 // press and hold ROLL: the dice appear small in the button and follow your finger, growing as they near the table; flick up to throw. A tap just rolls.
 (function grip(){ const go=$("go"); let held=null, samples=[];
-  const drawHeld=()=>{ if(!held) return; hand.clear(); const t=performance.now()/1000, [fx,fy]=held.at;
-    [0,1].forEach(i=>{ const s=sizeAt(fy), px=fx+(i?1:-1)*s*.95+Math.sin(t*30+i*2)*s*.08, py=fy-s*.1+Math.cos(t*26+i)*s*.07;
-      D8.render(hand.x, px, py, s, D8.mul(D8.axisRot([1,1-i,.4],t*7+i),D8.finalFor(1+i)), i, 1, s*.25); });
+  // the dice on the table fly down to your thumb first (shrinking as they come), so the box is empty when you throw
+  const drawHeld=()=>{ if(!held) return; hand.clear(); const now=performance.now(), t=now/1000, [fx,fy]=held.at, el=(now-held.start[2])/1000;
+    const k=Math.min(1,el/.32), e=1-Math.pow(1-k,3);
+    [0,1].forEach(i=>{ const s=sizeAt(fy), hx=fx+(i?1:-1)*s*.95+Math.sin(t*30+i*2)*s*.08*e, hy=fy-s*.1+Math.cos(t*26+i)*s*.07*e, f=held.from[i];
+      const px=f.x+(hx-f.x)*e, py=f.y+(hy-f.y)*e - Math.sin(k*Math.PI)*f.r*.6, sz=f.r+(s-f.r)*e;
+      D8.render(hand.x, px, py, sz, D8.mul(D8.axisRot([1,1-i,.4],el*9+i*.3),f.M), i, 1, sz*.25*e); });
     requestAnimationFrame(drawHeld); };
   go.addEventListener("pointerdown",e=>{ if(go.disabled || rolling) return; e.preventDefault(); Sound.unlock(); Music.start(); go.setPointerCapture(e.pointerId);
-    held={ id:e.pointerId, at:[e.clientX,e.clientY], start:[e.clientX,e.clientY,performance.now()] }; samples=[[e.clientX,e.clientY,performance.now()]]; SFX.rattle(); drawHeld(); });
+    const zr=$("zone").getBoundingClientRect(); held={ id:e.pointerId, at:[e.clientX,e.clientY], start:[e.clientX,e.clientY,performance.now()], from:moons.map(m=>({x:zr.left+m.x, y:zr.top+m.y, r:R0()*1.08, M:m.M})) }; inFlight=true; ruler=null; draw(); samples=[[e.clientX,e.clientY,performance.now()]]; SFX.rattle(); drawHeld(); });
   go.addEventListener("pointermove",e=>{ if(!held || e.pointerId!==held.id) return; held.at=[e.clientX,e.clientY]; samples.push([e.clientX,e.clientY,performance.now()]); if(samples.length>8) samples.shift(); });
   const end=e=>{ if(!held || e.pointerId!==held.id) return; const h=held; held=null; SFX.stopRattle(); hand.clear();
     const now=performance.now(), moved=h.start[1]-e.clientY, recent=samples.filter(q=>now-q[2]<140), a=recent[0]||[e.clientX,e.clientY,now-16], dt=Math.max(16,now-a[2]);
     const vx=(e.clientX-a[0])/dt*1000, vy=(e.clientY-a[1])/dt*1000;
-    if(e.type==="pointercancel") return;
+    const putBack=()=>{ if(!rolling){ inFlight=false; draw(); } };
+    if(e.type==="pointercancel") return putBack();
     if(moved<25) doRoll(null);                                    // a tap: they launch from the button
     else if(vy<-300) doRoll({ x:e.clientX, y:e.clientY, vx, vy });  // a flick
-    else doRoll({ x:e.clientX, y:e.clientY, vx:vx*.5, vy:-1100 }); }; // slid up and let go: toss them in
+    else doRoll({ x:e.clientX, y:e.clientY, vx:vx*.5, vy:-1100 });
+    putBack(); }; // slid up and let go: toss them in
   go.addEventListener("pointerup",end); go.addEventListener("pointercancel",end);
   go.onclick=e=>{ if(e.detail===0) doRoll(null); };               // keyboard
 })();
