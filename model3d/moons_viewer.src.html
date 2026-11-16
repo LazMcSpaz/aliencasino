@@ -52,7 +52,7 @@ let bot, mixer, acts={}, cur=null, beacon=null, mode="Idle";
   const tex={face:await loadImg(TEX_SRC.face)};
   bot=buildMoonsTable(THREE,{tex}); scene.add(bot.root);
   mixer=new THREE.AnimationMixer(bot.root); bot.clips.forEach(c=>acts[c.name]=mixer.clipAction(c)); beacon=null; play(); })();
-const NOTES={Idle:"The moons sit on the felt; the dealer's stick waits, raised",Roll:"A throw from the end: the moons fly down the table, bounce off the far bumpers, and the stick rakes them back",Stop:""};
+const NOTES={Idle:"The moons wait on the felt; the laser wall is parked at the far end",Roll:"The launcher fires the moons down the table; the laser wall sweeps them back into the hopper and up the tube",Stop:""};
 function play(){ document.getElementById("note").textContent=NOTES[mode];
   if(mode==="Stop"){ if(cur) cur.fadeOut(.3); cur=null; return; }
   const a=acts[mode]; if(a===cur) return; a.reset().setEffectiveWeight(1).play(); if(cur) cur.crossFadeTo(a,.35,false); cur=a; }
