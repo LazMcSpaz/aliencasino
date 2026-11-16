@@ -1114,7 +1114,7 @@ const GAMES = [
 
 // ---- renderer, scene, camera ----
 const cv=$("c"), renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true});
-renderer.setPixelRatio(Math.min(2,devicePixelRatio)); renderer.outputEncoding=THREE.sRGBEncoding; renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.05;
+const PHONE=Math.min(innerWidth,innerHeight)<700; renderer.setPixelRatio(Math.min(PHONE?1.5:2,devicePixelRatio)); renderer.outputEncoding=THREE.sRGBEncoding; renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.05;
 renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 const scene=new THREE.Scene(); scene.background=new THREE.Color(0x07040f); scene.fog=new THREE.Fog(0x07040f,20,42);
 const cam=new THREE.PerspectiveCamera(45,1,.1,80);
@@ -1127,7 +1127,7 @@ ctl.minAzimuthAngle=-.9; ctl.maxAzimuthAngle=.9; ctl.update();
 
 // ---- lights: dim violet room, a key light for shadows, coloured pools of light over the games ----
 scene.add(new THREE.HemisphereLight(0xa99cff,0x140a28,.55));
-const key=new THREE.DirectionalLight(0xffffff,1.25); key.position.set(4,14,9); key.castShadow=true; key.shadow.mapSize.set(2048,2048);
+const key=new THREE.DirectionalLight(0xffffff,1.25); key.position.set(4,14,9); key.castShadow=true; key.shadow.mapSize.set(PHONE?1024:2048,PHONE?1024:2048);
 Object.assign(key.shadow.camera,{left:-12,right:12,top:12,bottom:-12,near:1,far:40}); key.shadow.bias=-.0005; key.shadow.normalBias=.03; scene.add(key);
 const rim=new THREE.DirectionalLight(0xff5fae,.7); rim.position.set(-8,6,-10); scene.add(rim);
 GAMES.forEach(g=>{ const l=new THREE.PointLight(new THREE.Color(g.col),1.1,9,2); l.position.set(g.pos[0],4.2,g.pos[2]); scene.add(l); });
@@ -1141,7 +1141,7 @@ const RW=22, RD=20, WH=7.5;
   const motif=(x,y,s)=>{ g.save(); g.translate(x,y); g.strokeStyle="#ffc84566"; g.lineWidth=3; for(let k=0;k<4;k++){ g.rotate(Math.PI/2); g.beginPath(); g.moveTo(0,s*.2); g.quadraticCurveTo(s*.5,s*.4,s*.25,s*.9); g.stroke(); }
     g.fillStyle="#5fe8ff55"; g.beginPath(); g.arc(0,0,s*.14,0,7); g.fill(); g.strokeStyle="#b48cff55"; g.lineWidth=2; g.beginPath(); g.arc(0,0,s*.55,0,7); g.stroke(); g.restore(); };
   motif(128,128,110); motif(384,384,110); motif(384,128,60); motif(128,384,60);
-  const floor=new THREE.Mesh(new THREE.PlaneGeometry(RW,RD+14),new THREE.MeshStandardMaterial({map:ctex(c,[5,8.5]),roughness:.95})); floor.rotation.x=-Math.PI/2; floor.position.z=6;   // runs on toward the camera floor.receiveShadow=true; scene.add(floor); }
+  const floor=new THREE.Mesh(new THREE.PlaneGeometry(RW,RD+14),new THREE.MeshStandardMaterial({map:ctex(c,[5,8.5]),roughness:.95})); floor.rotation.x=-Math.PI/2; floor.position.z=6;   /* runs on toward the camera */ floor.receiveShadow=true; scene.add(floor); }
 { // walls
   const c=document.createElement("canvas"); c.width=512; c.height=256; const g=c.getContext("2d"), gr=g.createLinearGradient(0,0,0,256); gr.addColorStop(0,"#120b26"); gr.addColorStop(1,"#1f1440"); g.fillStyle=gr; g.fillRect(0,0,512,256);
   for(let x=0;x<512;x+=128){ g.fillStyle="#0a0618"; g.fillRect(x,0,6,256); g.fillStyle="#2c1f55"; g.fillRect(x+6,0,2,256); }
@@ -1167,7 +1167,8 @@ const RW=22, RD=20, WH=7.5;
   const sign2=sign.clone(); sign2.position.x=6.2; scene.add(sign2); }
 // ---- textures for the models ----
 const loadImg=s=>new Promise(r=>{ const i=new Image(); i.onload=()=>r(i); i.onerror=()=>r(null); i.src=s; });
-async function loadAll(o){ if(typeof o==="string") return o.startsWith("data:image") ? loadImg(o) : o; if(Array.isArray(o)||typeof o!=="object"||!o) return o; const r={}; for(const [k,v] of Object.entries(o)) r[k]=await loadAll(v); return r; }
+async function loadAll(o){ if(typeof o==="string") return o.startsWith("data:image") ? loadImg(o) : o; if(Array.isArray(o)||typeof o!=="object"||!o) return o;
+  const ks=Object.keys(o), vs=await Promise.all(ks.map(k=>loadAll(o[k]))); const r={}; ks.forEach((k,i)=>r[k]=vs[i]); return r; }   // all images decode at once
 
 // ---- place the models ----
 const placed=[], mixers=[], updates=[], pickables=[];
@@ -1178,8 +1179,9 @@ function label(g){ const c=document.createElement("canvas"); c.width=512; c.heig
 async function buildFloor(){ const TX=await loadAll(TEX_SRC); const say=t=>$("lmsg").textContent=t;
   const make={ slot:()=>buildSlotBot(THREE,{mood:"happy",tex:TX.slot}), pyramid:()=>buildPyramidBot(THREE,{tex:TX.pyramid}), asteroid:()=>buildPyramidBot(THREE,{tex:TX.asteroid}),
     gravity:()=>buildGravityTable(THREE,{tex:TX.gravity}), moons:()=>buildMoonsTable(THREE,{tex:TX.moons}), warp:()=>buildWarpStage(THREE,{tex:TX.warp}) };
-  for(const g of GAMES){ say("SETTING UP "+g.name.toUpperCase()+"…"); await new Promise(r=>setTimeout(r,0));
-    const m=make[g.id](); if(g.id==="slot" && m.setMood) m.setMood("happy");
+  $("loading").classList.add("done"); let n=0;                                       // the room is already there: show it now
+  for(const g of GAMES){ n++; $("hint").textContent=`SETTING UP GAMES ${n}/${GAMES.length}`; await new Promise(r=>requestAnimationFrame(()=>setTimeout(r,0)));
+    let m; try{ m=make[g.id](); }catch(e){ console.error(g.id,e); continue; } if(g.id==="slot" && m.setMood) m.setMood("happy");
     const holder=new THREE.Group(); holder.position.set(...g.pos); holder.rotation.y=g.rot; holder.scale.setScalar(g.scale); holder.add(m.root); holder.userData.game=g; scene.add(holder);
     m.root.traverse(o=>{ if(o.isMesh){ o.castShadow=o.castShadow!==false; o.userData.game=g; pickables.push(o); } });
     if(m.clips && m.clips.length){ const mx=new THREE.AnimationMixer(m.root); const c=m.clips.find(c=>c.name===g.clip)||m.clips[0]; mx.clipAction(c).play(); mx.update(Math.random()*2); mixers.push(mx); }
@@ -1189,8 +1191,8 @@ async function buildFloor(){ const TX=await loadAll(TEX_SRC); const say=t=>$("lm
     // a glowing ring on the floor shows which game you've picked
     const ring=new THREE.Mesh(new THREE.RingGeometry(1,1.06,64),new THREE.MeshBasicMaterial({color:new THREE.Color(g.col),transparent:true,opacity:0,depthWrite:false})); ring.rotation.x=-Math.PI/2;
     const sz=box.getSize(new THREE.Vector3()), c=box.getCenter(new THREE.Vector3()); ring.scale.setScalar(Math.max(sz.x,sz.z)*.62+.3); ring.position.set(c.x,.02,c.z); scene.add(ring);
-    placed.push({ g, holder, box, ring, lab }); }
-  buildNav(); }
+    placed.push({ g, holder, box, ring, lab }); try{ renderer.compile(scene,cam); }catch(e){} }
+  $("hint").innerHTML="TAP A GAME &middot; DRAG TO LOOK AROUND"; buildNav(); }
 
 // ---- picking a game: tap it (or its name, or the list), the camera glides over, its card comes up ----
 let focused=null, tween=null;
@@ -1227,6 +1229,8 @@ renderer.setAnimationLoop(()=>{ if(playing) return; const dt=Math.min(.05,clock.
   mixers.forEach(m=>m.update(dt)); updates.forEach(u=>u(t));
   placed.forEach(p=>{ const on=focused===p; p.ring.material.opacity+=((on?.9:0)-p.ring.material.opacity)*.12; p.lab.position.y+=Math.sin(t*1.6+p.g.pos[0])*.0015; const lo=focused&&!on?0:1; p.lab.material.opacity+=(lo-p.lab.material.opacity)*.15; p.lab.visible=p.lab.material.opacity>.02; });
   ctl.update(); renderer.render(scene,cam); });
-(async()=>{ try{ await Promise.race([document.fonts.load('400 40px Bungee'),new Promise(r=>setTimeout(r,2000))]); }catch(e){}
-  await buildFloor(); $("loading").classList.add("done"); })();
+addEventListener("error",e=>{ $("lmsg").textContent="SOMETHING WENT WRONG: "+(e.message||""); });
+(async()=>{ try{ await Promise.race([document.fonts.load('400 40px Bungee'),new Promise(r=>setTimeout(r,600))]); }catch(e){}
+  $("lmsg").textContent="UNPACKING THE CASINO"; await new Promise(r=>requestAnimationFrame(()=>setTimeout(r,0)));
+  try{ await buildFloor(); }catch(e){ $("lmsg").textContent="SOMETHING WENT WRONG: "+e.message; $("loading").classList.remove("done"); } })();
 </script>

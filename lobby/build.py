@@ -21,3 +21,9 @@ g = here/"games"; g.mkdir(exist_ok=True)
 for name, src in [("slot", "slot/slot.html"), ("pyramid", "pyramid/pyramid.html"), ("asteroid", "asteroid/asteroid.html"), ("gravity", "gravity/gravity.html"), ("moons", "moons/moons.html"), ("warp", "warp/warp.html")]:
     shutil.copy(here/".."/src, g/f"{name}.html")
 print("games:", ", ".join(sorted(p.name for p in g.iterdir())))
+# safety net: refuse to ship a page whose script doesn't even parse (a stray comment once broke the whole lobby)
+import subprocess, shutil as _sh
+if _sh.which("node"):
+    chk = subprocess.run(["node", "-e", "const s=require('fs').readFileSync('lobby.html','utf8');const js=s.split('<script>').pop().split('</script>')[0];new Function(js);"], cwd=here, capture_output=True, text=True)
+    print("script check:", "ok" if chk.returncode == 0 else "FAILED\n" + chk.stderr[-400:])
+    if chk.returncode: raise SystemExit(1)
