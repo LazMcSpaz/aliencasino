@@ -26,58 +26,76 @@ header small{color:var(--dim);font-size:12px}
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
 <script>
-// The tentacled alien patron (concept pass), built from the character sheet: slender torso, long face with big dark eyes,
-// a crest of thick head tentacles, two tentacle arms, and a gown of leg tentacles that it glides on. Harness and belt with a cyan light.
+// The tentacled alien patron, built from the character sheet: narrow waist and broad shoulders with a cream chest, a wide head with big dark eyes,
+// a crest of fat head lobes, two thick tentacle arms, and a gown of leg tentacles that hang from the hips and coil on the floor. Harness and belt with cyan lights.
 // Every tentacle is one smooth skinned tube with a chain of bones inside it, so it bends without visible joints.
-// Units are metres; it faces +Z; origin on the floor between its "feet". About 2.1 m tall with the crest.
+// Units are metres; it faces +Z; origin on the floor under it. About 2.1 m tall with the crest.
 // Node names (for animation): Alien, Body (bobs), Torso (leans), Head, ArmL_0…, ArmR_0…, Hair<k>_<j>, Leg<k>_<j>.
 // Clips: Idle, Glide (moving across the floor), Play (right arm reaches out and taps a button), Cheer.
 function buildAlien(THREE, opts = {}) {
-  const PAL = { purple: { base: "#7b3fb0", dark: "#4a2280", cream: "#f3dfc4", crest: "#e04fc0", crestDark: "#8a3fc0", spotA: "#ff5fb8", spotB: "#ffd23a", spotC: "#c6e63a", sucker: "#e79bd2" },
-    blue:   { base: "#2f7fd0", dark: "#1d4a96", cream: "#bfe6f2", crest: "#3fb0e8", crestDark: "#2a5fc0", spotA: "#6fe0ff", spotB: "#ffb23a", spotC: "#ffd870", sucker: "#8fd0ee" },
-    orange: { base: "#e8642a", dark: "#b03a3a", cream: "#ffd48a", crest: "#ff7a4a", crestDark: "#d0406a", spotA: "#ffb03a", spotB: "#ffe36a", spotC: "#ff5fae", sucker: "#ffb0a0" },
-    pale:   { base: "#9aa8c8", dark: "#6a6fa8", cream: "#eef2f0", crest: "#b8c8e0", crestDark: "#8a8fc8", spotA: "#b48cff", spotB: "#8fe0c8", spotC: "#d8c8ff", sucker: "#c8b8e8" } };
+  const PAL = { purple: { base: "#8d3fbd", dark: "#4f2388", cream: "#e2b98a", line: "#b98a6a", crest: "#e455c8", crestDark: "#9a3fc4", spotA: "#ff5fb8", spotB: "#ffb43a", spotC: "#c6e63a", sucker: "#e58fc8" },
+    blue:   { base: "#2f7fd0", dark: "#1d4a96", cream: "#b4dcea", line: "#6fa0c0", crest: "#3fb0e8", crestDark: "#2a5fc0", spotA: "#6fe0ff", spotB: "#ffb23a", spotC: "#ffd870", sucker: "#8fd0ee" },
+    orange: { base: "#e8642a", dark: "#b03a3a", cream: "#ffcf80", line: "#d08a40", crest: "#ff7a4a", crestDark: "#d0406a", spotA: "#ffb03a", spotB: "#ffe36a", spotC: "#ff5fae", sucker: "#ffb0a0" },
+    pale:   { base: "#9aa8c8", dark: "#6a6fa8", cream: "#e4e8e2", line: "#a8a8b8", crest: "#b8c8e0", crestDark: "#8a8fc8", spotA: "#b48cff", spotB: "#8fe0c8", spotC: "#d8c8ff", sucker: "#c8b8e8" } };
   const P = PAL[opts.palette] || PAL.purple;
   let seed = opts.seed || 7; const rnd = () => ((seed = (seed * 9301 + 49297) % 233280) / 233280);
   const ctex = c => { const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4; t.wrapS = THREE.RepeatWrapping; return t; };
   const skin = map => new THREE.MeshStandardMaterial({ map, roughness: .32, metalness: .05 });
 
   // ---- skin textures. u runs round the limb (0.5 = its underside), v along it (0 = root, 1 = tip) ----
-  function spots(g, W, H, n, avoid) { for (let i = 0; i < n; i++) { const x = rnd() * W, y = rnd() * H; if (avoid && avoid(x / W, y / H)) continue; const rx = 8 + rnd() * 16, ry = rx * (1.3 + rnd() * 1.2), col = [P.spotA, P.spotA, P.spotB, P.spotC][Math.floor(rnd() * 4)];
-      for (const dx of [-W, 0, W]) { g.fillStyle = P.spotA; g.globalAlpha = .55; g.beginPath(); g.ellipse(x + dx, y, rx * 1.35, ry * 1.25, 0, 0, 7); g.fill(); g.globalAlpha = 1; g.fillStyle = col; g.beginPath(); g.ellipse(x + dx, y, rx, ry, 0, 0, 7); g.fill(); } } }
-  function limbTex(suckers) { const c = document.createElement("canvas"); c.width = 256; c.height = 512; const g = c.getContext("2d");
-    const gr = g.createLinearGradient(0, 0, 256, 0); gr.addColorStop(0, P.dark); gr.addColorStop(.18, P.base); gr.addColorStop(.3, P.base); gr.addColorStop(.38, P.cream); gr.addColorStop(.62, P.cream); gr.addColorStop(.7, P.base); gr.addColorStop(.82, P.base); gr.addColorStop(1, P.dark);
+  // blotches: a soft pink patch with a bright orange / yellow / lime centre, like the sheet
+  function spots(g, W, H, n, avoid, big = 1) { for (let i = 0; i < n; i++) { const x = rnd() * W, y = rnd() * H; if (avoid && avoid(x / W, y / H)) continue; const rx = (10 + rnd() * 16) * big, ry = rx * (1.4 + rnd() * 1.3), col = [P.spotA, P.spotB, P.spotB, P.spotC][Math.floor(rnd() * 4)];
+      for (const dx of [-W, 0, W]) { g.fillStyle = P.spotA; g.globalAlpha = .7; g.beginPath(); g.ellipse(x + dx, y, rx * 1.5, ry * 1.35, 0, 0, 7); g.fill(); g.globalAlpha = 1; g.fillStyle = col; g.beginPath(); g.ellipse(x + dx, y, rx * .8, ry * .8, 0, 0, 7); g.fill(); } } }
+  function limbTex(suckers, wide) { const c = document.createElement("canvas"); c.width = 256; c.height = 512; const g = c.getContext("2d"), e = wide ? .1 : 0;
+    const gr = g.createLinearGradient(0, 0, 256, 0); gr.addColorStop(0, P.dark); gr.addColorStop(.16, P.base); gr.addColorStop(.3 - e, P.base); gr.addColorStop(.37 - e, P.cream); gr.addColorStop(.63 + e, P.cream); gr.addColorStop(.7 + e, P.base); gr.addColorStop(.84, P.base); gr.addColorStop(1, P.dark);
     g.fillStyle = gr; g.fillRect(0, 0, 256, 512);
-    spots(g, 256, 512, 26, (u) => u > .3 && u < .7);
-    if (suckers) for (let i = 0; i < 16; i++) { const y = 150 + i * 23, r = 11 - i * .35; for (const x of [108, 148]) { g.strokeStyle = P.sucker; g.lineWidth = 5; g.beginPath(); g.arc(x + (i % 2 ? 4 : -4), y, r, 0, 7); g.stroke(); g.fillStyle = P.cream; g.beginPath(); g.arc(x + (i % 2 ? 4 : -4), y, r - 4, 0, 7); g.fill(); } }
+    spots(g, 256, 512, wide ? 22 : 24, (u) => u > .3 - e && u < .7 + e, wide ? 1.15 : 1);
+    if (wide) for (let i = 0; i < 9; i++) { g.fillStyle = P.base; g.globalAlpha = .8; g.beginPath(); g.ellipse(80 + rnd() * 96, rnd() * 512, 5 + rnd() * 7, 10 + rnd() * 16, 0, 0, 7); g.fill(); g.globalAlpha = 1; }   // a few purple flecks on the cream
+    if (suckers) for (let i = 0; i < 17; i++) { const y = 120 + i * 23, r = 13 - i * .4; for (const x of [106, 150]) { g.strokeStyle = P.sucker; g.lineWidth = 6; g.beginPath(); g.arc(x + (i % 2 ? 4 : -4), y, r, 0, 7); g.stroke(); g.fillStyle = P.spotB; g.globalAlpha = .55; g.beginPath(); g.arc(x + (i % 2 ? 4 : -4), y, r - 4, 0, 7); g.fill(); g.globalAlpha = 1; } }
     return ctex(c); }
   function crestTex() { const c = document.createElement("canvas"); c.width = 256; c.height = 512; const g = c.getContext("2d");
-    const gr = g.createLinearGradient(0, 0, 0, 512); gr.addColorStop(0, P.crestDark); gr.addColorStop(.35, P.crest); gr.addColorStop(1, P.spotA); g.fillStyle = gr; g.fillRect(0, 0, 256, 512);
-    const un = g.createLinearGradient(0, 0, 256, 0); un.addColorStop(.3, "rgba(255,255,255,0)"); un.addColorStop(.5, "rgba(255,225,240,.5)"); un.addColorStop(.7, "rgba(255,255,255,0)"); g.fillStyle = un; g.fillRect(0, 0, 256, 512);
-    for (let i = 0; i < 9; i++) { const x = rnd() * 256, y = 60 + rnd() * 400, rx = 10 + rnd() * 10, ry = rx * (2 + rnd()); if (x > 85 && x < 170) continue; g.fillStyle = [P.spotC, P.spotB][i % 2]; g.beginPath(); g.ellipse(x, y, rx, ry, 0, 0, 7); g.fill(); }
+    const gr = g.createLinearGradient(0, 0, 0, 512); gr.addColorStop(0, P.spotA); gr.addColorStop(.45, P.crest); gr.addColorStop(1, P.crestDark); g.fillStyle = gr; g.fillRect(0, 0, 256, 512);
+    const un = g.createLinearGradient(0, 0, 256, 0); un.addColorStop(.28, "rgba(0,0,0,0)"); un.addColorStop(.5, P.crestDark); un.addColorStop(.72, "rgba(0,0,0,0)"); g.globalAlpha = .75; g.fillStyle = un; g.fillRect(0, 0, 256, 512); g.globalAlpha = 1;
+    for (let i = 0; i < 8; i++) { const x = (i % 2 ? 20 : 200) + rnd() * 40, y = 40 + i * 40 + rnd() * 20, rx = 15 + rnd() * 10, ry = rx * (2.2 + rnd()); for (const dx of [-256, 0, 256]) { g.fillStyle = [P.spotC, P.spotB, P.spotC][i % 3]; g.beginPath(); g.ellipse(x + dx, y, rx, ry, 0, 0, 7); g.fill(); } }
     return ctex(c); }
-  function bodyTex() { const c = document.createElement("canvas"); c.width = 512; c.height = 512; const g = c.getContext("2d");   // u = 0 and 1 are the front (the seam): cream belly there
+  // a cream patch down the front (the lathe's seam, u = 0 and 1). `sh` = [[v, half-width in px], …] from bottom to top
+  function creamFront(g, W, H, sh) { g.save(); g.fillStyle = P.cream; g.shadowColor = P.cream; g.shadowBlur = 10;
+    for (const x0 of [0, W]) { g.beginPath(); sh.forEach(([v, w], i) => g[i ? "lineTo" : "moveTo"](x0 + w, (1 - v) * H)); [...sh].reverse().forEach(([v, w]) => g.lineTo(x0 - w, (1 - v) * H)); g.closePath(); g.fill(); g.fill(); } g.restore(); }
+  const TY0 = -.08, TY1 = .8, tv = y => (y - TY0) / (TY1 - TY0);     // torso: height → v
+  function bodyTex() { const c = document.createElement("canvas"); c.width = 512; c.height = 512; const g = c.getContext("2d");
     g.fillStyle = P.base; g.fillRect(0, 0, 512, 512); const sh = g.createLinearGradient(0, 0, 512, 0); sh.addColorStop(.3, "rgba(0,0,0,0)"); sh.addColorStop(.5, P.dark); sh.addColorStop(.7, "rgba(0,0,0,0)"); g.globalAlpha = .6; g.fillStyle = sh; g.fillRect(0, 0, 512, 512); g.globalAlpha = 1;
-    spots(g, 512, 512, 30, (u) => u < .2 || u > .8);
-    for (const x0 of [0, 512]) { const b = g.createRadialGradient(x0, 256, 20, x0, 256, 150); b.addColorStop(0, P.cream); b.addColorStop(.75, P.cream); b.addColorStop(1, "rgba(0,0,0,0)"); g.save(); g.translate(x0, 256); g.scale(1, 2.4); g.translate(-x0, -256); g.fillStyle = b; g.fillRect(x0 - 160, 0, 320, 512); g.restore(); }
+    spots(g, 512, 512, 34, (u, y) => (u < .16 || u > .84), 1.1);
+    // cream only down the middle: narrow belly, wider chest, up the throat
+    creamFront(g, 512, 512, [[tv(-.08), 16], [tv(.02), 30], [tv(.2), 40], [tv(.3), 44], [tv(.42), 60], [tv(.52), 72], [tv(.6), 60], [tv(.66), 40], [tv(.72), 46], [tv(.8), 70]]);
+    // muscle lines
+    g.strokeStyle = P.line; g.lineCap = "round"; const Y = y => (1 - tv(y)) * 512;
+    for (const x0 of [0, 512]) { g.lineWidth = 3; g.beginPath(); g.moveTo(x0, Y(.1)); g.lineTo(x0, Y(.5)); g.stroke();
+      for (const s of [-1, 1]) { g.lineWidth = 4; g.beginPath(); g.moveTo(x0 + s * 4, Y(.46)); g.quadraticCurveTo(x0 + s * 34, Y(.42), x0 + s * 62, Y(.5)); g.stroke();      // under the pecs
+        g.lineWidth = 2.5; for (const y of [.18, .26, .34]) { g.beginPath(); g.moveTo(x0 + s * 5, Y(y)); g.quadraticCurveTo(x0 + s * 16, Y(y - .012), x0 + s * 27, Y(y + .006)); g.stroke(); }   // abs
+        g.beginPath(); g.moveTo(x0 + s * 30, Y(.38)); g.quadraticCurveTo(x0 + s * 36, Y(.26), x0 + s * 30, Y(.14)); g.stroke();
+        g.beginPath(); g.moveTo(x0 + s * 8, Y(.64)); g.quadraticCurveTo(x0 + s * 30, Y(.61), x0 + s * 52, Y(.63)); g.stroke(); } }   // collar bones
     return ctex(c); }
-  function headTex() { const c = document.createElement("canvas"); c.width = 512; c.height = 512; const g = c.getContext("2d");      // v = 0 chin … 1 crown (canvas y is flipped)
-    const gr = g.createLinearGradient(0, 0, 0, 512); gr.addColorStop(0, P.crest); gr.addColorStop(.3, P.crestDark); gr.addColorStop(1, P.base); g.fillStyle = gr; g.fillRect(0, 0, 512, 512);
-    for (const x0 of [0, 512]) { g.save(); g.translate(x0, 330); g.scale(1, 1.7); const b = g.createRadialGradient(0, 0, 30, 0, 0, 175); b.addColorStop(0, P.cream); b.addColorStop(.8, P.cream); b.addColorStop(1, "rgba(0,0,0,0)"); g.fillStyle = b; g.beginPath(); g.arc(0, 0, 175, 0, 7); g.fill(); g.restore(); }
+  const HY0 = -.02, HY1 = .41, hv = y => (y - HY0) / (HY1 - HY0);     // head: height → v
+  function headTex() { const c = document.createElement("canvas"); c.width = 512; c.height = 512; const g = c.getContext("2d");
+    const gr = g.createLinearGradient(0, 0, 0, 512); gr.addColorStop(0, P.crest); gr.addColorStop(.45, P.crest); gr.addColorStop(1, P.base); g.fillStyle = gr; g.fillRect(0, 0, 512, 512);
+    // the face: cream chin and cheeks, narrowing to a point up the forehead
+    creamFront(g, 512, 512, [[hv(-.02), 130], [hv(.08), 122], [hv(.16), 104], [hv(.23), 84], [hv(.29), 52], [hv(.34), 26], [hv(.385), 8], [hv(.4), 0]]);
     return ctex(c); }
-  const M = { limb: skin(limbTex(true)), leg: skin(limbTex(true)), crest: skin(crestTex()), body: skin(bodyTex()), head: skin(headTex()),
+  const M = { limb: skin(limbTex(true, false)), leg: skin(limbTex(false, false)), crest: skin(crestTex()), body: skin(bodyTex()), head: skin(headTex()),
+    plain: new THREE.MeshStandardMaterial({ color: new THREE.Color(P.base).convertSRGBToLinear(), roughness: .32, metalness: .05 }),
     eye: new THREE.MeshStandardMaterial({ color: 0x0a0612, roughness: .05, metalness: .3 }), glint: new THREE.MeshBasicMaterial({ color: 0xffffff }),
     strap: new THREE.MeshStandardMaterial({ color: 0x2c2b34, roughness: .5, metalness: .5, flatShading: true }), gold: new THREE.MeshStandardMaterial({ color: 0xd9a84a, roughness: .35, metalness: .8, flatShading: true }),
-    light: new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0x5fe8ff, emissiveIntensity: 1.8 }), core: new THREE.MeshStandardMaterial({ color: new THREE.Color(P.dark).multiplyScalar(.55), roughness: .6 }) };
+    teal: new THREE.MeshStandardMaterial({ color: 0x3fa8a0, roughness: .35, metalness: .6, flatShading: true }),
+    light: new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0x5fe8ff, emissiveIntensity: 1.8 }), core: new THREE.MeshStandardMaterial({ color: new THREE.Color(P.dark).multiplyScalar(.45), roughness: .6 }) };
 
   // ---- a tentacle: a tapered tube skinned to a chain of bones. Returns the mesh (place it like any object) and its bones. ----
-  // `bend` gives each bone's resting rotation [x, z] in radians; animation adds to it.
+  // `bend` gives each bone's resting rotation [x, z, y] in radians; animation adds to it.
   const rest = {};   // bone name → resting Euler, so the clips can animate around the pose
-  function tentacle(name, { len, r0, r1, bones: nb, mat, bend, radial = 10, squash = 1, under = 1 }) {   // under: +1 → the cream underside faces the limb's +Z, −1 → its −Z
+  function tentacle(name, { len, r0, r1, bones: nb, mat, bend, radial = 10, squash = 1, under = 1, taper = .85, twist = 0 }) {   // under: +1 → the cream underside faces the limb's +Z, −1 → its −Z; twist turns the skin round the limb
     const seg = len / nb, rows = nb * 4, pts = [];
-    for (let i = 0; i <= rows; i++) { const v = i / rows, r = r0 + (r1 - r0) * Math.pow(v, .85); pts.push(new THREE.Vector2(Math.max(.0001, r), v * len)); }
+    for (let i = 0; i <= rows; i++) { const v = i / rows, r = r0 + (r1 - r0) * Math.pow(v, taper); pts.push(new THREE.Vector2(Math.max(.0001, r), v * len)); }
     for (let i = 1; i <= 4; i++) { const a = i / 4 * Math.PI / 2; pts.push(new THREE.Vector2(Math.max(.0001, r1 * Math.cos(a)), len + r1 * Math.sin(a) * 1.2)); }   // rounded tip
-    const geo = new THREE.LatheGeometry(pts, radial); if (under > 0) geo.rotateY(Math.PI);        // a lathe's seam (u = 0) starts on +Z, so u = 0.5 (the underside) is on −Z until turned
+    const geo = new THREE.LatheGeometry(pts, radial); geo.rotateY((under > 0 ? Math.PI : 0) + twist);        // a lathe's seam (u = 0) starts on +Z, so u = 0.5 (the underside) is on −Z until turned
     if (squash !== 1) geo.scale(1, 1, squash);
     const pos = geo.attributes.position, si = [], sw = [], uv = geo.attributes.uv;
     for (let i = 0; i < pos.count; i++) { const y = Math.min(len - 1e-4, Math.max(0, pos.getY(i))), f = y / seg, b = Math.min(nb - 1, Math.floor(f)), t = f - b;
@@ -86,74 +104,83 @@ function buildAlien(THREE, opts = {}) {
     geo.setAttribute("skinIndex", new THREE.Uint16BufferAttribute(si, 4)); geo.setAttribute("skinWeight", new THREE.Float32BufferAttribute(sw, 4)); geo.computeVertexNormals();
     const bones = []; for (let j = 0; j < nb; j++) { const b = new THREE.Bone(); b.name = `${name}_${j}`; b.position.y = j ? seg : 0; if (j) bones[j - 1].add(b); bones.push(b); }
     const mesh = new THREE.SkinnedMesh(geo, mat); mesh.name = name; mesh.add(bones[0]); mesh.bind(new THREE.Skeleton(bones)); mesh.castShadow = true; mesh.receiveShadow = true; mesh.frustumCulled = false;
-    bones.forEach((b, j) => { const [x, z] = bend(j, nb); b.rotation.set(x, 0, z); rest[b.name] = [x, 0, z]; });
+    bones.forEach((b, j) => { const [x, z, y = 0] = bend(j, nb); b.rotation.set(x, y, z); rest[b.name] = [x, y, z]; });
     return { mesh, bones, seg }; }
   const add = (parent, geo, mat, name, p = [0, 0, 0], r = [0, 0, 0], s = [1, 1, 1]) => { const m = new THREE.Mesh(geo, mat); m.name = name; m.position.set(...p); m.rotation.set(...r); m.scale.set(...s); m.castShadow = true; m.receiveShadow = true; parent.add(m); return m; };
   const grp = (parent, name, p = [0, 0, 0]) => { const g = new THREE.Group(); g.name = name; g.position.set(...p); parent.add(g); return g; };
+  // a smooth lathe outline from a few [radius, height] points, evenly spaced in height so the texture's v follows height
+  const outline = (pts, n = 48) => { const d = new THREE.SplineCurve(pts.map(([x, y]) => new THREE.Vector2(x, y))).getPoints(200), y0 = pts[0][1], y1 = pts[pts.length - 1][1], out = []; let k = 0;
+    for (let i = 0; i <= n; i++) { const y = y0 + (y1 - y0) * i / n; while (k < d.length - 2 && d[k + 1].y < y) k++; const a = d[k], b = d[k + 1], t = Math.max(0, Math.min(1, (y - a.y) / ((b.y - a.y) || 1))); out.push(new THREE.Vector2(Math.max(.001, a.x + (b.x - a.x) * t), y)); } return out; };
 
-  const root = new THREE.Group(); root.name = "Alien";
+  const SCALE = .8;                                                 // built a little large, then shrunk to about 2.1 m
+  const root = new THREE.Group(); root.name = "Alien"; root.scale.setScalar(SCALE);
   const body = grp(root, "Body");                                   // everything; bobs as it glides
 
-  // ---- the gown of leg tentacles: they drop from the hips, lie out along the floor and curl up at the tips ----
-  const NL = 12, LEG_BONES = 8, legBend = [0, -.14, -.12, .06, .42, .62, .85, 1.05], TILT = .55;   // out from the hips, down, then out along the floor and curled up
-  const legs = [];
-  // how far below the hip the gown reaches (follow one chain through its resting bends), so the hips sit at the right height
-  const drop = (len) => { let a = TILT, y = 0, z = 0, lo = 0; const sg = len / LEG_BONES; for (let j = 0; j < LEG_BONES; j++) { a += legBend[j]; y -= Math.cos(a) * sg; z += Math.sin(a) * sg; lo = Math.min(lo, y); } return -lo; };
-  const LEG_LEN = 1.5, HIP = drop(LEG_LEN) + .085;
+  // ---- the gown of leg tentacles: thick, they hang almost straight from the hips, sweep out onto the floor and coil there ----
+  const LEG_BONES = 14, FLOOR0 = 8, LEG_LEN = 2.9, SEG = LEG_LEN / LEG_BONES, legs = [];
+  // one leg's resting bends. Bones 0–3 hang, 4–7 turn it level with the floor, 8+ lie on the floor and spiral (sp = which way, tight = how much)
+  function legPose(T, sp, tight, tipUp) { const x = [0, -.16, -.02, .12], z = new Array(LEG_BONES).fill(0), turn = -(Math.PI / 2 - T) + .06;
+    [.15, .3, .35, .2].forEach(w => x.push(turn * w)); z[6] = -sp * .22; z[7] = -sp * .3; const wv = (rnd() - .5) * 1.6; z[1] = .16 * wv; z[2] = -.1 * wv; z[3] = -.2 * wv; z[4] = .12 * wv;   // a lazy S in the hanging part
+    for (let j = FLOOR0; j < LEG_BONES; j++) { const f = j - FLOOR0; x.push(tipUp && j >= LEG_BONES - 3 ? -.5 : .012); z[j] = sp * [.6, .7, .78, .85, .9, .95][f] * Math.min(1, tight); }
+    let a = Math.PI - T, drop = 0; for (let j = 0; j < FLOOR0; j++) { a += x[j]; drop -= Math.cos(a) * SEG; }   // how far below its root it reaches
+    return { x, z, drop }; }
+  const ring = [];   // [angle round the body, tilt out from the hips, distance of the root from the centre]
+  for (let k = 0; k < 9; k++) ring.push([(k + .5) / 9 * Math.PI * 2, .42 + rnd() * .12, .06]);
+  for (let k = 0; k < 5; k++) ring.push([(k + .2) / 5 * Math.PI * 2, .04 + rnd() * .05, .02]);
+  const poses = ring.map(([a, T], k) => legPose(T, k % 2 ? 1 : -1, .75 + rnd() * .45, k < 9 && k % 3 === 0));
+  const HIP = poses[0].drop + .08;
   const skirt = grp(body, "Skirt", [0, HIP, 0]);
-  for (let k = 0; k < NL; k++) { const a = (k + .5) / NL * Math.PI * 2, long = k % 2 ? 1 : .9, tw = (rnd() - .5) * .5;
-    const t = tentacle("Leg" + k, { len: LEG_LEN * long, r0: .125, r1: .038, bones: LEG_BONES, mat: M.leg, radial: 10, under: 1,
-      bend: (j) => [legBend[j] * (j > 4 ? .9 + rnd() * .35 : 1), j > 3 ? tw * (.4 + rnd() * .6) : 0] });
-    t.mesh.rotation.order = "YXZ"; t.mesh.rotation.set(Math.PI - TILT, a, 0); t.mesh.position.set(Math.sin(a) * .07, -.03, Math.cos(a) * .07); skirt.add(t.mesh); legs.push({ ...t, a, k }); }
-  { const pr = [[.02, -HIP + .01], [.24, -HIP + .01], [.25, -HIP + .25], [.24, -HIP * .55], [.17, -.2], [.1, -.02]].map(([x, y]) => new THREE.Vector2(x, y)); add(skirt, new THREE.LatheGeometry(pr, 20), M.core, "SkirtCore").castShadow = false; }
+  ring.forEach(([a, T, rad], k) => { const p = poses[k];
+    const t = tentacle("Leg" + k, { len: LEG_LEN, r0: k < 9 ? .135 : .12, r1: .07, bones: LEG_BONES, mat: M.leg, radial: 12, under: -1, taper: 1.6, twist: rnd() * Math.PI * 2, bend: (j) => [p.x[j], p.z[j]] });
+    t.mesh.rotation.order = "YXZ"; t.mesh.rotation.set(Math.PI - T, a, 0); t.mesh.position.set(Math.sin(a) * rad, p.drop - poses[0].drop, Math.cos(a) * rad); skirt.add(t.mesh); legs.push({ ...t, a, k }); });
+  add(skirt, new THREE.LatheGeometry([[.02, -HIP + .02], [.2, -HIP + .02], [.16, -HIP * .5], [.1, -.05]].map(([x, y]) => new THREE.Vector2(x, y)), 14), M.core, "SkirtCore").castShadow = false;
 
-  // ---- torso ----
+  // ---- torso: narrow waist, broad shoulders, cream chest ----
   const torso = grp(body, "Torso", [0, HIP, 0]);                    // leans from the hips
-  { const pr = [[.02, -.08], [.15, -.06], [.17, .0], [.15, .1], [.105, .26], [.1, .32], [.13, .44], [.165, .55], [.16, .62], [.11, .68], [.055, .72], [.045, .8]].map(([x, y]) => new THREE.Vector2(x, y));
-    add(torso, new THREE.LatheGeometry(pr, 28), M.body, "TorsoSkin", [0, 0, 0], [0, 0, 0], [1, 1, .7]); }
-  // belt with its cyan light
-  const belt = grp(torso, "Belt", [0, .03, 0]);
-  add(belt, new THREE.TorusGeometry(.172, .032, 6, 28), M.strap, "BeltBand", [0, 0, 0], [Math.PI / 2, 0, 0], [1, .72, 1.25]);
-  add(belt, new THREE.TorusGeometry(.176, .012, 5, 28), M.gold, "BeltTrim", [0, .036, 0], [Math.PI / 2, 0, 0], [1, .72, 1]);
-  add(belt, new THREE.BoxGeometry(.11, .085, .04), M.strap, "Buckle", [0, 0, .128]); add(belt, new THREE.BoxGeometry(.125, .1, .02), M.gold, "BuckleFrame", [0, 0, .118]);
-  add(belt, new THREE.BoxGeometry(.06, .028, .02), M.light, "BeltLight", [0, 0, .142]).castShadow = false;
-  // shoulder harness: two pads and straps running down under the arms
-  for (const sx of [-1, 1]) { const pad = grp(torso, "Pad" + (sx < 0 ? "L" : "R"), [sx * .15, .6, 0]); pad.rotation.z = -sx * .55;
-    add(pad, new THREE.BoxGeometry(.12, .04, .15), M.strap, "PadPlate"); add(pad, new THREE.BoxGeometry(.13, .012, .16), M.gold, "PadTrim", [0, .025, 0]);
-    add(pad, new THREE.BoxGeometry(.03, .02, .05), M.light, "PadLight", [sx * .03, .03, .06]).castShadow = false;
-    add(torso, new THREE.TorusGeometry(.125, .016, 5, 20, Math.PI * 1.05), M.strap, "Strap", [sx * .1, .5, 0], [0, Math.PI / 2, sx > 0 ? -.2 : Math.PI + .2], [.8, 1, 1]); }
+  add(torso, new THREE.LatheGeometry(outline([[.03, TY0], [.16, -.05], [.18, .02], [.155, .12], [.112, .26], [.108, .32], [.14, .44], [.19, .54], [.2, .6], [.15, .665], [.065, .705], [.05, .75], [.05, TY1]]), 32), M.body, "TorsoSkin", [0, 0, 0], [0, 0, 0], [1, 1, .64]);
+  // belt: a wide band low on the hips, with its cyan light
+  const belt = grp(torso, "Belt", [0, .03, 0]); belt.rotation.x = .06;
+  add(belt, new THREE.TorusGeometry(.185, .034, 6, 30), M.strap, "BeltBand", [0, 0, 0], [Math.PI / 2, 0, 0], [1, .74, 1.5]);
+  for (const dy of [-.05, .05]) add(belt, new THREE.TorusGeometry(.19, .011, 5, 30), M.gold, "BeltTrim", [0, dy, 0], [Math.PI / 2, 0, 0], [1, .74, 1]);
+  add(belt, new THREE.BoxGeometry(.15, .13, .04), M.gold, "BuckleFrame", [0, 0, .14]); add(belt, new THREE.BoxGeometry(.125, .105, .05), M.strap, "Buckle", [0, 0, .145]);
+  add(belt, new THREE.BoxGeometry(.075, .04, .02), M.light, "BeltLight", [0, 0, .166]).castShadow = false;
+  for (const sx of [-1, 1]) add(belt, new THREE.BoxGeometry(.035, .12, .05), M.gold, "BeltClasp", [sx * .15, 0, .078], [0, sx * .9, 0]);
+  // harness: a wide strap looping over each shoulder and under the arm, gold-edged, with a teal plate on top and a buckle on the chest
+  for (const sx of [-1, 1]) { const h = grp(torso, "Harness" + (sx < 0 ? "R" : "L"), [sx * .15, .555, 0]); h.rotation.z = sx * .3;
+    add(h, new THREE.TorusGeometry(.125, .02, 6, 26), M.strap, "Strap", [0, 0, 0], [0, Math.PI / 2, 0], [1, 1, 2.6]);
+    for (const dx of [-.052, .052]) add(h, new THREE.TorusGeometry(.129, .008, 5, 26), M.gold, "StrapTrim", [dx, 0, 0], [0, Math.PI / 2, 0]);
+    add(h, new THREE.BoxGeometry(.1, .022, .12), M.teal, "ShoulderPlate", [0, .14, 0]); add(h, new THREE.BoxGeometry(.115, .012, .135), M.gold, "PlateTrim", [0, .13, 0]);
+    add(h, new THREE.BoxGeometry(.085, .075, .03), M.strap, "ChestBuckle", [0, -.03, .125], [.25, 0, 0]); add(h, new THREE.BoxGeometry(.045, .03, .012), M.light, "ChestLight", [0, -.03, .143], [.25, 0, 0]).castShadow = false;
+    add(torso, new THREE.SphereGeometry(.088, 16, 12), M.plain, "Shoulder", [sx * .2, .575, 0], [0, 0, 0], [1, 1, .85]); }
 
-  // ---- arms: long tentacles from the shoulders, hanging in a soft S with the tip curled out ----
+  // ---- arms: thick tentacles from the shoulders, hanging in a soft S with the sucker side showing in a big curl at the tip ----
   const ARM_BONES = 8, arms = {};
   for (const sx of [-1, 1]) { const nm = sx < 0 ? "ArmR" : "ArmL";   // it faces +Z, so its own right arm is on −X
-    const t = tentacle(nm, { len: 1.0, r0: .06, r1: .022, bones: ARM_BONES, mat: M.limb, radial: 10,
-      bend: (j) => [[.0, .1, .12, .05, -.1, -.25, -.5, -.75][j] * 1, sx * [.0, -.08, -.1, -.02, .12, .25, .45, .6][j]] });
-    t.mesh.rotation.set(0, sx > 0 ? Math.PI : Math.PI, sx * (Math.PI - .32)); t.mesh.position.set(sx * .175, .565, 0); torso.add(t.mesh); arms[nm] = t; }
+    const t = tentacle(nm, { len: 1.12, r0: .08, r1: .04, bones: ARM_BONES, mat: M.limb, radial: 12, taper: 1.6,
+      bend: (j) => [[.0, .1, .12, .05, -.1, -.3, -.6, -.85][j], sx * [.0, -.08, -.1, -.02, .15, .35, .6, .8][j]] });
+    t.mesh.rotation.set(0, Math.PI, sx * (Math.PI - .32)); t.mesh.position.set(sx * .2, .575, 0); torso.add(t.mesh); arms[nm] = t; }
 
-  // ---- head: long cream face, big dark eyes, and the crest ----
-  const head = grp(torso, "Head", [0, .75, 0]);                     // pivots at the top of the neck
-  { const pr = [[.0, -.02], [.035, 0], [.07, .05], [.105, .12], [.128, .2], [.135, .27], [.12, .34], [.085, .39], [.03, .42], [0, .425]].map(([x, y]) => new THREE.Vector2(x, y));
-    add(head, new THREE.LatheGeometry(pr, 28), M.head, "HeadSkin", [0, 0, .01], [-.12, 0, 0], [.95, 1, 1.12]); }
-  for (const sx of [-1, 1]) { const e = grp(head, "Eye" + (sx < 0 ? "L" : "R"), [sx * .062, .215, .118]); e.rotation.set(-.1, sx * .42, -sx * .5);
-    add(e, new THREE.SphereGeometry(1, 20, 14), M.eye, "EyeBall", [0, 0, 0], [0, 0, 0], [.043, .068, .022]); add(e, new THREE.SphereGeometry(.009, 8, 6), M.glint, "Glint", [-sx * .012, .03, .02]).castShadow = false; }
-  add(head, new THREE.BoxGeometry(.03, .004, .004), M.eye, "Mouth", [0, .085, .1], [-.3, 0, 0]).castShadow = false;
-  // the crest: an upper row sweeping up and back, a lower row falling down the back of the neck; every tip curls
-  const HAIR_BONES = 6, hair = [];
-  const crest = [ // [angle round the head (0 = straight back, ±π/2 = the sides, ±π = the forehead), lift (0 = level, 1 = straight up), length, thickness]
-    [0, .8, .52, .078], [-.7, .7, .5, .075], [.7, .7, .5, .075], [-1.45, .55, .46, .07], [1.45, .55, .46, .07],        // upper row: up and back
-    [-2.05, .82, .42, .07], [2.05, .82, .42, .07],                                                                   // two rising from the temples
-    [-.38, .22, .46, .066], [.38, .22, .46, .066], [-1.15, .05, .44, .062], [1.15, .05, .44, .062], [0, -.25, .4, .058] ];   // lower row: down the back of the neck
-  crest.forEach(([ang, lift, len, r], k) => { const front = Math.abs(ang) > 2, low = lift < .3;
-    // resting curl about the tentacle's own sideways axis: positive rolls it backward/down. Upper ones arc back then flick up; lower ones hang then curl out.
-    const curve = front ? [.5, .55, .45, .2, -.3, -.7] : low ? [0, .28, .2, -.25, -.6, -.9] : [0, .34, .42, .2, -.45, -.95];
-    const t = tentacle("Hair" + k, { len, r0: r, r1: r * .36, bones: HAIR_BONES, mat: M.crest, radial: 9, squash: .78, bend: (j) => [curve[j] * (.9 + rnd() * .25), (rnd() - .5) * .16] });
+  // ---- head: wide at the eyes, pointed chin, cream face, big dark eyes, and the crest ----
+  const head = grp(torso, "Head", [0, .76, 0]); head.scale.setScalar(1.22);                    // pivots at the top of the neck
+  add(head, new THREE.LatheGeometry(outline([[.004, HY0], [.028, 0], [.052, .045], [.088, .11], [.12, .18], [.136, .25], [.13, .31], [.105, .36], [.06, .395], [.004, HY1]]), 32), M.head, "HeadSkin", [0, 0, 0], [0, 0, 0], [1.26, 1, 1.05]);
+  for (const sx of [-1, 1]) { const e = grp(head, "Eye" + (sx < 0 ? "L" : "R"), [sx * .08, .215, .104]); e.rotation.set(-.08, sx * .6, -sx * .5);
+    add(e, new THREE.SphereGeometry(1, 22, 16), M.eye, "EyeBall", [0, 0, 0], [0, 0, 0], [.058, .09, .028]);
+    add(e, new THREE.SphereGeometry(.011, 8, 6), M.glint, "Glint", [-sx * .014, .036, .024]).castShadow = false; add(e, new THREE.SphereGeometry(.005, 8, 6), M.glint, "Glint2", [sx * .012, -.02, .026]).castShadow = false; }
+  add(head, new THREE.BoxGeometry(.034, .005, .005), M.eye, "Mouth", [0, .07, .076]).castShadow = false;
+  // the crest: a few big flattened lobes that grow out of the top of the skull, sweep up and out, and hook over at the tips
+  const HAIR_BONES = 7, hair = [];
+  const crest = [ // [angle round the head (0 = straight back, ±π/2 = the sides, ±π = the forehead), lift (0 = level, 1 = straight up), length, thickness, tip flicks back up?]
+    [0, .62, .5, .15], [-1.35, .34, .52, .145], [1.35, .34, .52, .145], [-2.2, .55, .44, .13], [2.2, .55, .44, .13],
+    [-.65, .12, .46, .135], [.65, .12, .46, .135], [-1.6, .05, .36, .1, 1], [1.6, .05, .36, .1, 1], [0, -.05, .4, .12, 1] ];
+  crest.forEach(([ang, lift, len, r, flick], k) => {
+    const curve = flick ? [0, .25, .4, .45, .1, -.5, -.9] : [0, .1, .16, .26, .46, .72, .95], sc = .88 + rnd() * .22;
+    const t = tentacle("Hair" + k, { len, r0: r, r1: r * .3, bones: HAIR_BONES, mat: M.crest, radial: 12, squash: .6, taper: 1.9, bend: (j) => [curve[j] * sc, (rnd() - .5) * .14] });
     const el = lift * Math.PI / 2, dir = new THREE.Vector3(-Math.sin(ang) * Math.cos(el), Math.sin(el), -Math.cos(ang) * Math.cos(el)).normalize();
-    // local Y = the direction it grows; local Z = "outward/up" from the skull, so +X rotation rolls the tip back toward the body
-    const back = new THREE.Vector3(front ? 0 : -Math.sin(ang), 0, front ? -1 : -Math.cos(ang)), side = new THREE.Vector3().crossVectors(dir, front ? back : new THREE.Vector3(0, 1, 0)).normalize();
-    if (side.lengthSq() < .5) side.set(1, 0, 0); const z = new THREE.Vector3().crossVectors(side, dir).normalize();
-    t.mesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(side, dir, z)); if (front) t.mesh.rotateY(Math.PI);
-    const rootDir = new THREE.Vector3(-Math.sin(ang), 0, -Math.cos(ang));
-    t.mesh.position.set(rootDir.x * .085, (front ? .36 : low ? .2 : .3) + lift * .06, -.01 + rootDir.z * (front ? .05 : .095)); head.add(t.mesh); hair.push({ ...t, ang }); });
+    // local Y = the direction it grows; local Z = "downward" as seen from the lobe, so a positive bend hooks the tip over and down
+    const down = new THREE.Vector3(0, -1, 0), z = down.clone().addScaledVector(dir, -down.dot(dir)).normalize(), x = new THREE.Vector3().crossVectors(dir, z).normalize();
+    t.mesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, dir, z));
+    const rd = new THREE.Vector3(-Math.sin(ang), 0, -Math.cos(ang)), out = .075 * (1 - lift * .5);
+    t.mesh.position.set(rd.x * out * 1.1, .27 + Math.max(0, lift) * .07, rd.z * out - .01); head.add(t.mesh); hair.push({ ...t, ang }); });
 
   // ---- animation: each clip is a set of functions of time, sampled into keyframes around the resting pose ----
   const Q = (x, y, z) => new THREE.Quaternion().setFromEuler(new THREE.Euler(x, y, z)).toArray();
@@ -161,9 +188,10 @@ function buildAlien(THREE, opts = {}) {
   const ptrack = (name, D, fn, step = 1 / 20) => { const ts = [], v = []; for (let t = 0; t <= D + 1e-6; t += step) { ts.push(+t.toFixed(4)); v.push(...fn(t)); } return new THREE.VectorKeyframeTrack(name + ".position", ts, v); };
   const TAU = Math.PI * 2, ss = (a, b, t) => { const k = Math.max(0, Math.min(1, (t - a) / (b - a))); return k * k * (3 - 2 * k); };
   // the gown: a wave runs down every tentacle (whole cycles per loop); `amp` is how lively, `trail` leans the tips back when it's moving
-  const gown = (D, cycles, amp, trail) => legs.flatMap(({ bones, a, k }) => bones.map((b, j) => track(b.name, D, t => { const w = TAU * cycles * t / D - j * .7 + k * 1.9, f = j / (LEG_BONES - 1);
-    return [amp * f * Math.sin(w) + trail * f * Math.cos(a) * .35, 0, amp * .6 * f * Math.cos(w * 1 + k) + trail * f * Math.sin(a) * .35]; })));
-  const crestSway = (D, cycles, amp) => hair.flatMap(({ bones }, k) => bones.map((b, j) => track(b.name, D, t => { const w = TAU * cycles * t / D - j * .6 + k * 1.3; return [amp * (j / 5) * Math.sin(w), 0, amp * .7 * (j / 5) * Math.cos(w + k)]; })));
+  const gown = (D, cycles, amp, trail) => legs.flatMap(({ bones, a, k }) => bones.map((b, j) => track(b.name, D, t => { const w = TAU * cycles * t / D - j * .55 + k * 1.9, fl = j >= FLOOR0, f = fl ? (j - FLOOR0 + 1) / (LEG_BONES - FLOOR0) : j / FLOOR0;
+    // hanging part sways a little; the part on the floor slides sideways (never lifting), and trails behind when it's moving
+    return fl ? [amp * .12 * Math.sin(w + 1), 0, amp * .7 * f * Math.sin(w) + trail * Math.sin(a) * .22] : [amp * .45 * f * Math.sin(w), 0, amp * .35 * f * Math.cos(w + k)]; })));
+  const crestSway = (D, cycles, amp) => hair.flatMap(({ bones }, k) => bones.map((b, j) => track(b.name, D, t => { const w = TAU * cycles * t / D - j * .6 + k * 1.3; return [amp * (j / 6) * Math.sin(w), 0, amp * .7 * (j / 6) * Math.cos(w + k)]; })));
   const armHang = (nm, D, cycles, amp, ph) => arms[nm].bones.map((b, j) => track(b.name, D, t => { const w = TAU * cycles * t / D - j * .5 + ph; return [amp * (j / 7) * Math.sin(w), 0, amp * .6 * (j / 7) * Math.cos(w)]; }));
   const clips = [];
   { const D = 4; clips.push(new THREE.AnimationClip("Idle", D, [...gown(D, 1, .07, 0), ...crestSway(D, 1, .09), ...armHang("ArmL", D, 1, .08, 0), ...armHang("ArmR", D, 1, .08, 2),
@@ -187,7 +215,7 @@ function buildAlien(THREE, opts = {}) {
     clips.push(new THREE.AnimationClip("Cheer", D, [...gown(D, 2, .12, 0), ...crestSway(D, 3, .22), ...A("ArmL"), ...A("ArmR"),
       track("Head", D, t => [-.18 * up(t), .1 * Math.sin(TAU * 2 * t / D) * up(t), 0]), track("Torso", D, t => [-.06 * up(t), 0, .04 * Math.sin(TAU * 3 * t / D) * up(t)]),
       ptrack("Body", D, t => [0, .05 * Math.abs(Math.sin(TAU * 3 * t / D)) * up(t), 0])])); }
-  return { root, clips, height: HIP + 1.25, palette: opts.palette || "purple" };
+  return { root, clips, height: (HIP + 1.45) * SCALE, palette: opts.palette || "purple" };
 }
 
 const TEX_SRC = {};
