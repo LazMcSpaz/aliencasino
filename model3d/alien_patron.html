@@ -1,0 +1,231 @@
+<title>Alien Patron 3D</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Monoton&family=Chakra+Petch:wght@500;700&display=swap">
+<style>
+:root{--bg:#0b0718;--bg2:#1e1240;--ink:#efe8ff;--dim:#9a8fc0;--rule:#ffffff1f;--gold:#ffc845;--pink:#ff5fae;color-scheme:dark}
+body{background:radial-gradient(120% 80% at 50% 30%,var(--bg2),var(--bg) 70%);color:var(--ink);font:500 14px "Chakra Petch",system-ui,sans-serif;height:100dvh;overflow:hidden}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.ui{position:fixed;left:0;right:0;bottom:0;padding:12px max(16px,env(safe-area-inset-right,0px)) calc(14px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));display:grid;gap:10px;justify-items:center;pointer-events:none;background:linear-gradient(transparent,#0b0718e6 40%)}
+.row{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;pointer-events:auto}
+.lab{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);width:100%;text-align:center}
+button{font:inherit;color:var(--ink);background:#ffffff0d;border:1px solid var(--rule);padding:7px 12px;border-radius:8px;cursor:pointer;clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px)}
+button[aria-pressed=true]{background:color-mix(in srgb,var(--gold) 22%,transparent);border-color:var(--gold);color:#fff}
+.mood button[aria-pressed=true]{background:color-mix(in srgb,var(--pink) 22%,transparent);border-color:var(--pink)}
+header{position:fixed;top:env(safe-area-inset-top,0px);left:0;right:0;padding:14px max(16px,env(safe-area-inset-left,0px));display:flex;justify-content:space-between;align-items:baseline;pointer-events:none}
+h1{margin:0;font-size:18px;font-weight:700;letter-spacing:.06em}h1 b{color:var(--gold)}
+.note{margin:0;color:var(--dim);font-size:12px;text-align:center;min-height:1.2em;pointer-events:none}
+header small{color:var(--dim);font-size:12px}
+</style>
+<canvas id="c"></canvas>
+<header><h1>ALIEN <b>PATRON</b></h1><small>drag to orbit · pinch to zoom</small></header>
+<div class="ui">
+  <div class="row mood"><span class="lab">Colour</span><button data-p="purple" aria-pressed="true">Purple</button><button data-p="blue">Blue</button><button data-p="orange">Orange</button><button data-p="pale">Pale</button></div>
+  <div class="row anim"><span class="lab">Animation</span><button data-a="Idle" aria-pressed="true">Idle</button><button data-a="Glide">Glide</button><button data-a="Play">Play</button><button data-a="Cheer">Cheer</button><button data-a="Stop">Hold still</button></div>
+  <p class="note" id="note"></p>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+// The tentacled alien patron (concept pass), built from the character sheet: slender torso, long face with big dark eyes,
+// a crest of thick head tentacles, two tentacle arms, and a gown of leg tentacles that it glides on. Harness and belt with a cyan light.
+// Every tentacle is one smooth skinned tube with a chain of bones inside it, so it bends without visible joints.
+// Units are metres; it faces +Z; origin on the floor between its "feet". About 2.1 m tall with the crest.
+// Node names (for animation): Alien, Body (bobs), Torso (leans), Head, ArmL_0…, ArmR_0…, Hair<k>_<j>, Leg<k>_<j>.
+// Clips: Idle, Glide (moving across the floor), Play (right arm reaches out and taps a button), Cheer.
+function buildAlien(THREE, opts = {}) {
+  const PAL = { purple: { base: "#7b3fb0", dark: "#4a2280", cream: "#f3dfc4", crest: "#e04fc0", crestDark: "#8a3fc0", spotA: "#ff5fb8", spotB: "#ffd23a", spotC: "#c6e63a", sucker: "#e79bd2" },
+    blue:   { base: "#2f7fd0", dark: "#1d4a96", cream: "#bfe6f2", crest: "#3fb0e8", crestDark: "#2a5fc0", spotA: "#6fe0ff", spotB: "#ffb23a", spotC: "#ffd870", sucker: "#8fd0ee" },
+    orange: { base: "#e8642a", dark: "#b03a3a", cream: "#ffd48a", crest: "#ff7a4a", crestDark: "#d0406a", spotA: "#ffb03a", spotB: "#ffe36a", spotC: "#ff5fae", sucker: "#ffb0a0" },
+    pale:   { base: "#9aa8c8", dark: "#6a6fa8", cream: "#eef2f0", crest: "#b8c8e0", crestDark: "#8a8fc8", spotA: "#b48cff", spotB: "#8fe0c8", spotC: "#d8c8ff", sucker: "#c8b8e8" } };
+  const P = PAL[opts.palette] || PAL.purple;
+  let seed = opts.seed || 7; const rnd = () => ((seed = (seed * 9301 + 49297) % 233280) / 233280);
+  const ctex = c => { const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4; t.wrapS = THREE.RepeatWrapping; return t; };
+  const skin = map => new THREE.MeshStandardMaterial({ map, roughness: .32, metalness: .05 });
+
+  // ---- skin textures. u runs round the limb (0.5 = its underside), v along it (0 = root, 1 = tip) ----
+  function spots(g, W, H, n, avoid) { for (let i = 0; i < n; i++) { const x = rnd() * W, y = rnd() * H; if (avoid && avoid(x / W, y / H)) continue; const rx = 8 + rnd() * 16, ry = rx * (1.3 + rnd() * 1.2), col = [P.spotA, P.spotA, P.spotB, P.spotC][Math.floor(rnd() * 4)];
+      for (const dx of [-W, 0, W]) { g.fillStyle = P.spotA; g.globalAlpha = .55; g.beginPath(); g.ellipse(x + dx, y, rx * 1.35, ry * 1.25, 0, 0, 7); g.fill(); g.globalAlpha = 1; g.fillStyle = col; g.beginPath(); g.ellipse(x + dx, y, rx, ry, 0, 0, 7); g.fill(); } } }
+  function limbTex(suckers) { const c = document.createElement("canvas"); c.width = 256; c.height = 512; const g = c.getContext("2d");
+    const gr = g.createLinearGradient(0, 0, 256, 0); gr.addColorStop(0, P.dark); gr.addColorStop(.18, P.base); gr.addColorStop(.3, P.base); gr.addColorStop(.38, P.cream); gr.addColorStop(.62, P.cream); gr.addColorStop(.7, P.base); gr.addColorStop(.82, P.base); gr.addColorStop(1, P.dark);
+    g.fillStyle = gr; g.fillRect(0, 0, 256, 512);
+    spots(g, 256, 512, 26, (u) => u > .3 && u < .7);
+    if (suckers) for (let i = 0; i < 16; i++) { const y = 150 + i * 23, r = 11 - i * .35; for (const x of [108, 148]) { g.strokeStyle = P.sucker; g.lineWidth = 5; g.beginPath(); g.arc(x + (i % 2 ? 4 : -4), y, r, 0, 7); g.stroke(); g.fillStyle = P.cream; g.beginPath(); g.arc(x + (i % 2 ? 4 : -4), y, r - 4, 0, 7); g.fill(); } }
+    return ctex(c); }
+  function crestTex() { const c = document.createElement("canvas"); c.width = 256; c.height = 512; const g = c.getContext("2d");
+    const gr = g.createLinearGradient(0, 0, 0, 512); gr.addColorStop(0, P.crestDark); gr.addColorStop(.35, P.crest); gr.addColorStop(1, P.spotA); g.fillStyle = gr; g.fillRect(0, 0, 256, 512);
+    const un = g.createLinearGradient(0, 0, 256, 0); un.addColorStop(.3, "rgba(255,255,255,0)"); un.addColorStop(.5, "rgba(255,225,240,.5)"); un.addColorStop(.7, "rgba(255,255,255,0)"); g.fillStyle = un; g.fillRect(0, 0, 256, 512);
+    for (let i = 0; i < 9; i++) { const x = rnd() * 256, y = 60 + rnd() * 400, rx = 10 + rnd() * 10, ry = rx * (2 + rnd()); if (x > 85 && x < 170) continue; g.fillStyle = [P.spotC, P.spotB][i % 2]; g.beginPath(); g.ellipse(x, y, rx, ry, 0, 0, 7); g.fill(); }
+    return ctex(c); }
+  function bodyTex() { const c = document.createElement("canvas"); c.width = 512; c.height = 512; const g = c.getContext("2d");   // u = 0 and 1 are the front (the seam): cream belly there
+    g.fillStyle = P.base; g.fillRect(0, 0, 512, 512); const sh = g.createLinearGradient(0, 0, 512, 0); sh.addColorStop(.3, "rgba(0,0,0,0)"); sh.addColorStop(.5, P.dark); sh.addColorStop(.7, "rgba(0,0,0,0)"); g.globalAlpha = .6; g.fillStyle = sh; g.fillRect(0, 0, 512, 512); g.globalAlpha = 1;
+    spots(g, 512, 512, 30, (u) => u < .2 || u > .8);
+    for (const x0 of [0, 512]) { const b = g.createRadialGradient(x0, 256, 20, x0, 256, 150); b.addColorStop(0, P.cream); b.addColorStop(.75, P.cream); b.addColorStop(1, "rgba(0,0,0,0)"); g.save(); g.translate(x0, 256); g.scale(1, 2.4); g.translate(-x0, -256); g.fillStyle = b; g.fillRect(x0 - 160, 0, 320, 512); g.restore(); }
+    return ctex(c); }
+  function headTex() { const c = document.createElement("canvas"); c.width = 512; c.height = 512; const g = c.getContext("2d");      // v = 0 chin … 1 crown (canvas y is flipped)
+    const gr = g.createLinearGradient(0, 0, 0, 512); gr.addColorStop(0, P.crest); gr.addColorStop(.3, P.crestDark); gr.addColorStop(1, P.base); g.fillStyle = gr; g.fillRect(0, 0, 512, 512);
+    for (const x0 of [0, 512]) { g.save(); g.translate(x0, 330); g.scale(1, 1.7); const b = g.createRadialGradient(0, 0, 30, 0, 0, 175); b.addColorStop(0, P.cream); b.addColorStop(.8, P.cream); b.addColorStop(1, "rgba(0,0,0,0)"); g.fillStyle = b; g.beginPath(); g.arc(0, 0, 175, 0, 7); g.fill(); g.restore(); }
+    return ctex(c); }
+  const M = { limb: skin(limbTex(true)), leg: skin(limbTex(true)), crest: skin(crestTex()), body: skin(bodyTex()), head: skin(headTex()),
+    eye: new THREE.MeshStandardMaterial({ color: 0x0a0612, roughness: .05, metalness: .3 }), glint: new THREE.MeshBasicMaterial({ color: 0xffffff }),
+    strap: new THREE.MeshStandardMaterial({ color: 0x2c2b34, roughness: .5, metalness: .5, flatShading: true }), gold: new THREE.MeshStandardMaterial({ color: 0xd9a84a, roughness: .35, metalness: .8, flatShading: true }),
+    light: new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0x5fe8ff, emissiveIntensity: 1.8 }), core: new THREE.MeshStandardMaterial({ color: new THREE.Color(P.dark).multiplyScalar(.55), roughness: .6 }) };
+
+  // ---- a tentacle: a tapered tube skinned to a chain of bones. Returns the mesh (place it like any object) and its bones. ----
+  // `bend` gives each bone's resting rotation [x, z] in radians; animation adds to it.
+  const rest = {};   // bone name → resting Euler, so the clips can animate around the pose
+  function tentacle(name, { len, r0, r1, bones: nb, mat, bend, radial = 10, squash = 1, under = 1 }) {   // under: +1 → the cream underside faces the limb's +Z, −1 → its −Z
+    const seg = len / nb, rows = nb * 4, pts = [];
+    for (let i = 0; i <= rows; i++) { const v = i / rows, r = r0 + (r1 - r0) * Math.pow(v, .85); pts.push(new THREE.Vector2(Math.max(.0001, r), v * len)); }
+    for (let i = 1; i <= 4; i++) { const a = i / 4 * Math.PI / 2; pts.push(new THREE.Vector2(Math.max(.0001, r1 * Math.cos(a)), len + r1 * Math.sin(a) * 1.2)); }   // rounded tip
+    const geo = new THREE.LatheGeometry(pts, radial); if (under > 0) geo.rotateY(Math.PI);        // a lathe's seam (u = 0) starts on +Z, so u = 0.5 (the underside) is on −Z until turned
+    if (squash !== 1) geo.scale(1, 1, squash);
+    const pos = geo.attributes.position, si = [], sw = [], uv = geo.attributes.uv;
+    for (let i = 0; i < pos.count; i++) { const y = Math.min(len - 1e-4, Math.max(0, pos.getY(i))), f = y / seg, b = Math.min(nb - 1, Math.floor(f)), t = f - b;
+      // each ring follows its own bone, easing into the next one near the joint, so bends are round
+      const w = t > .5 && b < nb - 1 ? (t - .5) : 0; si.push(b, Math.min(nb - 1, b + 1), 0, 0); sw.push(1 - w, w, 0, 0); uv.setY(i, Math.min(1, pos.getY(i) / len)); }
+    geo.setAttribute("skinIndex", new THREE.Uint16BufferAttribute(si, 4)); geo.setAttribute("skinWeight", new THREE.Float32BufferAttribute(sw, 4)); geo.computeVertexNormals();
+    const bones = []; for (let j = 0; j < nb; j++) { const b = new THREE.Bone(); b.name = `${name}_${j}`; b.position.y = j ? seg : 0; if (j) bones[j - 1].add(b); bones.push(b); }
+    const mesh = new THREE.SkinnedMesh(geo, mat); mesh.name = name; mesh.add(bones[0]); mesh.bind(new THREE.Skeleton(bones)); mesh.castShadow = true; mesh.receiveShadow = true; mesh.frustumCulled = false;
+    bones.forEach((b, j) => { const [x, z] = bend(j, nb); b.rotation.set(x, 0, z); rest[b.name] = [x, 0, z]; });
+    return { mesh, bones, seg }; }
+  const add = (parent, geo, mat, name, p = [0, 0, 0], r = [0, 0, 0], s = [1, 1, 1]) => { const m = new THREE.Mesh(geo, mat); m.name = name; m.position.set(...p); m.rotation.set(...r); m.scale.set(...s); m.castShadow = true; m.receiveShadow = true; parent.add(m); return m; };
+  const grp = (parent, name, p = [0, 0, 0]) => { const g = new THREE.Group(); g.name = name; g.position.set(...p); parent.add(g); return g; };
+
+  const root = new THREE.Group(); root.name = "Alien";
+  const body = grp(root, "Body");                                   // everything; bobs as it glides
+
+  // ---- the gown of leg tentacles: they drop from the hips, lie out along the floor and curl up at the tips ----
+  const NL = 12, LEG_BONES = 8, legBend = [0, -.14, -.12, .06, .42, .62, .85, 1.05], TILT = .55;   // out from the hips, down, then out along the floor and curled up
+  const legs = [];
+  // how far below the hip the gown reaches (follow one chain through its resting bends), so the hips sit at the right height
+  const drop = (len) => { let a = TILT, y = 0, z = 0, lo = 0; const sg = len / LEG_BONES; for (let j = 0; j < LEG_BONES; j++) { a += legBend[j]; y -= Math.cos(a) * sg; z += Math.sin(a) * sg; lo = Math.min(lo, y); } return -lo; };
+  const LEG_LEN = 1.5, HIP = drop(LEG_LEN) + .085;
+  const skirt = grp(body, "Skirt", [0, HIP, 0]);
+  for (let k = 0; k < NL; k++) { const a = (k + .5) / NL * Math.PI * 2, long = k % 2 ? 1 : .9, tw = (rnd() - .5) * .5;
+    const t = tentacle("Leg" + k, { len: LEG_LEN * long, r0: .125, r1: .038, bones: LEG_BONES, mat: M.leg, radial: 10, under: 1,
+      bend: (j) => [legBend[j] * (j > 4 ? .9 + rnd() * .35 : 1), j > 3 ? tw * (.4 + rnd() * .6) : 0] });
+    t.mesh.rotation.order = "YXZ"; t.mesh.rotation.set(Math.PI - TILT, a, 0); t.mesh.position.set(Math.sin(a) * .07, -.03, Math.cos(a) * .07); skirt.add(t.mesh); legs.push({ ...t, a, k }); }
+  { const pr = [[.02, -HIP + .01], [.24, -HIP + .01], [.25, -HIP + .25], [.24, -HIP * .55], [.17, -.2], [.1, -.02]].map(([x, y]) => new THREE.Vector2(x, y)); add(skirt, new THREE.LatheGeometry(pr, 20), M.core, "SkirtCore").castShadow = false; }
+
+  // ---- torso ----
+  const torso = grp(body, "Torso", [0, HIP, 0]);                    // leans from the hips
+  { const pr = [[.02, -.08], [.15, -.06], [.17, .0], [.15, .1], [.105, .26], [.1, .32], [.13, .44], [.165, .55], [.16, .62], [.11, .68], [.055, .72], [.045, .8]].map(([x, y]) => new THREE.Vector2(x, y));
+    add(torso, new THREE.LatheGeometry(pr, 28), M.body, "TorsoSkin", [0, 0, 0], [0, 0, 0], [1, 1, .7]); }
+  // belt with its cyan light
+  const belt = grp(torso, "Belt", [0, .03, 0]);
+  add(belt, new THREE.TorusGeometry(.172, .032, 6, 28), M.strap, "BeltBand", [0, 0, 0], [Math.PI / 2, 0, 0], [1, .72, 1.25]);
+  add(belt, new THREE.TorusGeometry(.176, .012, 5, 28), M.gold, "BeltTrim", [0, .036, 0], [Math.PI / 2, 0, 0], [1, .72, 1]);
+  add(belt, new THREE.BoxGeometry(.11, .085, .04), M.strap, "Buckle", [0, 0, .128]); add(belt, new THREE.BoxGeometry(.125, .1, .02), M.gold, "BuckleFrame", [0, 0, .118]);
+  add(belt, new THREE.BoxGeometry(.06, .028, .02), M.light, "BeltLight", [0, 0, .142]).castShadow = false;
+  // shoulder harness: two pads and straps running down under the arms
+  for (const sx of [-1, 1]) { const pad = grp(torso, "Pad" + (sx < 0 ? "L" : "R"), [sx * .15, .6, 0]); pad.rotation.z = -sx * .55;
+    add(pad, new THREE.BoxGeometry(.12, .04, .15), M.strap, "PadPlate"); add(pad, new THREE.BoxGeometry(.13, .012, .16), M.gold, "PadTrim", [0, .025, 0]);
+    add(pad, new THREE.BoxGeometry(.03, .02, .05), M.light, "PadLight", [sx * .03, .03, .06]).castShadow = false;
+    add(torso, new THREE.TorusGeometry(.125, .016, 5, 20, Math.PI * 1.05), M.strap, "Strap", [sx * .1, .5, 0], [0, Math.PI / 2, sx > 0 ? -.2 : Math.PI + .2], [.8, 1, 1]); }
+
+  // ---- arms: long tentacles from the shoulders, hanging in a soft S with the tip curled out ----
+  const ARM_BONES = 8, arms = {};
+  for (const sx of [-1, 1]) { const nm = sx < 0 ? "ArmR" : "ArmL";   // it faces +Z, so its own right arm is on −X
+    const t = tentacle(nm, { len: 1.0, r0: .06, r1: .022, bones: ARM_BONES, mat: M.limb, radial: 10,
+      bend: (j) => [[.0, .1, .12, .05, -.1, -.25, -.5, -.75][j] * 1, sx * [.0, -.08, -.1, -.02, .12, .25, .45, .6][j]] });
+    t.mesh.rotation.set(0, sx > 0 ? Math.PI : Math.PI, sx * (Math.PI - .32)); t.mesh.position.set(sx * .175, .565, 0); torso.add(t.mesh); arms[nm] = t; }
+
+  // ---- head: long cream face, big dark eyes, and the crest ----
+  const head = grp(torso, "Head", [0, .75, 0]);                     // pivots at the top of the neck
+  { const pr = [[.0, -.02], [.035, 0], [.07, .05], [.105, .12], [.128, .2], [.135, .27], [.12, .34], [.085, .39], [.03, .42], [0, .425]].map(([x, y]) => new THREE.Vector2(x, y));
+    add(head, new THREE.LatheGeometry(pr, 28), M.head, "HeadSkin", [0, 0, .01], [-.12, 0, 0], [.95, 1, 1.12]); }
+  for (const sx of [-1, 1]) { const e = grp(head, "Eye" + (sx < 0 ? "L" : "R"), [sx * .062, .215, .118]); e.rotation.set(-.1, sx * .42, -sx * .5);
+    add(e, new THREE.SphereGeometry(1, 20, 14), M.eye, "EyeBall", [0, 0, 0], [0, 0, 0], [.043, .068, .022]); add(e, new THREE.SphereGeometry(.009, 8, 6), M.glint, "Glint", [-sx * .012, .03, .02]).castShadow = false; }
+  add(head, new THREE.BoxGeometry(.03, .004, .004), M.eye, "Mouth", [0, .085, .1], [-.3, 0, 0]).castShadow = false;
+  // the crest: an upper row sweeping up and back, a lower row falling down the back of the neck; every tip curls
+  const HAIR_BONES = 6, hair = [];
+  const crest = [ // [angle round the head (0 = straight back, ±π/2 = the sides, ±π = the forehead), lift (0 = level, 1 = straight up), length, thickness]
+    [0, .8, .52, .078], [-.7, .7, .5, .075], [.7, .7, .5, .075], [-1.45, .55, .46, .07], [1.45, .55, .46, .07],        // upper row: up and back
+    [-2.05, .82, .42, .07], [2.05, .82, .42, .07],                                                                   // two rising from the temples
+    [-.38, .22, .46, .066], [.38, .22, .46, .066], [-1.15, .05, .44, .062], [1.15, .05, .44, .062], [0, -.25, .4, .058] ];   // lower row: down the back of the neck
+  crest.forEach(([ang, lift, len, r], k) => { const front = Math.abs(ang) > 2, low = lift < .3;
+    // resting curl about the tentacle's own sideways axis: positive rolls it backward/down. Upper ones arc back then flick up; lower ones hang then curl out.
+    const curve = front ? [.5, .55, .45, .2, -.3, -.7] : low ? [0, .28, .2, -.25, -.6, -.9] : [0, .34, .42, .2, -.45, -.95];
+    const t = tentacle("Hair" + k, { len, r0: r, r1: r * .36, bones: HAIR_BONES, mat: M.crest, radial: 9, squash: .78, bend: (j) => [curve[j] * (.9 + rnd() * .25), (rnd() - .5) * .16] });
+    const el = lift * Math.PI / 2, dir = new THREE.Vector3(-Math.sin(ang) * Math.cos(el), Math.sin(el), -Math.cos(ang) * Math.cos(el)).normalize();
+    // local Y = the direction it grows; local Z = "outward/up" from the skull, so +X rotation rolls the tip back toward the body
+    const back = new THREE.Vector3(front ? 0 : -Math.sin(ang), 0, front ? -1 : -Math.cos(ang)), side = new THREE.Vector3().crossVectors(dir, front ? back : new THREE.Vector3(0, 1, 0)).normalize();
+    if (side.lengthSq() < .5) side.set(1, 0, 0); const z = new THREE.Vector3().crossVectors(side, dir).normalize();
+    t.mesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(side, dir, z)); if (front) t.mesh.rotateY(Math.PI);
+    const rootDir = new THREE.Vector3(-Math.sin(ang), 0, -Math.cos(ang));
+    t.mesh.position.set(rootDir.x * .085, (front ? .36 : low ? .2 : .3) + lift * .06, -.01 + rootDir.z * (front ? .05 : .095)); head.add(t.mesh); hair.push({ ...t, ang }); });
+
+  // ---- animation: each clip is a set of functions of time, sampled into keyframes around the resting pose ----
+  const Q = (x, y, z) => new THREE.Quaternion().setFromEuler(new THREE.Euler(x, y, z)).toArray();
+  const track = (name, D, fn, step = 1 / 20) => { const ts = [], v = []; for (let t = 0; t <= D + 1e-6; t += step) { ts.push(+t.toFixed(4)); const d = fn(t), r = rest[name] || [0, 0, 0]; v.push(...Q(r[0] + (d[0] || 0), r[1] + (d[1] || 0), r[2] + (d[2] || 0))); } return new THREE.QuaternionKeyframeTrack(name + ".quaternion", ts, v); };
+  const ptrack = (name, D, fn, step = 1 / 20) => { const ts = [], v = []; for (let t = 0; t <= D + 1e-6; t += step) { ts.push(+t.toFixed(4)); v.push(...fn(t)); } return new THREE.VectorKeyframeTrack(name + ".position", ts, v); };
+  const TAU = Math.PI * 2, ss = (a, b, t) => { const k = Math.max(0, Math.min(1, (t - a) / (b - a))); return k * k * (3 - 2 * k); };
+  // the gown: a wave runs down every tentacle (whole cycles per loop); `amp` is how lively, `trail` leans the tips back when it's moving
+  const gown = (D, cycles, amp, trail) => legs.flatMap(({ bones, a, k }) => bones.map((b, j) => track(b.name, D, t => { const w = TAU * cycles * t / D - j * .7 + k * 1.9, f = j / (LEG_BONES - 1);
+    return [amp * f * Math.sin(w) + trail * f * Math.cos(a) * .35, 0, amp * .6 * f * Math.cos(w * 1 + k) + trail * f * Math.sin(a) * .35]; })));
+  const crestSway = (D, cycles, amp) => hair.flatMap(({ bones }, k) => bones.map((b, j) => track(b.name, D, t => { const w = TAU * cycles * t / D - j * .6 + k * 1.3; return [amp * (j / 5) * Math.sin(w), 0, amp * .7 * (j / 5) * Math.cos(w + k)]; })));
+  const armHang = (nm, D, cycles, amp, ph) => arms[nm].bones.map((b, j) => track(b.name, D, t => { const w = TAU * cycles * t / D - j * .5 + ph; return [amp * (j / 7) * Math.sin(w), 0, amp * .6 * (j / 7) * Math.cos(w)]; }));
+  const clips = [];
+  { const D = 4; clips.push(new THREE.AnimationClip("Idle", D, [...gown(D, 1, .07, 0), ...crestSway(D, 1, .09), ...armHang("ArmL", D, 1, .08, 0), ...armHang("ArmR", D, 1, .08, 2),
+      track("Head", D, t => [.04 * Math.sin(TAU * t / D), .12 * Math.sin(TAU * t / D + 1), .03 * Math.sin(TAU * 2 * t / D)]), track("Torso", D, t => [.015 * Math.sin(TAU * t / D), 0, .02 * Math.sin(TAU * t / D + .7)]),
+      ptrack("Body", D, t => [0, .012 * Math.sin(TAU * t / D), 0])])); }
+  { const D = 2; clips.push(new THREE.AnimationClip("Glide", D, [...gown(D, 2, .16, -.5), ...crestSway(D, 2, .14).map((tr, i) => tr), ...armHang("ArmL", D, 1, .2, 0), ...armHang("ArmR", D, 1, .2, Math.PI),
+      track("Head", D, t => [-.05 + .03 * Math.sin(TAU * 2 * t / D), .05 * Math.sin(TAU * t / D), 0]), track("Torso", D, t => [.09 + .02 * Math.sin(TAU * 2 * t / D), .05 * Math.sin(TAU * t / D), .03 * Math.sin(TAU * t / D)]),
+      ptrack("Body", D, t => [0, .02 + .018 * Math.sin(TAU * 2 * t / D), 0])])); }
+  { // Play: the right arm lifts, straightens forward, taps twice, and settles back; the head tips down to watch
+    const D = 3.2, reach = t => ss(.2, .9, t) * (1 - ss(2.4, 3.1, t)), tap = t => (ss(1.1, 1.25, t) - ss(1.25, 1.45, t)) + (ss(1.7, 1.85, t) - ss(1.85, 2.05, t));
+    const R = arms.ArmR.bones.map((b, j) => track(b.name, D, t => { const k = reach(t), r = rest[b.name];
+      // unbend the resting S, swing the upper arm forward, a soft hook at the tip; the tap dips the last third
+      const fwd = j === 0 ? -1.2 : j === 1 ? -.2 : 0, un = -r[0] * (j > 3 ? .6 : .9), hook = j >= 6 ? .2 : 0, dip = j >= 4 ? -.16 * tap(t) : 0;
+      return [k * (fwd + un + hook) + dip * k, 0, k * (-r[2] * .75)]; }));
+    clips.push(new THREE.AnimationClip("Play", D, [...gown(D, 1, .06, 0), ...crestSway(D, 1, .1), ...armHang("ArmL", D, 1, .06, 0), ...R,
+      track("Head", D, t => [.22 * reach(t) + .05 * tap(t), -.1 * reach(t), 0]), track("Torso", D, t => [.1 * reach(t), -.08 * reach(t), 0]), ptrack("Body", D, t => [0, 0, 0])])); }
+  { // Cheer: both arms fly up and wave, the crest flares, a little bounce
+    const D = 2.4, up = t => ss(0, .4, t) * (1 - ss(1.9, 2.4, t));
+    const A = nm => arms[nm].bones.map((b, j) => track(b.name, D, t => { const k = up(t), r = rest[b.name], sx = nm === "ArmR" ? -1 : 1;
+      return [k * (-r[0] * .55 + (j > 2 ? .2 * Math.sin(TAU * 3 * t / D + j * .6) : 0)), 0, k * (-r[2] * .6 + (j === 0 ? -sx * 2.25 : 0) + (j > 3 ? sx * .12 * Math.cos(TAU * 3 * t / D + j) : 0))]; }));
+    clips.push(new THREE.AnimationClip("Cheer", D, [...gown(D, 2, .12, 0), ...crestSway(D, 3, .22), ...A("ArmL"), ...A("ArmR"),
+      track("Head", D, t => [-.18 * up(t), .1 * Math.sin(TAU * 2 * t / D) * up(t), 0]), track("Torso", D, t => [-.06 * up(t), 0, .04 * Math.sin(TAU * 3 * t / D) * up(t)]),
+      ptrack("Body", D, t => [0, .05 * Math.abs(Math.sin(TAU * 3 * t / D)) * up(t), 0])])); }
+  return { root, clips, height: HIP + 1.25, palette: opts.palette || "purple" };
+}
+
+const TEX_SRC = {};
+const cv=document.getElementById("c");
+const renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true});
+renderer.setPixelRatio(Math.min(2,devicePixelRatio)); renderer.outputEncoding=THREE.sRGBEncoding; renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.0;
+renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+const scene=new THREE.Scene(), cam=new THREE.PerspectiveCamera(35,1,.05,50);
+cam.position.set(1.6,1.7,4.2);
+const ctl=new THREE.OrbitControls(cam,cv); ctl.target.set(0,1.05,0); ctl.enableDamping=true; ctl.minDistance=1.1; ctl.maxDistance=7; ctl.maxPolarAngle=Math.PI*.52; ctl.autoRotate=true; ctl.autoRotateSpeed=.8;
+cv.addEventListener("pointerdown",()=>ctl.autoRotate=false);
+scene.add(new THREE.HemisphereLight(0xbfb4ff,0x1a1030,.75));
+const key=new THREE.DirectionalLight(0xffffff,1.6); key.position.set(2,4,3); key.castShadow=true; key.shadow.bias=-.0006; key.shadow.normalBias=.02; key.shadow.mapSize.set(1024,1024); Object.assign(key.shadow.camera,{left:-3,right:3,top:3,bottom:-2.5}); key.shadow.mapSize.set(2048,2048); scene.add(key);
+const rim=new THREE.DirectionalLight(0xff5fae,1.1); rim.position.set(-2.5,2,-2.5); scene.add(rim);
+const fill=new THREE.PointLight(0x7dffb0,.5,3); fill.position.set(0,1.5,1.2); scene.add(fill);
+// floor: a soft glowing disc under the robot
+const fc=document.createElement("canvas"); fc.width=fc.height=256; const fg=fc.getContext("2d"), rg=fg.createRadialGradient(128,128,0,128,128,128);
+rg.addColorStop(0,"#3b2a7a"); rg.addColorStop(.55,"#1e1440"); rg.addColorStop(1,"rgba(11,7,24,0)"); fg.fillStyle=rg; fg.fillRect(0,0,256,256);
+const ft=new THREE.CanvasTexture(fc); ft.encoding=THREE.sRGBEncoding;
+const floor=new THREE.Mesh(new THREE.CircleGeometry(3.2,48),new THREE.MeshStandardMaterial({map:ft,transparent:true,roughness:.9})); floor.rotation.x=-Math.PI/2; floor.receiveShadow=true; scene.add(floor);
+const ring=new THREE.Mesh(new THREE.RingGeometry(2.45,2.47,64),new THREE.MeshBasicMaterial({color:0xffc845,transparent:true,opacity:.35})); ring.rotation.x=-Math.PI/2; ring.position.y=.002; scene.add(ring);
+
+const loadImg=s=>new Promise(r=>{const i=new Image(); i.onload=()=>r(i); i.onerror=()=>r(null); i.src=s;});
+let bot, mixer, acts={}, cur=null, beacon=null, mode="Idle";
+function build(pal){ if(bot){ scene.remove(bot.root); } acts={}; cur=null;
+  bot=buildAlien(THREE,{palette:pal}); scene.add(bot.root);
+  mixer=new THREE.AnimationMixer(bot.root); bot.clips.forEach(c=>acts[c.name]=mixer.clipAction(c)); play(); }
+setTimeout(()=>build("purple"),0);   // after the rest of the page script has run
+document.querySelectorAll(".mood button").forEach(b=>b.onclick=()=>{ document.querySelectorAll(".mood button").forEach(x=>x.setAttribute("aria-pressed",String(x===b))); build(b.dataset.p); });
+const NOTES={Idle:"Standing: the gown of tentacles drifts, the crest sways, the head looks around",Glide:"Moving across the floor: a wave runs down the leg tentacles, tips trailing behind",Play:"Reaching out with one arm to tap a button, head tipped down to watch",Cheer:"A win: both arms up and waving, crest flaring",Stop:""};
+function play(){ document.getElementById("note").textContent=NOTES[mode];
+  if(mode==="Stop"){ if(cur) cur.fadeOut(.3); cur=null; return; }
+  const a=acts[mode]; if(a===cur) return; a.reset().setEffectiveWeight(1).play(); if(cur) cur.crossFadeTo(a,.35,false); cur=a; }
+function setAnim(n){ document.querySelectorAll(".anim button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.a===n))); mode=n; play(); }
+document.querySelectorAll(".anim button").forEach(b=>b.onclick=()=>setAnim(b.dataset.a));
+function size(){ const w=innerWidth,h=innerHeight; renderer.setSize(w,h,false); cam.aspect=w/h; cam.fov=w<h?52:36; cam.updateProjectionMatrix(); }
+addEventListener("resize",size); size();
+const clock=new THREE.Clock();
+renderer.setAnimationLoop(()=>{ const dt=Math.min(.05,clock.getDelta()); if(mixer) mixer.update(dt); ctl.update();
+  if(bot && bot.update) bot.update(clock.elapsedTime); if(beacon) beacon.material.emissiveIntensity=1.1+.6*Math.sin(clock.elapsedTime*5); renderer.render(scene,cam); });
+</script>

@@ -58,6 +58,8 @@ model3d/     the walking slot-machine robot
   gravity_viewer.src.html / build_gravity3d.py → gravity_table.html · capture_gravity.js grabs the bowl art → cap/gw_bowl.webp
   moons_model.js        the Twin Moons craps-style table (long felt tub, bumpers, mirrored layout, robot dealer, laser wall + end launcher)
   moons_viewer.src.html / build_moons3d.py → twin_moons_table.html · shotmoons.js takes test screenshots
+  alien_model.js        the tentacled alien patron: skinned tentacles (crest, arms, gown of legs), 4 colourways; clips Idle/Glide/Play/Cheer
+  alien_viewer.src.html / build_alien3d.py → alien_patron.html · shotalien.js takes test screenshots
   warp_model.js         the Warp Drive stage: tall flight screen, leaderboard screen on arms, holo rings, 7 betting podiums with stools; launch = lights, steam
   warp_viewer.src.html / build_warp3d.py → warp_stage.html · capture_warp.js grabs flight frames from the game → cap/warp_*.webp
 ```
