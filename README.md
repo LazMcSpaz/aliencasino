@@ -38,6 +38,9 @@ asteroid/    Asteroid Field: a "mines" game — crack asteroids for crystals, co
   part_engine.js   5×5 field, 1–24 black holes, multiplier = fair odds × 97% · tools/sim.js checks payback, tools/playtest.js browser test
   shell.html       holo field with procedural rocks and crystals, multiplier ladder, escalating effects, black-hole pull · build.py → asteroid.html
 
+pusher/      Star Dozer, a coin pusher: drop coins on the sliding pusher, shove the pile over the front edge; coins stack one level; the tray is kept between visits
+  part_engine.js   physics (coins, pusher, stacking), payouts, prizes; pure logic · shell.html drawing + screen · build.py → pusher.html
+  tools/sim.js     payback check (about 95% over a long run) · tools/playtest.js headless play-through
 lobby/       the Alien Casino floor: walk it in first person (or switch to the bird's-eye view), walk up to a machine and tap it to play
   lobby.src.html   room, lights, picking, the card, the game overlay, the wallet · build.py → lobby.html (+ copies the built games into games/, not committed)
   part_walk.js     first-person walking: swipe up to walk, sideways to turn, release to stop; hologram controls; collisions
@@ -64,7 +67,7 @@ model3d/     the walking slot-machine robot
   moons_viewer.src.html / build_moons3d.py → twin_moons_table.html · shotmoons.js takes test screenshots
   alien_model.js        the tentacled alien patron: skinned tentacles (crest, arms, gown of legs), 4 colourways; clips Idle/Glide/Play/Cheer
   alien_viewer.src.html / build_alien3d.py → alien_patron.html · shotalien.js takes test screenshots
-  warp_model.js         the Warp Drive stage: tall flight screen, leaderboard screen on arms, holo rings, 7 betting podiums with stools; launch = lights, steam
+  warp_model.js, pusher_model.js         the Warp Drive stage: tall flight screen, leaderboard screen on arms, holo rings, 7 betting podiums with stools; launch = lights, steam
   warp_viewer.src.html / build_warp3d.py → warp_stage.html · capture_warp.js grabs flight frames from the game → cap/warp_*.webp
 ```
 

@@ -107,7 +107,8 @@ const GAMES = [
   { id:"asteroid",name:"Asteroid Field",  kind:"Mines",                   col:"#5fe8ff", src:"games/asteroid.html", desc:"Crack asteroids for crystals. Collect before you hit a black hole." },
   { id:"gravity", name:"Gravity Well",    kind:"Spiral roulette",         col:"#b48cff", src:"games/gravity.html",  desc:"A comet spirals down three tiers into a black hole. Bet on where it lands." },
   { id:"moons",   name:"Twin Moons",      kind:"Alien craps",             col:"#bfefff", src:"games/moons.html",    desc:"Roll two 8-sided moons. The gap between them counts. Matching moons collide." },
-  { id:"warp",    name:"Warp Drive",      kind:"Crash game",              col:"#ff5fae", src:"games/warp.html",     desc:"A drone launches and the multiplier climbs. Bail before it explodes." } ];
+  { id:"warp",    name:"Warp Drive",      kind:"Crash game",              col:"#ff5fae", src:"games/warp.html",     desc:"A drone launches and the multiplier climbs. Bail before it explodes." },
+  { id:"pusher",  name:"Star Dozer",      kind:"Coin pusher",             col:"#8dff6a", src:"games/pusher.html",   desc:"Drop coins onto the sliding pusher and shove the pile over the edge. Prizes ride along." } ];
 const G = Object.fromEntries(GAMES.map(g=>[g.id,g]));
 // The floor plan (metres; the room runs x −12…12, z −10 at the back wall … 21 at the front wall with the airlock).
 // Walkways: a 5 m centre aisle (x −2.5…2.5), 4 m along each side, 3 m between rows. The front lounge (z 14…21) is in part_extras.js.
@@ -117,6 +118,9 @@ const PLAN = [
   { game:"warp",    kind:"model", pos:[0,0,-6.6],    rot:0,    scale:.75, va:0 },
   { game:"gravity", kind:"model", pos:[-7.6,0,-6.6], rot:.35,  scale:.95, va:.35 },
   { game:"gravity", kind:"model", pos:[7.6,0,-6.6],  rot:-.35, scale:.95, va:-.35 },
+  // a Star Dozer coin pusher in each gap beside the Warp stage, against the back wall
+  { game:"pusher",  kind:"model", pos:[-4.15,0,-9.3], rot:0,    scale:1,   va:0 },
+  { game:"pusher",  kind:"model", pos:[4.15,0,-9.3],  rot:0,    scale:1,   va:0 },
   // a Twin Moons table either side of the centre aisle
   { game:"moons",   kind:"model", pos:[-4.6,0,-1.2], rot:0,    scale:.85, va:0 },
   { game:"moons",   kind:"model", pos:[4.6,0,-1.2],  rot:0,    scale:.85, va:0 },
@@ -150,7 +154,7 @@ scene.add(new THREE.HemisphereLight(0xa99cff,0x140a28,.8));
 const key=new THREE.DirectionalLight(0xffffff,1.45); key.position.set(10,30,20); key.castShadow=true; key.shadow.mapSize.set(PHONE?1024:2048,PHONE?1024:2048);
 Object.assign(key.shadow.camera,{left:-20,right:20,top:20,bottom:-20,near:1,far:80}); key.shadow.bias=-.0005; key.shadow.normalBias=.03; scene.add(key);
 const rim=new THREE.DirectionalLight(0xff5fae,.7); rim.position.set(-8,6,-10); scene.add(rim);
-PLAN.filter(p=>p.kind==="model").forEach(p=>{ const l=new THREE.PointLight(new THREE.Color(G[p.game].col),1,7,2); l.position.set(p.pos[0],3.6,p.pos[2]); scene.add(l); });
+PLAN.filter(p=>p.kind==="model"&&p.game!=="pusher").forEach(p=>{ const l=new THREE.PointLight(new THREE.Color(G[p.game].col),1,7,2); l.position.set(p.pos[0],3.6,p.pos[2]); scene.add(l); });
 { const l=new THREE.PointLight(0xffb070,1.3,12,2); l.position.set(10.2,3.6,5.5); scene.add(l); }   // warm light over the bar
 
 // ---- the room: alien carpet, panelled walls with neon and portholes onto space, the casino's sign ----
@@ -241,7 +245,7 @@ async function buildFloor(){ const TX=await loadAll(TEX_SRC);
   // the shared models: one of each, cloned where the floor needs several
   const proto={}, protoClips={};
   const make={ slot:()=>buildSlotBot(THREE,{mood:"happy",tex:TX.slot}), pyramid:()=>buildPyramidBot(THREE,{tex:TX.pyramid}), asteroid:()=>buildPyramidBot(THREE,{tex:TX.asteroid}),
-    gravity:()=>buildGravityTable(THREE,{tex:TX.gravity}), moons:()=>buildMoonsTable(THREE,{tex:TX.moons}), warp:()=>buildWarpStage(THREE,{tex:TX.warp}) };
+    gravity:()=>buildGravityTable(THREE,{tex:TX.gravity}), moons:()=>buildMoonsTable(THREE,{tex:TX.moons}), warp:()=>buildWarpStage(THREE,{tex:TX.warp}), pusher:()=>buildPusher(THREE,{}) };
   $("loading").classList.add("done"); let n=0;
   for(const p of PLAN){ n++; $("hint").textContent=`SETTING UP THE FLOOR ${n}/${PLAN.length}`; await new Promise(r=>requestAnimationFrame(()=>setTimeout(r,0)));
     const g=G[p.game], holder=new THREE.Group(); holder.userData.game=g; scene.add(holder);

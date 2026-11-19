@@ -1,0 +1,464 @@
+<!-- Star Dozer (coin pusher): page layout, styles, drawing and screen logic. build.py adds the engine and the shared sound engine and writes pusher.html.
+     May use: part_engine.js (physics, payouts, credits), Sound (shared synth). Must not: decide outcomes or change credits itself; the engine does that. -->
+<title>Star Dozer</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Chakra+Petch:wght@500;600;700&family=Monoton&family=Share+Tech+Mono&family=Yellowtail&display=swap">
+<style>
+:root{--void:#03040f;--ink:#e6fbff;--dim:#7fb3c7;--holo:#5fe8ff;--holo2:#b48cff;--gold:#ffc845;--hot:#ff4d6d;--win:#7dff9a;
+  --f-sign:"Bungee",Impact,sans-serif;--f-tech:"Chakra Petch",system-ui,sans-serif;--f-mono:"Share Tech Mono",ui-monospace,monospace;color-scheme:dark}
+html,body{height:100%}
+body{margin:0;background:radial-gradient(100% 60% at 50% 30%,#1a1240 0%,var(--void) 75%);color:var(--ink);font:500 14px var(--f-tech);overflow:hidden;-webkit-tap-highlight-color:transparent;user-select:none}
+[hidden]{display:none!important}
+.app{position:relative;height:100dvh;max-width:480px;margin:0 auto;display:grid;grid-template-rows:auto minmax(0,1fr) auto;gap:8px;box-sizing:border-box;
+  padding:calc(8px + env(safe-area-inset-top,0px)) max(12px,env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) max(12px,env(safe-area-inset-left,0px))}
+.holo{--k:10px;--hc:var(--holo);position:relative;isolation:isolate;border:0;color:var(--ink);
+  clip-path:polygon(var(--k) 0,100% 0,100% calc(100% - var(--k)),calc(100% - var(--k)) 100%,0 100%,0 var(--k));
+  background:linear-gradient(180deg,color-mix(in srgb,var(--hc) 15%,transparent),color-mix(in srgb,var(--hc) 5%,transparent)),repeating-linear-gradient(0deg,color-mix(in srgb,var(--hc) 7%,transparent) 0 1px,transparent 1px 3px);
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--hc) 45%,transparent),inset 0 0 22px color-mix(in srgb,var(--hc) 12%,transparent)}
+.holo::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:2;
+  background:linear-gradient(var(--hc),var(--hc)) 0 100%/12px 1.5px no-repeat,linear-gradient(var(--hc),var(--hc)) 0 100%/1.5px 12px no-repeat,
+    linear-gradient(var(--hc),var(--hc)) 100% 0/12px 1.5px no-repeat,linear-gradient(var(--hc),var(--hc)) 100% 0/1.5px 12px no-repeat;opacity:.9}
+.lbl{font:400 .56rem/1 var(--f-mono);letter-spacing:.22em;color:var(--dim);text-transform:uppercase}
+.hud{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;height:50px}
+.coins{display:flex;align-items:center;gap:7px;justify-self:start;padding:6px 12px 6px 8px}
+.coins i{width:24px;height:18px;background:var(--bar) center/contain no-repeat;filter:drop-shadow(0 0 4px #ffc84588)}
+.coins b{font:700 1.05rem/1 var(--f-mono);text-shadow:0 0 8px var(--holo)}
+.title{position:relative;justify-self:center;text-align:center;white-space:nowrap}
+.title .l2{display:block;font:400 1.35rem/1 "Monoton",var(--f-sign);color:#fff1dc;text-shadow:0 0 4px #fff,0 0 10px #ffb070,0 0 22px #ff7a3a,0 0 40px #ff7a3a88}
+.title .l1{position:absolute;right:-14px;bottom:-14px;font:400 1.2rem/1 "Yellowtail",cursive;color:#e6fbff;transform:rotate(-7deg);text-shadow:0 0 3px #fff,0 0 9px var(--holo),0 0 18px #3f8cff}
+.icons{justify-self:end;display:flex;gap:6px}
+.icon{--k:7px;width:36px;height:36px;display:grid;place-items:center;cursor:pointer;padding:0;color:var(--holo)}
+.icon svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+.icon[aria-pressed="false"] .on{display:none}.icon[aria-pressed="true"] .off{display:none}
+.fieldbox{--k:14px;min-height:0;overflow:hidden;background:radial-gradient(90% 90% at 50% 40%,#140f33,#04050f);touch-action:none}
+#cv{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:pointer}
+.bub{position:absolute;z-index:6;top:10px;left:50%;translate:-50% 0;max-width:84%;width:max-content;padding:6px 10px;background:#04121fe6;border:1px solid var(--gold);color:#fff;
+  font:600 .76rem/1.28 var(--f-tech);text-align:center;box-shadow:0 0 14px #ffc84544;opacity:0;transform:scale(.85);transition:opacity .18s,transform .24s cubic-bezier(.3,1.6,.5,1);pointer-events:none}
+.bub.show{opacity:1;transform:none}
+.bub b{display:block;font:400 .5rem/1 var(--f-mono);letter-spacing:.2em;color:var(--gold);margin-bottom:3px}
+.banner{position:absolute;z-index:7;left:50%;top:44%;translate:-50% -50%;text-align:center;pointer-events:none;opacity:0;font:400 1.6rem/1 var(--f-sign);color:var(--bc,#fff);text-shadow:0 0 18px var(--bc,#5fe8ff),0 0 3px #fff;white-space:nowrap}
+.banner small{display:block;font:400 .7rem var(--f-mono);letter-spacing:.24em;margin-top:6px;color:#fff;text-shadow:0 0 8px var(--bc)}
+.banner.show{animation:ban 1.8s ease-out forwards}
+@keyframes ban{0%{opacity:0;transform:scale(.4)}12%{opacity:1;transform:scale(1.15)}22%{transform:scale(1)}80%{opacity:1}100%{opacity:0;transform:scale(1.05)}}
+.controls{display:grid;gap:7px}
+.row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px}
+.denoms{padding:7px 8px;display:grid;gap:5px}
+.seg{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
+.seg button{border:0;cursor:pointer;padding:8px 0;border-radius:50px;font:700 .9rem var(--f-mono);color:#fff;background:radial-gradient(circle at 35% 30%,color-mix(in srgb,var(--c) 70%,#fff),var(--c) 45%,color-mix(in srgb,var(--c) 45%,#000));opacity:.45;box-shadow:inset 0 -2px 0 #0006}
+.seg button[aria-pressed="true"]{opacity:1;box-shadow:0 0 0 2px #fff,0 0 14px var(--c);text-shadow:0 1px 2px #000a}
+.winbox{--hc:var(--win);min-width:104px;padding:7px 10px;display:grid;align-content:center;gap:4px;text-align:right}
+.winbox b{font:700 1.4rem/1 var(--f-mono);color:#fff;text-shadow:0 0 10px var(--win)}
+.winbox.pop{animation:pop .5s}
+@keyframes pop{30%{transform:scale(1.08);filter:brightness(1.6)}}
+.deck{display:grid;grid-template-columns:auto minmax(0,1fr);gap:7px}
+.tb{--k:10px;width:92px;cursor:pointer;display:grid;place-content:center;gap:3px;font:400 .8rem/1 var(--f-sign);color:#fff;text-shadow:0 0 8px var(--holo2);--hc:var(--holo2)}
+.tb small{font:400 .54rem var(--f-mono);letter-spacing:.1em;color:var(--holo2)}
+.tb[aria-pressed="true"]{--hc:var(--win);animation:glow .6s ease-in-out infinite alternate}
+@keyframes glow{to{box-shadow:inset 0 0 0 1px var(--win),inset 0 0 30px #7dff9a55,0 0 14px #7dff9a66}}
+.hint{--hc:var(--gold);height:56px;display:grid;place-content:center;text-align:center;gap:4px;font:400 .95rem/1 var(--f-sign);letter-spacing:.04em;color:#fff;text-shadow:0 0 10px var(--gold)}
+.hint small{font:400 .6rem var(--f-mono);letter-spacing:.08em;color:var(--gold)}
+.sheet{position:fixed;inset:0;z-index:100;display:grid;place-items:center;background:#000c;padding:16px}
+.card{--k:14px;max-width:360px;max-height:86dvh;overflow:auto;padding:18px;font:500 .88rem/1.45 var(--f-tech);background:#06131fee}
+.card h2{margin:0 0 8px;font:400 1.15rem var(--f-sign);color:var(--holo);text-shadow:0 0 10px var(--holo)}
+.card table{width:100%;border-collapse:collapse;margin:8px 0;font:400 .8rem var(--f-mono)}.card td{padding:3px 0;border-bottom:1px solid #ffffff14}.card td:last-child{text-align:right}
+.card .dbg{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+.card .dbg button{--k:6px;font:600 .72rem var(--f-mono);padding:7px 10px;cursor:pointer;color:var(--holo)}
+.say{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+</style>
+
+<div class="app" id="app">
+  <header class="hud">
+    <div class="coins holo"><i aria-hidden="true"></i><b id="credits">500</b></div>
+    <div class="title" aria-label="Star Dozer"><span class="l2">STAR</span><span class="l1">Dozer</span></div>
+    <div class="icons">
+      <button class="icon holo" id="snd" aria-pressed="true" aria-label="Sound"><svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="on" d="M17 9a4 4 0 0 1 0 6"/><path class="off" d="M17 9l4 6M21 9l-4 6"/></svg></button>
+      <button class="icon holo" id="info" aria-label="How to play"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg></button>
+    </div>
+  </header>
+  <section class="fieldbox holo" id="fieldbox">
+    <canvas id="cv" aria-label="The coin pusher. Tap above the pusher to drop a coin there."></canvas>
+    <div class="banner" id="banner"></div>
+    <div class="bub" id="dealer"><b>ZIB</b><span></span></div>
+    <p class="say" id="say" aria-live="polite"></p>
+  </section>
+  <section class="controls">
+    <div class="row">
+      <div class="denoms holo"><span class="lbl">Coin value</span><div class="seg" id="seg">
+        <button data-v="1" style="--c:#c8d0e0" aria-label="Coins worth 1">1</button><button data-v="5" style="--c:#ffc845" aria-label="Coins worth 5">5</button>
+        <button data-v="10" style="--c:#b48cff" aria-label="Coins worth 10">10</button><button data-v="25" style="--c:#5fe8ff" aria-label="Coins worth 25">25</button></div></div>
+      <div class="winbox holo" id="winbox"><span class="lbl">Won</span><b id="won">0</b></div>
+    </div>
+    <div class="deck">
+      <button class="tb holo" id="auto" aria-pressed="false">AUTO<small>keep dropping</small></button>
+      <div class="hint holo" id="hint">TAP TO DROP<small>tap or hold above the pusher &middot; aim left or right</small></div>
+    </div>
+  </section>
+</div>
+<div class="sheet" id="sheet" hidden><div class="card holo" role="dialog" aria-label="How to play">
+  <h2>How to play</h2>
+  <p>Tap above the pusher to drop a coin there (hold to keep dropping). Pick the coin's value below the machine first.</p>
+  <p>Coins land on the sliding pusher. When it pulls back they're scraped off onto the tray, and when it comes forward it shoves the whole pile.</p>
+  <p>Everything that falls over the <b>front edge</b> is yours. The two <b>corner gutters</b> keep what falls in them. Coins pile up on top of each other and tip over when the pile below moves.</p>
+  <p>Prizes turn up on the pusher now and then. They pay a multiple of the coin value you were playing when they appeared:</p>
+  <table id="paytable"></table>
+  <p>Your pile is kept between visits. Over a long time the machine pays back about 95% of what goes in.</p>
+  <div class="dbg"><button class="holo" id="fufo">Debug: next drop is a saucer</button><button class="holo" id="fstar">Debug: next is a star</button><button class="holo" id="freset">Debug: fresh tray</button><button class="holo" id="close">Close</button></div>
+</div></div>
+
+<script>
+const ART = {"bar": "data:image/webp;base64,UklGRiYuAABXRUJQVlA4WAoAAAAQAAAAxwAAxwAAQUxQSL4IAAABGUVtGzFdz+NPeFKI6P8EcK4WqmnRUObThPf9//Vz5BwziJmZmZmZmaFjZq6Y7wpmvoorZmZmZmbGJPMb/74znt+nvHtW3uqj66xf5YXK3WirvdLVWe4OqlQZuYr16lJ9tN3KXThxZx3aVbSly3MZtrZbfULe7qXtThPmONXIqdxmq9F2W4ZHKf3tAlU66zgcbxeG8raynMrtVPlqO+tXhRks/wlJZW3nMldZLq2ICZiAzeVt/n8r+zdPoBpbsEVlqdASSKC3eDNM+2+SYoxZoSKQIBmQQG2cGMJt2pEy780Opf3ZPm7kvedxCFtGzAEhkJwxtqm9JcmY9rem1B68bysO4H3b8pnmOrtivY+2p/TVX30ZV3UuWwdqeIKMEokh3bZW3J6fSbt1E68CfGysd2lkc/82bC3el/HsWpMhdGoTY4R9O76DIapBSUA2RGq35sed24GXOLA0dlL5x3u0VfF92wV3tumeTfDy3UjbUTKk0QIJRNuyLMsU+dKjeR9qIEICYdu02+xdvBczfmUntmHv5qedybGk/YRL2o2yhUCi2CxaB7E7NEJJMkSGdG5Oi/frB+a+1vSx5U4xhLGGBIJkQALR8Yrs1XxQ1yUJJRI1exn706+z9s8sW2fG8sU/k1NrPDXtJCSQVWOoFKw+SJedbWpuNn/Ex35m9ziQ5pjlDHEEhETXKN63GNzFCAmINEeN2YcZkz429+2LqW2cQEiA6GITZZchISCZmmuc3aS3z6RmMpaQ6MoFr8FQKknYIGecMLVnahfWHLsfO3ZaTXCykERjFA+HOlcWItqmzjEzx49oHtCma/5/WmcmQJREQ026k3tT7Dw5v1EyBtacv+FnXm/kiBhv6Bkmbbb8b1l7uf6Y2iYqi4YrX1zMnUX5DRIzvj5/5GNf/29uibqTsYREY475Ku6qjJ2jrNKoEzmWzWi/UpusaIGEaOyxvL3vpVOIauZXnw6QsCUhAtN5yhWgTqDEqZweVFklEkFqXcjtlKnDclz9akTMTQI26QSurIwdlavVr46oJkFb5cu5hVZH5ep910A1nsCNrTs4L1Udo9h7bVQfI3RT+RjvpGNF81qIvQSvc89x9WR3RDlwMVS9BLA5mccrUweUPWcwP/YSwjFf2C21YnF54DCOyZkwKm/rEnJVWK4mXAopkFw+3cnZhcFlEZsEknre+UrZBeV0Eif2ZplAVuodhihWacx/gUKJxJcWljmKtVMmmMUIYkFwBE6E1IReqxDFcpJyUM0dRTHQfB8hrdT79YU5BRVmemHVvLCCNUiFuIwPRgopMWJMUhGIFyGos9cZRTHmgcghhXtnFATPVimsGEaxicd6GTmk4EtxIdDzUgSVGGwmFeH8CiuH1twJFIKYSFDLi/eisPsIKyK/UhCUgSV+gFSI+bKUHVaDvS7oqSzCak++0LkIeLFnIazS+EFURGLOC+CQIvEDFJv1ZIElpuNi/BTB9fXvSyrCLEWB9W+jKASeILRS61fIRZjnebXskCLxtxRqlvYRVmKSYhFoYBxhnZm+qXMBzsueBAcVbPYbFNxPWCu2JqEixAMEFnBwFGqeyQor8ZneqEK+LGYH1siRFPMcswisNHNEzoUs6Q4sEh9JLoDMo4VW6dM4opgLWUBgK214JlIB5onIYYX89a2o+mABCi2NXU6BZt0lcmClsV9KLmLcaEI7cSioPjRvKSmwxCRifda0dQlt8dkxVl2Ixwmw9WdQyG+GV2wNkuszK6ocWMAoCjSTkxxcn8FF9I0jtMSwj0XVpzkLAmzsH1OgNJrQVlp+WJT1ZW+CAwtzPKT6YCIKLbHGx5LqMhuQw+t/h1EfLKkUXLH8W3Jdid9cQAos4AdwXTBtNAE+TPW5HHgoUmhlpm+aVA/wcii0lJb/DLmA+yG8zQGhApagAPtl6jcPMyU7tMT6pLqg/7UI8DVxXUnP93ek0DIbUNYFaQrBnf/sJKoCMveFA8vlNc2IuT7RQ2i/GatRpPk7cmCR/yaVhUwlO6ji+BsrTSHjxhFUqXkXN2AVAS/QR0hb884NUaQzv4kDKjaviJJi5RUhNbB4o/fmqiCYg8KpudZ3kl3YQ4ST+//6SsgVhU+sAinF1j18M7mi6MTKU+TwcVKrZKNS0+jAnokEjMG2VGb+asWv99KRzt0/GCTGBlogCaZsfHPfAOAOABYRkMbYEiUSUHnOuOdaed2VFwKUyXRk5htw4zMkQBlAQPfA5OFzVlrySD1ZtFVOjnR0N2pcxthSpt2eqXHW0/QNThk3r6RdZXBMdHjiZyndeIyNVVLb3fNWrgYXrZjc/65lPdTOCGNSorP2T6Oh2hhKavfMSt/Qt/Q3F82a9kK0qwzYREynNk/wDtxAUqatR687derfzXuQ0ZOripoiy8Y4MXS6nHZ3DcGy7UzunrLR0t+c/K53TeyjdhaQMEO9+Z0B3IWZBM6Z2j97aiv+sKKtlG2M6SqTPnczZexKjI2EsRElNa3hwx9hwcbx/4ZDFtim681n9VOtqgswxohMncv61mPWD45br3fFbANkY7pou++fN2lVQ48hAcrUntY3cdbwz47o6ysXrNzceNGXDZ9DuzmbZLpw59Fft0krdjaDsTOZ2u6fOvCzi1ZaNPtd8/rYcMLsifRQU5JsjOnyk9Y7nI+XVWcxNlDS7kA3Ky8ZnLPWb/a/q2caNaVE25bBNg3UefRX31orumOMbYlM7YGeyeln53zDHy6cykLazQIbIxlMA065/xQur1QqxpBwztQe3f+OhQM/2bPywoGlydTOAmNM40+a8qEz6stVHTaGkpruWzD879baoPmba3Un2s3Z2GAC0ip//Xh+sEVMAmysLNq6+7X+rvtzU1f+w3dFamckG2PCtFWt/wtfJIa0Z0H1JSv94OzfrD5K7RKwMaGbE1/8Ywc3QylPHf7RwWUPtnBWnEdbKdvYBLMwM0eWVZy9hNpZkDDhXTrRVpJsY8JdAmze5v+35h9WUDggQiUAAFBvAJ0BKsgAyAA+PRqLQ6IhoRYsbTggA8S1N3BgADNqBBf3kP+q8yesv3/+zfs32Qc3PP3kgc/f9n/GfmB8vP8H/wP717jPzt/3PcE/X39fvWi/Yf3Rft96hP6D/if+l/kfeq/x3/I/3Hua/yX+Y/aH/Y/IB/ev8//9ewT/ar2Bv6B/hvTN/+P/G/9fyj/1z/Z/th8D37W//T2AP/Z6gH/j4kfsR/xXgb+RfOv4z+0ful7DeIPrZ/3PQv+V/eP97/ePQP/h+FfwT/qvuO+Qv8k/of+k/NP3cPmv8p3rlk/+F6inuL9I/1H+D/cT+8/D19P/wfRv7Kf7r7efsA/Vj/Z+WT/pPH08+/1394+AP+gf2P/hf3/16P+v/KfmP7nvpb/r/5b4Fv5j/V/95/ef3q/1v/////3j+xv9w/ZB/ZH/8tJeeSdR08JbdcWH/PJOo6d51U0CMLITM99Hq1RtSgpLqkC6KzR3lfbC9aSmUjyxPrsWraZD1f9o23bTQtEhWWXq5U/g+yfbLxDsEpOlArcRYsf7I8U0FqKX6790jIPpQpEOG+3GcDrURT/zb+VEx9KeLUeRXtbl5sI46dggSULwDvw3yq4ZznZSi9WsvxJdhmNpHiQhRqZh55WLveM22MYDS854kib6j/J9tiXg5DgKtcBI26SqSQ9XeUxRQgYyMGrjaoT15S7XT7I8xLJoxU7xE3CwGzd0ls2INb9pHgAhoFOt53DGwLtl1Ri/9duWNCF2TvUYLkW9jr28w+IKmog9xIBGO/fo7EL8B6gEVgTDw2cm02s9bQl13xWuPmTMfQbF0m9KhX8JfIxuYsJ1kZTK9z/MU4plqnVHvjfAooYylbjWRcKlC1mLIL/pvUUUhBTQKMYlTdkg80ebXp/9/jC0ncv2TnSPZBmLQGTZlLCDjBcbaIL/DICaMNZTNfI3Tcmoyy/SdCJqHb/fkiZdbggq6FJboTpX8EKdB0cByIbI9leOSMSoUQrftkxVGU/E4OBGdrYTgUqmoDoHvMxTTQRrT/z4VAQNmSc37NmlwwbogLMI32jiM2MVexqDl4ruJxOQNkpaANsjHgSynZNd5XsAaGTT1SfRD3GfdSTv/FS5ocL9b99BYCz3Tb2qHSEutzXT9WaDfBvYoNTHZObxVNDEF2uPATY9+/sVGAD+ezkhtZWH/PJOo6eEtuuLD/nknTAAAP72kaAAAF81GFM9nzTmKmM8NxF4+bHA5yOzKy3nRF/2G4hq1knI5sUNztKFcUQumXk49Wp+U3Fm+t0L39WZgscoMUwYAyRSbu5Tg5xVzwtgAmxKcTOoovLSa9oKinhG+MLIchNR0LVU0jJYDP4BHyYKb9FuT5WRy3MXLCRwhBVLifB/ep6ZFrmBxTF1qiDPYauJplnagMKSOLUBCcYi/3Dyej6x8Ust1WyRIBLlHXoYuiBrnX4fGLINBNAOGivTJO6JM+hTf9vEWyLCsE74Ivpq3fjWGUFhZMkHAAMjU1eQZ4UuOt/qQ0SohQ8iHR0rXCR3Ldfn2jc8FK+SJGycqNR4aCcz6YES/BArUn91vjLphmpPhJs8n3KosArqBTbtML7fUJvSETc9oktqCY7FroS1v5XojIrlz6FqYY/a1BKFCvtAv4qabj3L1G6h06MtPWuBNvWQvWscgorM6d9gOAUDJtfG9u/i6d2hOXCMfrTV22EjRhZLtijqOvwdh/u8NYjGHwiFzBZK6cAxcpWubqnej/WlP2zUVQxb3mL32EUjzLbI5mRNy/VELWr2eqARDn2+m8dVH/HZ7DvwGJd0hfsbes0n63WNpbXhVZekCwsP1IMbOgAXjBysiPel0kg9tS6WX20+eIAeru9yknmio46DmZpLs9TyI4XdfvU75/Z/2+UVzOWCAtSeNi8t1C4Tmv2xB+gUukXnkmxcGY9zzKSft6k+5qsmp4MgxsgljwHIAqhcYHmPk8DUElXIs3Ayk/izdLg/kY8u59VtPUytMq5dS3xQUvk/5CaTejIKebQ4eXrvuvPohI4WCPyj8vSpBQnS71UVhbKmUR+CHwZbQtWXLwg98y6CEge/ijK9fH6EyOv76h/zP+MTjVxEPygP718UAP8uRvalKTkq+gPN/01w3TDQWHB/AfRgng14//tf8jwSbcPCAlQ/+TVEfSAsK/9AP1oqESeByZ7x5gpFnSLA1zrEvjlB3o3nOmymdoP/9csYTje4lv+rw6BY5xH+8HJBGMMG3iQlUb5+sxss4ql9v2J1yynNsIZXB46mncWJonPIy6nPlaLZMUo57f6hI35AIRXy0DxSXqo9pn5eyj+Pv+FIcISd775BrXC71bJXsoKFmsNDA6sM5AR+mUeCxt53pZDg8VesQX6v6S/oGXSsRWZUYF0gUW29XO3MNTBn/g1vAlRiMENBvjTTwwi7lLEBypUImCY7pBDriFvgIwM8wXK1yyO0Fx0h2fPODmM09o2SorYJF4oZGw/emF5q67CmpJqZIORIBvLymLfcIqcCmi2EqVG0ifO310Re0CWs+5+XxbzKKKiLVh7+FbH6QF85S4oRUCJv/QtyEHld9WgW7nDuND7niQv5fMSKeva43wK/Lolr19Wvjn6CkuiiIQ55WSRHdsxQSyFBKHYyRRdnTls1Dx4rPNxx2fg6Ok4Rd8zJsujy7zkL130kNWiK/k/4pp225hGFpO76SnOLc/PB8Ag0VHt87aKv6KjI4IjdingA9JwFzW7+vSqtpkAETmv0vuvwg75/cGPtP6oJN8WrslqVw4AMtjAtt1kCn6hXAwfAG7wmoYNG2vrokuRF13YkXDUS2LMg8LAxIzTyiBLz6VkbkPH1fHewXptXCy0saZJUumDDVQAGLozTiOmjr8agmBK3O4eX9+hwQevcUGeJvfvITMB6bTxM1FE8zIxPwRk3sUBOImQJSR/USnWlWJWYEotz8x+Vxftjejx9kfQSHr8mfjt6Vk47NQ2Xyqj6YuMF7w5GHIMxMBpPgXQ4Gq3QnLS8Ok/COp42dpFzo8CJW3gj/GBbWzUCnkj7/iyN26IDuzHQxOlqN/RneLgzigoJdRPKy3qDytm6DD7C6oRK3R757fqu0IRk0EOyaI/bP4b5kB9zt+EJeNdtz0ETf+TtolL2gIoQAGTxV26NAAiQu/GjfXYoVEwVeadwhDr46kZ/7zXd6cNWbpyhCjRHJ0KsnEcM7r01DhKqK1pEhEjQ0M3jfYNNt54l6cY8dQMqvOoEDpQ/9OVaBiIbWnb36RFQ9ToxfGywUvxwcveyoBjii77UPGq66hj11W9TxIgOtwQbFdaEs6P++Q9LUSp1b7e5IvBsHcZzSXD2ZDwPcMHRRJPiLptQIG6SVsb52n1hmhFEwNtY1Q3LvQEOMvJkBy0nqRk7JJv4Zs5xYBOYV53ApPbKTSXjrFsble/X9b+ygI2OBvIMpDLP9iTaoXAFotv3CHQ1Hljvr2OW8Hk2AxK7uW6jYjOacWVXuwxOWFSxSiCMXBEr821SBEsivldRgQUZ9u2B7ETnAoY4ijChoR2ewwhe/mtPgCUCuxhD7xYvAeEXzepLkK7znbehx/CYtcIuNhVeSmwyef93Yd/ZsIJkjY1zyhQrpGWXMGznf0YHny9fYxrXpdHy3n2Jo3KRbrj33eDE2B9uwKM0vAstQK+IoHTiCiQbXGRO/f9GGft/YP8qINSCx4eAtlomMNEPXIDdVDE7Dv8jhbuONYGUvPvnNtgwnYY4p/KSIP1Ps2KhJ7mcLY961bdvzhgE7wkXB00u0rSc9eq87MHIKV06CAOhjMnrPuya0uiT/QYwRI30NCgINUE1OUXNhqAT+ZoHwRGjNZLAEjBmMzyw/6nqr+lRq72p1nmvnvGdHGQwbGKh2kZYJOo0c6/mNKHG98yGAYRnbu/N+2gXSZvmp88cugk/p816IKoQJ8V8FLdb5mNG3EeFbjhGR96SuRFgaLMBBX+tYN+jOA08w0BaOZutU5+x7509AZockQWsdaiBy94ugDKlpFSNe07QS2JH/x2Uo2d6fXj3k+9GULT7z4ZvwphnA+HK/cliSzs4LAF25W0UniPtxVzjYUWmmaj3/H3+LS+MgB7A1PyOfHNfMBbDBkHRcXfJUoj5uGhgbIOAVmSzVjACKCRnJ/4L8QD5EYLOLhcWZF94LfvTm0CVPAwJ9VoZqKW8TpwWrNvWeLnMXNAVJApjKcma4sInQUrAbR/vPkVZmQNMzluPQZT9UZFmvOTCMGSLcfiDYd4sfzzJqF/hxtW3TRn8+K9U9pQMpQ838L5QQxfPCRoytVGr/0HurGqw7Xp93wcSlyQD9Uzy1yY6g1Vx4cjPe/pUDqjrcVezVS8ujduljdSZuzOI2pBWg0TvricBrtNV8U53qDJ26vguTxaTC8hO5GManfWpASYo6yz4XMcVMuYsaptRaqRPS4rItzYpdYj6NvV1X1lef/PFzc6r3sbQPu6uY8jy7BhflEH5F/kMOYQ4irSmFCa3qQjjzF8/YWw2KUkxd+9wIbK9lXmH7r36OzfbW1cIyi9pNDNX+eNZXsDbTHxdMK24QMmdtc7ay3/3amCG8J9NJ19u83xbVkKayKAte55LB4azrX5XYoqecU05ZmHoITG/Jd8fWDaiMaiALqLsCKZAErMXInOqMx+eFldoUJ0zFiYfjsAnVD+P6yPAR48F/1P+jBgxg1qyCDdlH/xCFaDxqhj93PoeNFw/YtI4dp6aijC1yFm+vN6Gaq29yPWObXWGiywv1+YHwO5m2WZ0oM9EAXHbY0Mub/MAhHZ7Uy9dhejXVIbyUBv5X/FhmroV0AWy4+/DeBiFapXAQWrGowzYqL5VuYsNX3AjfALqBfsAw4FMGnRSg+vkUkkqXUtf6by6TH2pxdv1gWaYTA0FnH01pgG4t3hCiYRPpuTyuO6XXptLZrkED9pinXIJXdpjfrMStqZdjRkef7zaZg3iLA1bOewJjKNQoIDKEJgzZ9RwFq/0Lin1iFxBXx7wM23TbcDoVSFtKy6N0i7KKRq5G1FOqRwqEhhyJyuqSPj7HO6bvlRSq0xGb8PN9N08WtSSsp3IwTWXbE0uvv8MWw/Li90FKzDNu+pfu1x6nsiXIPQMWre/Ju/aASvfM+dBakdZDXjl2jlaxtcQ7fYDfmzau4vXp+e3sWsb8vBTl1TYMSj+3DlezeZS3uTch4Qf9o6u+6aALLuulfR0E6PyfAhF+hdHdVXp45bB2ULrNyvpXBOjxBaogWa21eyzkvBqaWxdUn7/hfZI/MXNIdPhjeVhmbxT+FS5u36yNgPLjJfrhfTrwXyJzI5Q97gd/5rh6NsKohW9c+oz2+VeciAUDr9UcQtWeFI9xNAC9Qe2z/VzfvBfrGoaLY1jJ+RCWNTD543PmYlZnBkyVSZbDl7VKgvqgu9HSeHYMq7lWZPG2yxS5u8f80NzkyMFkv4UhQxVmrqgsoHrki7xzDzmlmEXqQn8JdnT2h5eDeRT2UVhi5Auk1AFb0O/YOBVbXSXWJ6APQVx2xXE/MsjkJ2IwcTSJaYaT8Px9+YAjTFAaI18WqXS8cLzJktHS5qdENSBc3Iz9lVkI4G0z1A1dQD4hC4FIDEflv7b0geksxbLcgzDFoJoERbPgLhIDD1fwVjGymEBl0kFqb1DBKvdMRSsBuuoIkor2inqkTY1VlifIO6w/81c3lk76FcEYsmsfnx+24+9P/n9klxY59iyQ8Y5OeF9hAtEH0qqRtI4F+l9ojSwb+orhaKklHDiyScCynNgr4gL98rmHCAT/QmfWZz0cv6VcRFlotaS0Kwh3UuFd2amptSiC8ZopoJJYzkKBKLgy2QNFmj1Be4oCxdR7ud/K46qAUJzcrGJ22InAuAJ7omG0QHX78QpTF/i4sNLRfAXQqBsqayv8lNSmZHNTXlcB8HzeX0pzK7IAf6GSEMEYIoxBfJeglPa8fDpJGJlhA/if19NL/UxuTbH7d/OAldjms3J8kjigtS90ZVYrPCR6G0g7obxb+RgoJxvQMF3ILMYpCyxmtTcJkTGDZsg3wsWGZ/5tlmQThWJTfU1hsViNbdqN7FJWzeWgtCBza+fUof4Lv3b9q8OyGj9KOgZFGru6A4MRvbahoiEUl7ObjibTbWV4jlBK1SXY4ltxf0hz+CL43eDUr6sKX3KPCnp1X2M1QMnCccJXUGucy+1voPn/IRvoMRwWovTFFb/MZORIadaQ+6KabolQb13kvPeMddmkzqiR7AWEnSN2+FM2DS3Z16Xeisj5Wo/rzX0WqNG1ieSKo5hbAEu3GSg1RKXTtYGaHCkUZJgCUFx1sKD1XO9qqMjNxJsutKvkXor1GKYCylxs4uPX0AtW2K27EoZ2ZUCTrirntiDoDpnsEy7x+B025JsceHurVNRub/WnZr6DwhQnIIseTjI+Bjty24qX97nXY3Uc5zd70l6HM1Fm4rjMnqqo/cMjrkmR9e0agUb5FeR7IyuMpq+h5ECvwW+FiqgJXQABeef+kG6f+vgpbVvPqccHsFxiaUynr97JhyMR+0YTksxFeUcxsM8Yeotg41KrAcMLiHxY9fC4tQqW91CDfSyA4N/lccQHSjLd30L/lGSkfS/ahcfTq8G2nB3ARnE4JJPpNsG6lgNKvWBcXcTEezkqSzXESXcbyvwHKkbaO6NZORSJ5xj/OH/jNywaZt2uUzHP40Ltl1FCCJaF1uWKkbQkOG2211OZYMv+VCG33jyebdwbZUPFjeJC7xEAKVTTdeax5C7iMM7/sfo2vC4FLg+kd4CWaELHf7RYEVTJdX7DP/tkIfWZUohWEoTk97LEhTlvPfujpYXdmQ6nYuz5JLfNVJMNWrgHPdOTQAkRxx1VU4NJuAH+rSiF1Sj2lbGRlc7zjdFBctqp70eavS3SvCcq7fvabYjuy2qFSFKekTxAuMQGzHP5WylW6Rc280IvGOYz/Aa+a+VfbKozl5IfCTG6ChZXPifjBN2+lO1+POF+PA4jf0rPHK/e756uLTuEFJ+FtwP5PT8ca5P9Badx3P1bzUB3U8gz0Dl2fJ1nQR8S6XGMPKlnpr72j22I5315h3McX//nvKujxdKkbkARnSPGl9LykMYwi2iP1gBZ/6Xep3HlM70Hv/4ge6wkjt46qqFvz+VsK7rAa2/dJnb+DBZ/KI6Mk80wB20ne0ylUlfAtS01WtgWkgFMkZPP/Le6NbLNQStlSHPbwUyL689Du+MKdU5uf2OZRVt38fS26svybIzy5J2ZUVLm4J69BY3f8V8TkUUh0AnsFV0O3StEhb7xeKEqFaeehiiLOB7AelGVPDea1k5hvnrw1he4+1Dfxnkc0HRVZiZ/uWsE9hYqIg+PewGtoVMA/9fzYZCLvoHXiqXHGRhyrbzoOdzmQgPtA/M4B/qu/sASFn80kApdTiLvkFo6iCoJusT2Xxmk3Fc1Ca0LIAoHSy8AgADMsBVcL3GNDv9l2PEl0RJumfE93UapVOSSe0OU4DfyGWAz/rBqm4ZpJFcW0/ytufmTpFgfa9hvNrihy2mFVUo+iYXT2YSri1z8WTs20y8rJZlpsPcPu4oi5bE/2NPnTeXaCyPSJGrwms8Eov62q4WF4DUKJdrR78EiBPdAp+MWKvWd0XzmWgwDSpoAV4kXJJaK0iTMo8ZfNR0h1kXHqGOt88fDwkzAZoDW2g1xm2PRCxNN9ooZZlAI0EJU9aMAAY+nLsJ9ysq7RSeSFoo9KSbFowsPbsQtlzKBUbsDtLHf0+DQ5nU8V69OEvJNAEN1DJTP6JxZIoO9r4UN9BanmVbZNtYVCa34qky7HCnJ+y3AdIYMXwOAUmBd+94eaDKv/IuLzfdPuZpNevwTvIKWP5ZM8iAFcgYCr+r20swqaAJJq+C/rS1AgPkDJkHAUQ4x5MJJoG4Chj+AvRryrHcFJKFRnc2FbHlc536XnrujFOBXboyJkumdilNViQ761agVPHl7pcWoAC6wI4AJV87u2YahCODbrRrGpRPTAlussnYIebMrWO5IMmWZTcssHmwr8FJtqCfLqA4+lkNBUy2yeWhcW2QMH5Gi+HPIQLRL7VVg+VyVEFE50laGXkilc2nzLqbH8qLHO+/alaa0G4I2S2dL2zrAfBbHhkiSYAEJnuF385rRQM1rAU7ybu8qy9kO0eTeg+lMk8L/+7s85Ay6repeihCXuTGWpAdhDUW+hoeF7qpDtfh7cVP7/YzhsNkwqgcahoDsNF6589zAUBjFOhY1a13B8KawgGvxa+6tm4Nnp/nCx0y5ekGNJR6k3CxrLujRSXtrcrzjOMXxK0xqyUE7AbRnqGDoaU9LKN6ft0jfXKWYqlQGaHE6QMSmvU+QQEXJN4o19aDZ88kp29MVlkKjHRzeGOR8LMz8wEOHRCv5QbecQvLvrfqRYwEqB78U4pQB4z0ISIdesTQyXHNriOV5ya1P7dKubWMRyMG4ZXVkcFXK0IJstM2P3kb2r0GB4manq6d1m2+p5m+m4nm3vidJZskvWIqswG8SO4O+xeiyVtrwJ7dbCaijQX5VpzgD4YuPEkrbBSH19D53tBqwg929YpXNJWHVGbpNXohoJbWbhkLuSgQai79P3vq1mgxWRHA3D04JfoWGLWFZXbX4/6iHJbZ4UmmPD87msv0tIT8SD4mdPij/i47C4rIVQQsA/PHbTAFZ+CuqYubfS5zB/W12k6Ztirmh+KN7MmLvmw4ktw2UON4ndF7uqPaL2pC3/wqR6vLWbdeJIOd3eyeXTjODB+BxYLuXMRGXvTuRVIa4bAI9fb3jJ0TYujNOsTmYFyda1U2wqVob7tUjX0+T8yXKHSxNOMo8lhkS9AtrtKaAVss66/zL2mpEmSo075D4MGgZ5vdaLL3rUOBPdKj/ooc/ZtQp4S5pycocpiaN935UON38WEuwBmABrFszKJW/FHe5IKq6EnUDPHNE/PLi9eEz9sLR3CKY6wZZEicnSZdbd13I6hBaW6WcBhkPxI4X1JLTzALQEl0b6FGc9ssUuHYJ2jIXzp/Z45e14M917kirQawxnof/acrkWZ23TKk1UJKtrX5v5G98a7fx8+meLIOHjez1InuJcNFxCMJRbPGJY+uRMHtiikbx49+3ASs34NwPXLohCYDpIzK7DegI6IWAAb5NRbgt6bTlW//9RfWLVPGTtACcOnYvfPVa6NGKM47RAbtlk2pjf1v/kYF/MOwqpWZP6L4meMlXzUDjbwvLSELg4++Z1bXeHVEsR4VYBQvxatUQkWJGbonVYPXjVchsSWV0aN/J5g3DLwp7Ms8yzN4/7OJvkMNHSmWrnZbZdRbZk8XTHXgRlMxAY71hQXt49lgL+H1xNsSzjrchFXeQkxT4oQgg0TUpcf9XZyiQRkSXmc3i7j85Co0R83oBpAoRts0XmDPDWiIjDTGG55IvDqxg1cWs6PH2slATSgrSXqKL1qera2twCgTyMrOK0SITy3YWOCjI0dvwGmGVTuSKveG+AhXIOTKm9eIiUh6UiIvt2sqaBrmmEG333iDiNnhTzAPWfBG9ZGQ6AzpPy9OSIsbH2xnyMvxAkAKrNFvQsmG/54VgX7xI9OsKaRPhFUOYW3GX2QNRpVG7uj4LTkMq/J2l4q+A5U08FeCCdD+SLBTHkc+2ZeFE17QEEy7ug0fjnmfS9GvaDrPy7pacWBRTJEAfm0u6jyEgiRc5L4GsSs4V9lnkneNwKTml1m8hpKn7qHcUkOGJbo/2rGH3apGAtLieb/swSZDHdPRvJ0fwDnsMN5Tm6pkRENUkddpLIl+rDCiWMFsVlZ5xD50iKUPJ8UsykQRhYie7clsJNoiD1Q+wtbX5GyWszPL+QRFgOHdoVKcEd25/6de4qaAPijHOg7TdVBYBTLF1MFKjcFWEnfzcO5f86QBNREnmnoVR01jlAT2FMEgVr2tcKY+Y1IhFK3/RIfbYfAOiETcSArJYO6MUNenBGCYOjsBA6VkricA/Wnm8JVrec0pWzu3yspLC//Emtibm6sbcozSdeVa4dCiKtLWr5noeFL89HdXQNouo3G8yez1mrLCAHbZZgq+eSRnza5aBml658tX1qGk1b7roaiZ9+QTkZ4DlqQWNmM6wcKGnkLST7B2ISW5l+25iM3T4+5FLDJL9U6lSDvc4ra2pvI6bP7bUggGG63M+21BIG0272GlViiwzx5RxacBKokIhTRtkDJIN9wgZw8oud3PdUWXG6x88gm0W+RziXPMWDJlsX2a9k8PAHtPyUgFAMiMbQN0A/V9OjBEPxdOlaymgNdBJ1MPaMUn7ZsyRTvN9bitMrkWdLXYARVOxmbcsWcf4Z7dKY2t4E9va7AHnUpcn7J1RCr+etVnNTFEPSdk1bDXZMoJAYacgZYyxdB6MmJ/re3EWvlolqTL4PkN1tdJmKml3xjPHuH5DC1gOu0wHHEaM1/VbouLGFgV/i/ctC0jo8Xeo9YP/odCsky0sBxXnxdvdxW4+//v0u3m83hDWiNoBAUgxLyXd+cAQi5lHluYgmIN7EzIVqDi/grrZcKrZc0Ops2QM1CQ6gKWJILJT00YIWpesMgZNZsHSow93q4lMiwQAkHqIjzHVT8Ma4znbPKP/TtdPhXOF18kTP+AmQiVxyX/fgL8JZmVlc79ob+9rN49PkO3zp2DzmttFlnCIzVQ+bYcxn5f17w9n4YGUdi91vmlI6dwx218dqwtGsZTRjckoI8zrMBGyxAhv+4RaFS/WcXo+lttDevWfijaZtzy83mE/P0DbJXprlilyeGzkDBrxDJBxiJCjeFvY7IHH1t70kxjqRMKUZp8+lj6s0Vdqg4bmE/wWamRYBQqm3Q1mqiOyS7vsISJlUdCy0W/hsc6w5isEGAzebLzGfSzA8VhXL/WH8oN7+LzjQHUtqne40vCwjGartB7DTvBHORk9BD3n697BNugetnKMd6JoX+LtLOi49QFhN5wzC+E9mYyFbuhoMu+tPNIOYDrsW6eMpdSQVjVMTNn3oVJiWPKwEuL7SFjfgo/AUKyRVksvPNCVquadMqDPnErmWhAqLRHn+3ZfpAInc6K05RibzV6ELTQGxji3h24iy4ngnqJbZ2GTdqryY6C+0MvIPiCrYs9zD57cO5s6ej6m284Bg6UzuMwE8V/hsXBKiqwH7gyHlg2VWLwXTezZVjnII6GhKCSG2BvUfFgYV6P+LS1efCZlBCoaesvmbKJPtlpkBPfpdMGLQkf+oBl+b7br+o5MGEpG357PfHb2gZ8NGCu77Axf2zN9A75g3wbndwvmkOXzOLv+Q/5MA8c9ARr7EbpyOWsmx8BXsO821pwrVaqjFJAfgRyhcJIhqn5sSyOidVGKc4GSP8d5ROy5O5x1movfr9FaSSgbo6EcYcQ+xadLER6XPN0IqcKzm+IROqOHaXqtgzkZiy6BjoH+4sadgZEbbetN1DTEMp+KMavyEAbruSx6M0JGAt3meIczSO7WKpPyw8mk9m847uMJF+XR/xV2gDqQ2iQQQuT+8zaiW/sDhRUXSOVTCx+wct6/LqimGVLkqHnofsu37dlVTbKdlZLYH4TFJQUZ6pmbipYGs6utktKfaqdmj/2JbCv/uUUemKAJfvTwSt7rLI9+zdhbwiFOMfq13uSXStXu3n2fG6Qs3QPOpzJWd8q2h8OBCQkI53QyC89vtUxG1WOZY6HGhGYSww9wOW9yRJeIFAI7IQonqWJouYRML/DBB64zmSId4FZ9RLxiqL5TSS2M4GNjBqcZZni41h23OIgPPgeLEz8InhubenBTAMFUt+op2y6Qqza3qYf+jx3OYzofbjwqIcUHN5ttNhF44eP/bxwT8cw1PatRQlJ+BIOaHZaCWibjsBNeOLTYiYm2/qS+vpR7lUHmGBRtLFQqKYvF0uGMg0skr83pHPgAhZGk7dnNEMjlrJ1Q1wT+WqK2fjnR8EIVMYyBU38SjzAN0Ze//mMf1Us6VcXLIF6xUU278Wz8xwHn0nhyqB2jy1g2wst0ieOB47WmVNhxOlreShVSUGlDV+lmVorBcCgKwBO2qL9a951PB8RwLwigLKhox8rjkkln5VNQmyPijFcLHoqmo9uMvT2HtPm+tKO/PC5rUZNUPsB7o4RQhNQCegBc1b1vYueX5ZGEIalRasZGKY64hFKD+yyViV0j0ngjMg6a5db7f18QoEMFxA1/3fyEPXfRLJ23JLRxf8xisnKSQIwxcF7z7Ji869RFx5FPx6h+6EjaPaF0UJoqOht9YpKtxV+0q0g61SnAEGDb7GU+2AiDO0jpbIrBSdsxnFwr4FLZuh0j2MWyWu1jFejUlmoLLVIJUXJacPAn3CEecbBH3kHCqGY+cnTV6Qd7YL4OfAiM8qO+vqzJAcWA4UXZsUVZADvwPPKiqxh3CChNkOl4VdDmOFtN+T4gm2cMzfH2z/Ft+vZTFOdMNUg7M1NcdK0/d2GGGSmnst7RsiRFXRhbrhF0vkerYlSQ2TKXsvXzIZgqh2V3waoHYSgDrdiiom7phKPCZZ72s5L35C45jEXYzimXUL+0y5zFz/M+0IiOIsMWQ8g5g4DdljohExoV8C0WRztBfe+m9EJlsQLp42MxKymuFIgqA+LhtykGHq4Il4CgBjoYaaSRTEt5wB1GbJSborYAB2HgAr3R/n1EJ1bVffR9BABvuItarivj4+eX9/Tp46xMf5CXxHlC6yg5/MOSPMcitggl4ADb13tIsu7NSRi/1Pwd9vwBevQAEq+GBLTAAAAAAAAAAA="};
+// The shared wallet: one balance of gold bars across every game in the casino (shared by all games; lives in slot/ for now, like the sound engine).
+// Inside the lobby, the lobby holds the balance (window.__alienWallet), so it carries from game to game.
+// Opened on its own, a game keeps its balance in this browser's storage, so it survives a reload.
+// Each engine does: let credits = Wallet.load(START); … Wallet.watch(() => credits)  (it saves whenever the balance changes).
+const Wallet = (() => {
+  const KEY = "alien-casino-bars", START = 500;
+  const host = (() => { try { if (window.parent !== window && window.parent.__alienWallet) return window.parent.__alienWallet; } catch (e) {} return null; })();
+  const read = () => { if (host) return host.get(); try { const v = localStorage.getItem(KEY); return v === null ? null : Number(v); } catch (e) { return null; } };
+  const write = v => { if (host) return host.set(v); try { localStorage.setItem(KEY, String(v)); } catch (e) {} };
+  return {
+    load() { const v = read(); if (v !== null && Number.isFinite(v) && v >= 0) return Math.floor(v); write(START); return START; },
+    watch(get) { let last = get(); const save = () => { const v = get(); if (v !== last && Number.isFinite(v)) { last = v; write(Math.floor(v)); } };
+      setInterval(save, 250); addEventListener("pagehide", save); document.addEventListener("visibilitychange", save); }
+  };
+})();
+
+// Star Dozer: the coin pusher's rules and physics. Pure logic: no drawing, no sound. The screen (shell.html) calls these; tools/sim.js checks the payback in Node.
+// The tray, seen from above: x runs 0…W across, y runs 0 (the back wall) … L (the front edge). A pusher block slides back and forth at the back.
+// Coins you drop land on top of the pusher. When it pulls back they're scraped off its front onto the tray, and when it comes forward it shoves the pile.
+// Whatever goes over the front edge between the gutters is yours; over the front corners (the gutters) it's lost.
+// Coins stack one level deep: a coin that falls onto a crowded spot sits on top of the coins below (layer 2), rides along as they're pushed,
+// and drops down (or tips over the edge) once nothing is holding it up. Layers: 0 = on the tray, 1 = on top of the pusher, 2 = stacked on tray coins.
+// May use: nothing (Wallet if the page has it). Must not: touch the page.
+const W = 1, L = 1.3, R = .043;               // tray width, length, coin radius
+const FACE = [.12, .38], PERIOD = 3.4;          // the pusher's front face slides between these y positions, once every PERIOD seconds
+const GUTTER = .082;                             // the front corners: this much of the width at each side drops into the gutters (lost)
+const DENOMS = [1, 5, 10, 25];
+const START = 500;
+// bonus prizes that turn up on the pusher now and then: value (× the coin value you're playing), size, weight, and how often one replaces a dropped coin
+const ITEMS = {
+  bar:     { val: 4,  r: .058, m: 2.2, odds: .014 },   // a gold bar
+  crystal: { val: 9,  r: .05,  m: 1.6, odds: .005 },   // a big crystal
+  ufo:     { val: 0,  r: .062, m: 2.0, odds: .004 },   // a toy saucer: off the front, it sets off a COIN SHOWER (free coins onto the pusher)
+  star:    { val: 30, r: .066, m: 3.0, odds: .0012 } };   // the jackpot star coin
+const SHOWER = 8, MAXSTACK = 40, CLIMB = 16;                              // coins in a coin shower
+let credits = typeof Wallet !== "undefined" ? Wallet.load() : START;
+let coins = [], clock = 0, nextId = 1, face = FACE[0], events = [];
+const FORCE = { item: null };                   // debug / tests: the next drop is this prize
+
+const faceAt = t => FACE[0] + (FACE[1] - FACE[0]) * (.5 - .5 * Math.cos(2 * Math.PI * t / PERIOD));   // eases at both ends, like a cam
+function mk(x, y, val, kind = "coin", layer = 0) { const it = ITEMS[kind]; return { id: nextId++, x, y, px: x, py: y, val, kind, layer, r: it ? it.r : R, m: it ? it.m : 1, spin: Math.random() * 6.28 }; }
+
+// drop a coin at x (0…W) with value `denom`. It lands on top of the pusher. Returns false if you can't afford it.
+function drop(x, denom) { if (!DENOMS.includes(denom) || credits < denom) return false; credits -= denom;
+  let kind = "coin"; if (FORCE.item) { kind = FORCE.item; FORCE.item = null; } else { const r = Math.random(); let acc = 0; for (const [k, it] of Object.entries(ITEMS)) { acc += it.odds; if (r < acc) { kind = k; break; } } }
+  const it = ITEMS[kind], val = it ? it.val * denom : denom;
+  coins.push(mk(Math.max(R, Math.min(W - R, x)), Math.max(R, face * (.25 + Math.random() * .5)), val, kind, 1));
+  if (kind !== "coin") events.push({ type: "prize", kind });
+  return true; }
+// free coins (a coin shower), spread across the pusher
+function shower(denom, n = SHOWER) { for (let i = 0; i < n; i++) coins.push(mk(R + Math.random() * (W - 2 * R), Math.max(R, face * Math.random()), denom, "coin", 1)); }
+
+// push overlapping coins apart (several passes); a heavier piece moves less. Coins only touch others on the same level.
+function separate(list) {
+  const cell = 2 * .066, grid = new Map(), key = (i, j) => i * 1000 + j;
+  for (const c of list) { const k = key(Math.floor(c.x / cell), Math.floor(c.y / cell)); let a = grid.get(k); if (!a) grid.set(k, a = []); a.push(c); }
+  for (const c of list) { const ci = Math.floor(c.x / cell), cj = Math.floor(c.y / cell);
+    for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) { const a = grid.get(key(ci + di, cj + dj)); if (!a) continue;
+      for (const d of a) { if (d.id <= c.id) continue; const dx = d.x - c.x, dy = d.y - c.y, min = c.r + d.r, q = dx * dx + dy * dy; if (q >= min * min || q === 0) continue;
+        const dist = Math.sqrt(q), push = (min - dist), wc = 1 / c.m, wd = 1 / d.m, s = push / (wc + wd) / dist;
+        c.x -= dx * s * wc; c.y -= dy * s * wc; d.x += dx * s * wd; d.y += dy * s * wd; } } } }
+
+// advance the machine by dt seconds (call with small steps, e.g. 1/60). Returns what happened: [{type:"win"|"gutter", x, val, kind}, {type:"shower"}…]
+function step(dt, denomForShower = 1) {
+  clock += dt; const f0 = face; face = faceAt(clock); const df = face - f0;
+  for (const c of coins) { c.px = c.x; c.py = c.y; }
+  const top = [], tray = [], stack = [];
+  for (const c of coins) (c.layer === 1 ? top : c.layer === 2 ? stack : tray).push(c);
+  // on top of the pusher: carried with it, scraped by the back wall, falling off its front onto the tray (or onto the coins already there)
+  for (const c of top) { c.y += df; if (c.y < c.r) c.y = c.r; }
+  for (let k = 0; k < 3; k++) { separate(top); for (const c of top) { c.x = Math.max(c.r, Math.min(W - c.r, c.x)); if (c.y < c.r) c.y = c.r; } }
+  for (const c of top) if (c.y > face + c.r * .2) { const crowd = tray.filter(d => (d.x - c.x) ** 2 + (d.y - c.y) ** 2 < (d.r + c.r) ** 2 * .98).length;
+    c.layer = crowd ? 2 : 0; (crowd ? stack : tray).push(c); }   // no room on the tray right there: it lands on top
+  // on the tray: the pusher's face shoves, coins shove each other, the side walls hold them in
+  for (let k = 0; k < 6; k++) { for (const c of tray) { if (c.y - c.r < face) c.y = face + c.r; c.x = Math.max(c.r, Math.min(W - c.r, c.x)); } separate(tray); }
+  for (const c of tray) if (c.y - c.r < face) c.y = face + c.r;
+  // squeezed: while the pusher drives forward, a coin pressed against its face (with coins packed in front) sometimes rides up on top of the pile
+  if (df > 0 && stack.length < MAXSTACK) for (const c of tray) { if (c.kind !== "coin" || c.y - c.r > face + .004 || Math.random() > df * CLIMB) continue;
+    let ahead = 0; for (const d of tray) if (d !== c && d.y > c.y && Math.hypot(d.x - c.x, d.y - c.y) < (d.r + c.r) * 1.08) ahead++;
+    if (ahead >= 2) { c.layer = 2; c.y += c.r * .6; stack.push(c); if (stack.length >= MAXSTACK) break; } }
+  tray.splice(0, tray.length, ...tray.filter(c => c.layer === 0));
+  // stacked coins ride on the coins under them; with nothing under them (or only an edge to hang on) they drop down
+  for (const c of stack) { let n = 0, mx = 0, my = 0, sx = 0, sy = 0;
+    for (const d of tray) { const q = (d.x - c.x) ** 2 + (d.y - c.y) ** 2, reach = (d.r + c.r) * .92; if (q < reach * reach) { n++; mx += d.x - d.px; my += d.y - d.py; sx += d.x; sy += d.y; } }
+    if (!n) { c.layer = 0; continue; }
+    c.x += mx / n; c.y += my / n;
+    const off = Math.hypot(sx / n - c.x, sy / n - c.y); if (n === 1 && off > c.r * 1.05) c.layer = 0; }   // balanced on one coin's rim: it slides off
+  const still = stack.filter(c => c.layer === 2);
+  for (let k = 0; k < 3; k++) { separate(still); for (const c of still) { c.x = Math.max(c.r, Math.min(W - c.r, c.x)); if (c.y - c.r < face) c.y = face + c.r; } }
+  if (still.length < stack.length) for (let k = 0; k < 3; k++) separate(coins.filter(c => c.layer === 0));   // ones that dropped down make room for themselves
+  // over the front edge
+  const out = events; events = [];
+  coins = coins.filter(c => { if (c.layer === 1 || c.y <= L) return true;
+    const win = c.x > GUTTER && c.x < W - GUTTER;
+    if (win) { credits += c.val; out.push({ type: "win", x: c.x, val: c.val, kind: c.kind }); if (c.kind === "ufo") { shower(denomForShower); out.push({ type: "shower", n: SHOWER }); } }
+    else out.push({ type: "gutter", x: c.x, val: c.val, kind: c.kind });
+    return false; });
+  return out; }
+
+// a fresh tray: packed edge to edge right up to the front lip (so play pays from the first drops), a few coins already stacked, and the starting prizes
+function seed(denom = 1) { coins = []; clock = 0; face = FACE[0];
+  const dx = 2 * R * 1.02, dy = dx * .87;
+  for (let row = 0, y = FACE[1] + R; y < L - R * .2; row++, y += dy) for (let x = R + (row % 2) * dx / 2; x < W - R; x += dx)
+    if (Math.random() < .93) coins.push(mk(x + (Math.random() - .5) * R * .3, y + (Math.random() - .5) * R * .3, denom, "coin", 0));
+  for (const [k, n] of [["bar", 2], ["crystal", 1], ["ufo", 1]]) for (let i = 0; i < n; i++) { const c = coins[Math.floor(coins.length * (.25 + Math.random() * .5))]; const it = ITEMS[k]; Object.assign(c, { kind: k, val: it.val * denom, r: it.r, m: it.m }); }
+  for (let i = 0; i < 30; i++) { const base = coins[Math.floor(Math.random() * coins.length)]; if (base.kind === "coin" && base.y < L - 3 * R) coins.push(mk(base.x + R * .5, base.y + R * .3, denom, "coin", 2)); }
+  for (let i = 0; i < 20; i++) coins.push(mk(R + Math.random() * (W - 2 * R), R + Math.random() * (FACE[0] - R), denom, "coin", 1));   // and a layer already riding on the pusher
+  for (let i = 0; i < 40; i++) { step(1 / 60); coins = coins.filter(c => c.y < L - c.r * .1); }   // let it settle without paying out
+  clock = 0; face = faceAt(0); events = []; }
+
+// the tray as plain data, to save between visits (so the pile you built up is still there) and to restore
+const snapshot = () => ({ clock, coins: coins.map(c => [Math.round(c.x * 1e4) / 1e4, Math.round(c.y * 1e4) / 1e4, c.val, c.kind, c.layer]) });
+function restore(s) { try { if (!s || !Array.isArray(s.coins) || s.coins.length < 20) return false; coins = s.coins.map(([x, y, val, kind, layer]) => mk(x, y, val, kind, layer)); clock = s.clock || 0; face = faceAt(clock); return true; } catch (e) { return false; } }
+
+// keep the shared wallet in step with this game's balance (not in Node tests)
+if (typeof Wallet !== "undefined") Wallet.watch(() => credits);
+
+if (typeof module !== "undefined") module.exports = { W, L, R, FACE, PERIOD, GUTTER, DENOMS, ITEMS, SHOWER, drop, shower, step, seed, snapshot, restore, faceAt, FORCE,
+  get credits() { return credits; }, set credits(v) { credits = v; }, get coins() { return coins; }, get face() { return face; } };
+
+// ---- Sound: all synthesized live with Web Audio, no sound files needed ----
+const Sound = (()=>{
+  let ctx=null, master=null, mbus=null, on=true, musicOn=true, mlevel=1;
+  try{ on = localStorage.getItem("slot-sound")!=="off"; musicOn = localStorage.getItem("slot-music")!=="off"; }catch(e){}
+  function ensure(){
+    if(!ctx){ const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return null;
+      ctx=new AC(); master=ctx.createGain(); master.gain.value=0.55;
+      const lim=ctx.createDynamicsCompressor(); lim.threshold.value=-10; lim.knee.value=6; lim.ratio.value=8; lim.attack.value=.003; lim.release.value=.15;
+      master.connect(lim).connect(ctx.destination);   // limiter: stops loud moments from overdriving a phone speaker
+      const hp=ctx.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=90; hp.Q.value=.7;
+      mbus=ctx.createGain(); mbus.gain.value=musicOn?mlevel:0; mbus.connect(hp).connect(master); decodeClips(); }
+    if(ctx.state==="suspended") ctx.resume();
+    return ctx;
+  }
+  // lp = low-pass filter cutoff (warmer, rounder sound); lpEnd = where the cutoff sweeps to; detune in cents; bus "music" goes through the music volume
+  function tone(freq, dur, {type="sine", vol=0.2, at=0, slide=0, attack=0.004, lp=0, lpEnd=0, q=1, detune=0, bus=null, vib=0}={}){
+    if(!on) return; const c=ensure(); if(!c) return; if(bus==="music") attack=Math.max(attack,.008);   // softer note starts = no clicks
+    const t=c.currentTime+Math.max(0,at), o=c.createOscillator(), g=c.createGain();
+    o.type=type; o.frequency.setValueAtTime(freq,t); if(detune) o.detune.value=detune;
+    if(slide) o.frequency.exponentialRampToValueAtTime(Math.max(30,freq*slide), t+dur);
+    if(vib){ const l=c.createOscillator(), lg=c.createGain(); l.frequency.value=5.5; lg.gain.value=freq*vib; l.connect(lg).connect(o.frequency); l.start(t); l.stop(t+dur+0.05); }
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol,t+attack); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    let node=o; if(lp){ const f=c.createBiquadFilter(); f.type="lowpass"; f.Q.value=q; f.frequency.setValueAtTime(lp,t); if(lpEnd) f.frequency.exponentialRampToValueAtTime(lpEnd,t+dur); node.connect(f); node=f; }
+    node.connect(g).connect(bus==="music"?mbus:master); o.start(t); o.stop(t+dur+0.05);
+  }
+  function thud(vol=0.25, freq=260){
+    if(!on) return; const c=ensure(); if(!c) return;
+    const len=Math.floor(c.sampleRate*0.09), buf=c.createBuffer(1,len,c.sampleRate), d=buf.getChannelData(0);
+    for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/len,3);
+    const src=c.createBufferSource(), f=c.createBiquadFilter(), g=c.createGain();
+    src.buffer=buf; f.type="lowpass"; f.frequency.value=freq; g.gain.value=vol;
+    src.connect(f).connect(g).connect(master); src.start();
+  }
+  // Recorded clips (base64 mp3 in SND_SRC) are decoded once the audio system wakes up, then played through the same volume control
+  const clips={};
+  function decodeClips(){ if(typeof SND_SRC==="undefined") return;
+    for(const [k,b64] of Object.entries(SND_SRC)){ if(clips[k]) continue; clips[k]="loading";
+      const bin=atob(b64.split(",")[1]), buf=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) buf[i]=bin.charCodeAt(i);
+      ctx.decodeAudioData(buf.buffer).then(ab=>{ clips[k]=ab; }).catch(()=>{ delete clips[k]; }); } }
+  function clip(name, {vol=1, at=0}={}){ // returns false if the clip isn't ready, so callers can fall back to synth sounds
+    if(!on) return true; const c=ensure(); const ab=clips[name]; if(!c || !(ab instanceof AudioBuffer)) return false;
+    const src=c.createBufferSource(), g=c.createGain(), t=c.currentTime+at; src.buffer=ab;
+    g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(vol,t+.005);   // 5 ms fade-in: no pop when a clip starts
+    src.connect(g).connect(master); src.start(t); return true; }
+  function noise(dur, {vol=0.2, at=0, type="lowpass", freq=1200, q=0.8, attack=0.004, sweep=0, bus=null}={}){   // filtered noise burst: gunshots, tyres, crowds, scribbles
+    if(!on) return; const c=ensure(); if(!c) return; if(bus==="music") attack=Math.max(attack,.01);   // no instant starts on music percussion
+    const t=c.currentTime+Math.max(0,at), len=Math.max(1,Math.floor(c.sampleRate*dur)), buf=c.createBuffer(1,len,c.sampleRate), d=buf.getChannelData(0);
+    for(let i=0;i<len;i++) d[i]=Math.random()*2-1;
+    const src=c.createBufferSource(), f=c.createBiquadFilter(), g=c.createGain();
+    src.buffer=buf; f.type=type; f.frequency.setValueAtTime(freq,t); f.Q.value=q; if(sweep) f.frequency.exponentialRampToValueAtTime(Math.max(40,freq*sweep), t+dur);
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol,t+attack); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    src.connect(f).connect(g).connect(bus==="music"?mbus:master); src.start(t); src.stop(t+dur+0.05);
+  }
+  const note = n => 440*Math.pow(2,(n-9)/12); // n = semitones above C4 (0 = C)
+  const arp = (notes, gap, opts) => notes.forEach((n,i)=>tone(note(n), opts.dur||0.18, {...opts, at:i*gap}));
+  return {
+    get on(){ return on; },
+    set on(v){ on=v; try{ localStorage.setItem("slot-sound", v?"on":"off"); }catch(e){} if(v) ensure(); },
+    unlock(){ if(on) ensure(); },
+    get musicOn(){ return musicOn; },
+    set musicOn(v){ musicOn=v; try{ localStorage.setItem("slot-music", v?"on":"off"); }catch(e){} if(mbus) mbus.gain.setTargetAtTime(v?mlevel:0, ctx.currentTime, .05); },
+    musicLevel(v){ mlevel=v; if(mbus && musicOn) mbus.gain.setTargetAtTime(v, ctx.currentTime, .08); },
+    now(){ return ctx ? ctx.currentTime : null; },
+    ready(){ return !!ctx && ctx.state==="running"; },
+    tap(){ tone(880,.05,{type:"triangle",vol:.08}); },
+    lines(n){ arp([0,4,7,12,16].slice(0,n), .045, {type:"triangle", vol:.09, dur:.12}); },
+    spinStart(){ tone(140,.4,{type:"sawtooth",vol:.05,slide:3}); tone(70,.25,{type:"sine",vol:.12,slide:.8}); },
+    tick(){ tone(1500+Math.random()*400,.02,{type:"square",vol:.018}); },
+    reelStop(i){ thud(.35, 240); tone(150-i*18,.14,{type:"sine",vol:.22,slide:.55}); },
+    wild(){ arp([24,28,31,36], .05, {type:"sine", vol:.08, dur:.25}); },
+    lose(){ tone(note(-5),.18,{type:"triangle",vol:.05}); tone(note(-8),.25,{type:"triangle",vol:.05,at:.12}); },
+    win(level){ // 0 small, 1 medium
+      if(level===0) arp([12,16,19], .07, {type:"triangle", vol:.12, dur:.2});
+      else { arp([7,12,16,19,24], .07, {type:"triangle", vol:.13, dur:.22}); arp([19,24], .1, {type:"sine", vol:.06, dur:.5, at:0}); }
+    },
+    bigWin(){
+      arp([0,4,7,12, 4,7,12,16, 7,12,16,19,24], .085, {type:"square", vol:.05, dur:.16});
+      [0,4,7,12].forEach(n=>tone(note(n),1.4,{type:"triangle",vol:.06,at:1.1,attack:.02}));
+      for(let i=0;i<10;i++) tone(2000+Math.random()*1500,.05,{type:"sine",vol:.03,at:1.1+i*.07});
+    },
+    noise, clip,
+    tone, arp, note, thud,
+    refill(){ for(let i=0;i<8;i++) tone(1800+i*120,.04,{type:"triangle",vol:.05,at:i*.04}); },
+  };
+})();
+document.documentElement.style.setProperty("--bar", `url(${ART.bar})`);
+const $ = id => document.getElementById(id);
+const SAVE = "alien-casino-pusher";
+let denom = 1, won = 0, auto = false, holding = null, lastDrop = 0;
+try { const d = +localStorage.getItem(SAVE + "-denom"); if (DENOMS.includes(d)) denom = d; } catch (e) {}
+
+// ---- the tray: the pile you left last time, or a fresh one ----
+(() => { let ok = false; try { ok = restore(JSON.parse(localStorage.getItem(SAVE) || "null")); } catch (e) {} if (!ok) seed(1); })();
+const save = () => { try { localStorage.setItem(SAVE, JSON.stringify(snapshot())); } catch (e) {} };
+setInterval(save, 2500); addEventListener("pagehide", save); document.addEventListener("visibilitychange", save);
+
+// ---- drawing: a sprite for each kind of coin and prize, the machine drawn in perspective ----
+const sprite = (w, h, fn) => { const c = document.createElement("canvas"); c.width = w; c.height = h; fn(c.getContext("2d")); return c; };
+const COIN_COL = { 1: ["#f4f7ff", "#aeb6c8", "#5d6478"], 5: ["#fff3b0", "#ffc845", "#9a6a10"], 10: ["#ecdcff", "#b48cff", "#5a2d9a"], 25: ["#dffcff", "#5fe8ff", "#16707e"] };
+function coinSprite([hi, mid, lo], mark) { return sprite(128, 96, g => {
+  g.fillStyle = lo; g.beginPath(); g.ellipse(64, 58, 58, 29, 0, 0, 7); g.fill();
+  const gr = g.createRadialGradient(46, 36, 4, 64, 48, 62); gr.addColorStop(0, hi); gr.addColorStop(.55, mid); gr.addColorStop(1, lo); g.fillStyle = gr; g.beginPath(); g.ellipse(64, 48, 58, 29, 0, 0, 7); g.fill();
+  g.strokeStyle = "#ffffff99"; g.lineWidth = 3; g.beginPath(); g.ellipse(64, 48, 46, 22, 0, 0, 7); g.stroke();
+  g.fillStyle = lo; g.font = "700 26px 'Share Tech Mono',monospace"; g.textAlign = "center"; g.textBaseline = "middle"; g.save(); g.translate(64, 48); g.scale(1, .55); g.fillText(mark, 0, 2); g.restore(); }); }
+const SPR = { coin: {} };
+for (const d of DENOMS) SPR.coin[d] = coinSprite(COIN_COL[d], String(d));
+const barImg = new Image(); barImg.src = ART.bar;
+SPR.bar = sprite(140, 100, g => { g.fillStyle = "#6a4a08"; g.beginPath(); g.moveTo(14, 62); g.lineTo(34, 30); g.lineTo(126, 30); g.lineTo(126, 50); g.lineTo(106, 82); g.lineTo(14, 82); g.fill();
+  const gr = g.createLinearGradient(0, 30, 0, 64); gr.addColorStop(0, "#fff3b0"); gr.addColorStop(1, "#ffb020"); g.fillStyle = gr; g.beginPath(); g.moveTo(14, 62); g.lineTo(34, 30); g.lineTo(126, 30); g.lineTo(106, 62); g.closePath(); g.fill();
+  g.fillStyle = "#e09a10"; g.fillRect(14, 62, 92, 20); g.fillStyle = "#7a4e00"; g.font = "700 15px 'Share Tech Mono'"; g.fillText("999.9", 46, 52); });
+SPR.crystal = sprite(110, 120, g => { const gr = g.createLinearGradient(20, 10, 90, 110); gr.addColorStop(0, "#e8fdff"); gr.addColorStop(.4, "#5fe8ff"); gr.addColorStop(1, "#2a3fb0");
+  g.fillStyle = gr; g.beginPath(); g.moveTo(55, 8); g.lineTo(96, 48); g.lineTo(55, 112); g.lineTo(14, 48); g.closePath(); g.fill(); g.strokeStyle = "#ffffffcc"; g.lineWidth = 2; g.beginPath(); g.moveTo(14, 48); g.lineTo(96, 48); g.moveTo(55, 8); g.lineTo(40, 48); g.lineTo(55, 112); g.lineTo(70, 48); g.closePath(); g.stroke(); });
+SPR.ufo = sprite(140, 100, g => { g.fillStyle = "#3a3846"; g.beginPath(); g.ellipse(70, 64, 64, 20, 0, 0, 7); g.fill(); const gr = g.createLinearGradient(0, 40, 0, 70); gr.addColorStop(0, "#e8e6f0"); gr.addColorStop(1, "#7a7890"); g.fillStyle = gr; g.beginPath(); g.ellipse(70, 56, 64, 20, 0, 0, 7); g.fill();
+  g.fillStyle = "#8fe8ffcc"; g.beginPath(); g.ellipse(70, 42, 30, 24, 0, Math.PI, 0); g.fill(); [30, 50, 70, 90, 110].forEach((x, i) => { g.fillStyle = ["#ff5fae", "#ffc845", "#7dff9a", "#5fe8ff", "#b48cff"][i]; g.beginPath(); g.arc(x, 60, 5, 0, 7); g.fill(); }); });
+SPR.star = sprite(140, 110, g => { g.fillStyle = "#8a5a00"; g.beginPath(); g.ellipse(70, 62, 64, 32, 0, 0, 7); g.fill(); const gr = g.createRadialGradient(52, 40, 4, 70, 52, 66); gr.addColorStop(0, "#fffbe0"); gr.addColorStop(.5, "#ffd23a"); gr.addColorStop(1, "#b07800"); g.fillStyle = gr; g.beginPath(); g.ellipse(70, 52, 64, 32, 0, 0, 7); g.fill();
+  g.fillStyle = "#fff6c8"; g.save(); g.translate(70, 52); g.scale(1, .55); g.beginPath(); for (let i = 0; i < 10; i++) { const r = i % 2 ? 16 : 40, a = i * Math.PI / 5 - Math.PI / 2; g.lineTo(Math.cos(a) * r, Math.sin(a) * r); } g.fill(); g.restore(); });
+const sprOf = c => c.kind === "coin" ? (SPR.coin[c.val] || SPR.coin[1]) : SPR[c.kind];
+
+const cv = $("cv"), g = cv.getContext("2d"); let V = {};
+function size() { const r = $("fieldbox").getBoundingClientRect(), dpr = Math.min(2, devicePixelRatio || 1); cv.width = r.width * dpr; cv.height = r.height * dpr; g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  // fit the machine to the box: as wide as it can be, the tray stretched deeper on tall phones
+  const TW = Math.min(r.width * .92, r.height / 1.36), depth = Math.max(.62, Math.min(.95, (r.height / TW - .62) / L)), used = TW * (.34 + L * depth + .16);
+  V = { w: r.width, h: r.height, TW, cx: r.width / 2, yb: (r.height - used) / 2 + TW * .34, get yf() { return this.yb + TW * L * depth; } }; }
+// a point on the tray (x across, y from the back, z height) → the screen, and how much nearer things are scaled up
+const P = (x, y, z = 0) => { const k = y / L, s = .7 + .3 * k; return [V.cx + (x - .5) * V.TW * s, V.yb + (V.yf - V.yb) * k - z * V.TW * s, s]; };
+const quad = (pts, fill) => { g.fillStyle = fill; g.beginPath(); pts.forEach(([x, y], i) => g[i ? "lineTo" : "moveTo"](x, y)); g.closePath(); g.fill(); };
+const PH = .07, TH = .013;                       // the pusher's height, a coin's thickness (in tray widths)
+const drops = new Map(), fx = [], floats = [];  // coins in mid-air on their way down, falling winnings, floating "+5"s
+function drawCoin(c, z, now) { const [X, Y, s] = P(c.x, c.y, z), d = drops.get(c.id); let lift = 0; if (d) { const k = Math.min(1, (now - d) / 260); lift = (1 - k) * (1 - k) * .45; if (k >= 1) drops.delete(c.id); }
+  const spr = sprOf(c), rx = c.r * V.TW * s, sc = rx / 58, [, Y2] = P(c.x, c.y, z + lift);
+  if (lift) { g.fillStyle = "#0006"; g.beginPath(); g.ellipse(X, Y, rx, rx * .5, 0, 0, 7); g.fill(); }
+  g.drawImage(spr, X - 64 * sc * spr.width / 128, Y2 - 48 * sc - TH * V.TW * s, spr.width * sc, spr.height * sc); }
+function draw(now) { const { w, h, TW } = V; g.clearRect(0, 0, w, h); const t = now / 1000;
+  // the machine's back wall: a lit panel, chasing lights, the drop rail
+  const [bl] = P(0, 0), [br] = P(1, 0), top = V.yb - TW * .32;
+  const gw = g.createLinearGradient(0, top, 0, V.yb); gw.addColorStop(0, "#1c1240"); gw.addColorStop(1, "#2c1f58"); g.fillStyle = gw; g.fillRect(bl - 6, top, br - bl + 12, V.yb - top);
+  g.font = `400 ${TW * .085}px "Monoton","Bungee",sans-serif`; g.textAlign = "center"; g.textBaseline = "middle"; g.fillStyle = "#fff1dc"; g.shadowColor = "#ff7a3a"; g.shadowBlur = 16; g.fillText("STAR DOZER", V.cx, top + TW * .1); g.shadowBlur = 0;
+  for (let i = 0; i < 18; i++) { const x = bl + (br - bl) * (i + .5) / 18, on = (i + Math.floor(t * 8)) % 3 === 0; g.fillStyle = on ? ["#ff5fae", "#ffc845", "#5fe8ff"][i % 3] : "#3a2a5a"; g.beginPath(); g.arc(x, top + 6, on ? 3.5 : 2.5, 0, 7); g.fill(); }
+  const ry = V.yb - TW * .12; g.fillStyle = "#0c0820"; g.fillRect(bl, ry - 7, br - bl, 14); g.fillStyle = "#5fe8ff"; g.globalAlpha = .5 + .3 * Math.sin(t * 4); g.fillRect(bl, ry - 1, br - bl, 2); g.globalAlpha = 1;
+  if (holding) { const mx = Math.max(bl, Math.min(br, holding.sx)); g.fillStyle = "#ffc845"; g.beginPath(); g.moveTo(mx - 8, ry - 12); g.lineTo(mx + 8, ry - 12); g.lineTo(mx, ry - 2); g.fill(); }
+  // the tray floor, the gutters at the front corners, the winning lip between them
+  const tray = [P(0, 0), P(1, 0), P(1, L), P(0, L)]; const gf = g.createLinearGradient(0, V.yb, 0, V.yf); gf.addColorStop(0, "#0e0a24"); gf.addColorStop(1, "#231a4a"); quad(tray, gf);
+  g.strokeStyle = "#5fe8ff18"; g.lineWidth = 1; for (let i = 1; i < 8; i++) { const [a1, b1] = P(i / 8, 0), [a2, b2] = P(i / 8, L); g.beginPath(); g.moveTo(a1, b1); g.lineTo(a2, b2); g.stroke(); }
+  const [fl, fy] = P(0, L), [fr] = P(1, L), [gl] = P(GUTTER, L), [gr2] = P(1 - GUTTER, L);
+  g.fillStyle = "#7dff9a"; g.globalAlpha = .55; g.fillRect(gl, fy - 2, gr2 - gl, 4); g.globalAlpha = 1;
+  for (const [a, b] of [[fl, gl], [gr2, fr]]) { g.fillStyle = "#000"; g.fillRect(a, fy - 3, b - a, TW * .05); g.fillStyle = "#ff4d6d"; g.globalAlpha = .6 + .2 * Math.sin(t * 5); g.fillRect(a, fy - 3, b - a, 3); g.globalAlpha = 1; }
+  // the front chute where your winnings fall
+  const cg = g.createLinearGradient(0, fy, 0, fy + TW * .2); cg.addColorStop(0, "#0b0820"); cg.addColorStop(1, "#04030c"); g.fillStyle = cg; g.fillRect(gl, fy + 2, gr2 - gl, TW * .2);
+  // the pusher: its top (with the coins riding on it) and its front face
+  const f = face, sw = [P(0, 0, PH), P(1, 0, PH), P(1, f, PH), P(0, f, PH)], fr2 = [P(0, f, PH), P(1, f, PH), P(1, f, 0), P(0, f, 0)];
+  const pt = g.createLinearGradient(0, sw[0][1], 0, sw[2][1]); pt.addColorStop(0, "#4a4860"); pt.addColorStop(1, "#8a88a0"); quad(sw, pt);
+  const pf = g.createLinearGradient(0, fr2[0][1], 0, fr2[2][1]); pf.addColorStop(0, "#c8c6d8"); pf.addColorStop(1, "#5a5870"); quad(fr2, pf);
+  g.fillStyle = "#5fe8ff"; g.fillRect(fr2[0][0], fr2[0][1] - 1, fr2[1][0] - fr2[0][0], 2);
+  const list = coins.slice().sort((a, b) => (a.layer === 1) - (b.layer === 1) || a.y - b.y);
+  for (const c of list) if (c.layer === 1) drawCoin(c, PH, now);
+  for (const c of list) if (c.layer !== 1) { if (c.layer === 2) { const [X, Y, s2] = P(c.x + .012, c.y + .01); g.fillStyle = "#0007"; g.beginPath(); g.ellipse(X, Y, c.r * V.TW * s2, c.r * V.TW * s2 * .5, 0, 0, 7); g.fill(); }   // a shadow under stacked coins
+    drawCoin(c, c.layer === 2 ? TH * 1.9 : 0, now); }
+  // falling winnings and lost coins, floating amounts
+  for (let i = fx.length - 1; i >= 0; i--) { const p = fx[i]; p.t += 1 / 60; p.vy += p.lost ? 1500 / 60 : 1100 / 60; p.y += p.vy / 60; p.x += p.vx / 60; const a = Math.max(0, 1 - p.t / (p.lost ? .45 : .7));
+    if (a <= 0) { fx.splice(i, 1); continue; } g.globalAlpha = a; const sc = p.sc; g.drawImage(p.spr, p.x - 64 * sc * p.spr.width / 128, p.y - 48 * sc, p.spr.width * sc, p.spr.height * sc); g.globalAlpha = 1; }
+  for (let i = floats.length - 1; i >= 0; i--) { const p = floats[i]; p.t += 1 / 60; if (p.t > 1.1) { floats.splice(i, 1); continue; }
+    g.globalAlpha = Math.min(1, 2.2 - p.t * 2); g.font = `700 ${p.big ? 22 : 15}px "Share Tech Mono",monospace`; g.fillStyle = p.col; g.shadowColor = p.col; g.shadowBlur = 10; g.fillText(p.txt, p.x, p.y - p.t * 46); g.shadowBlur = 0; g.globalAlpha = 1; } }
+
+// ---- what happens on the tray ----
+function handle(evs) { for (const e of evs) { const [X, Y, s] = P(e.x, L);
+    if (e.type === "win") { const c = { kind: e.kind, val: e.kind === "coin" ? coinVal(e.val) : e.val }; fx.push({ x: X, y: Y, vx: (Math.random() - .5) * 40, vy: 60, t: 0, spr: sprOf(c), sc: R * V.TW * s / 58 * (e.kind === "coin" ? 1 : 1.3) });
+      won += e.val; floats.push({ x: X, y: Y - 8, t: 0, txt: "+" + e.val, col: e.kind === "coin" ? "#7dff9a" : "#ffc845", big: e.kind !== "coin" }); SFX.win(e.val, e.kind); popWin();
+      if (e.kind !== "coin") { const n = { bar: "GOLD BAR", crystal: "CRYSTAL", ufo: "SAUCER", star: "JACKPOT STAR" }[e.kind]; banner(n + "!", e.val ? `+${e.val}` : "", e.kind === "star" ? "#ffc845" : "#5fe8ff"); say(LINES[e.kind]); } }
+    if (e.type === "gutter") { fx.push({ x: X, y: Y, vx: 0, vy: 40, t: 0, lost: true, spr: sprOf({ kind: e.kind, val: e.kind === "coin" ? coinVal(e.val) : 1 }), sc: R * V.TW * s / 58 }); SFX.gutter(); }
+    if (e.type === "shower") { banner("COIN SHOWER!", `${e.n} free coins`, "#7dff9a"); SFX.shower(); for (const c of coins.slice(-e.n)) drops.set(c.id, performance.now() + Math.random() * 400); }
+    if (e.type === "prize") { SFX.prize(); say(`A ${{ bar: "gold bar", crystal: "crystal", ufo: "saucer", star: "jackpot star" }[e.kind]} on the pusher!`); } }
+  paint(); }
+const coinVal = v => DENOMS.includes(v) ? v : 1;
+function popWin() { const b = $("winbox"); b.classList.remove("pop"); void b.offsetWidth; b.classList.add("pop"); }
+function paint() { $("credits").textContent = credits; $("won").textContent = won; document.querySelectorAll("#seg button").forEach(b => b.setAttribute("aria-pressed", String(+b.dataset.v === denom)));
+  const h = $("hint"); h.firstChild.textContent = credits < denom ? "OUT OF BARS" : "TAP TO DROP"; }
+function say(t) { if (!t) return; $("say").textContent = t; const d = $("dealer"); d.querySelector("span").textContent = t; d.classList.remove("show"); void d.offsetWidth; d.classList.add("show"); clearTimeout(say.t); say.t = setTimeout(() => d.classList.remove("show"), 1600 + t.length * 40); }
+function banner(big, small, col) { const b = $("banner"); b.innerHTML = `${big}<small>${small || ""}</small>`; b.style.setProperty("--bc", col); b.classList.remove("show"); void b.offsetWidth; b.classList.add("show"); }
+const LINES = { bar: "Gold bar! Nice push.", crystal: "Crystal! That's a big one.", ufo: "Saucer down! Here comes the shower.", star: "THE STAR! Jackpot!" };
+
+// ---- dropping coins ----
+function dropAt(sx) { const [bl] = P(0, 0), [br] = P(1, 0), x = (sx - bl) / (br - bl); if (x < -.08 || x > 1.08) return;
+  if (!drop(Math.max(0, Math.min(1, x)), denom)) { say("Out of bars at that coin value."); if (auto) setAuto(false); paint(); return; }
+  drops.set(coins[coins.length - 1].id, performance.now()); SFX.drop(); lastDrop = performance.now(); paint(); }
+cv.addEventListener("pointerdown", e => { Sound.unlock(); Music.start(); const r = cv.getBoundingClientRect(); holding = { id: e.pointerId, sx: e.clientX - r.left }; dropAt(holding.sx); try { cv.setPointerCapture(e.pointerId); } catch (_) {} });
+cv.addEventListener("pointermove", e => { if (holding && e.pointerId === holding.id) holding.sx = e.clientX - cv.getBoundingClientRect().left; });
+const letGo = e => { if (holding && e.pointerId === holding.id) holding = null; }; cv.addEventListener("pointerup", letGo); cv.addEventListener("pointercancel", letGo);
+function setAuto(v) { auto = v; $("auto").setAttribute("aria-pressed", String(v)); }
+$("auto").onclick = () => { Sound.unlock(); Music.start(); setAuto(!auto); };
+document.querySelectorAll("#seg button").forEach(b => b.onclick = () => { denom = +b.dataset.v; try { localStorage.setItem(SAVE + "-denom", denom); } catch (e) {} SFX.chip(); paint(); });
+
+// ---- the loop: the machine runs in small fixed steps; holding or AUTO keeps dropping ----
+let last = performance.now(), acc = 0, sweep = 0;
+function frame(now) { acc = Math.min(.1, acc + (now - last) / 1000); last = now; const evs = [];
+  while (acc >= 1 / 60) { evs.push(...step(1 / 60, denom)); acc -= 1 / 60; }
+  if (evs.length) handle(evs);
+  const gap = now - lastDrop; if (holding && gap > 260) dropAt(holding.sx);
+  if (auto && !holding && gap > 420) { sweep += .9; const [bl] = P(0, 0), [br] = P(1, 0); dropAt(bl + (br - bl) * (.5 + .42 * Math.sin(sweep))); }
+  draw(now); requestAnimationFrame(frame); }
+
+// ---- sound ----
+let lastClink = 0;
+const SFX = {
+  chip() { Sound.tone(2200, .03, { type: "triangle", vol: .05 }); },
+  drop() { Sound.tone(2400 + Math.random() * 500, .05, { type: "triangle", vol: .05 }); Sound.tone(1700, .08, { type: "triangle", vol: .035, at: .2 }); Sound.thud(.08, 900); },
+  win(v, kind) { const now = performance.now(); if (kind === "coin" && now - lastClink < 60) return; lastClink = now;
+    if (kind === "coin") { Sound.tone(1900 + Math.random() * 300, .06, { type: "triangle", vol: .06 }); Sound.tone(2800, .05, { type: "sine", vol: .03, at: .03 }); }
+    else Sound.arp(kind === "star" ? [12, 16, 19, 24, 28, 31, 36] : [12, 16, 19, 24], .06, { type: "triangle", vol: .1, dur: .22 }); },
+  gutter() { Sound.tone(260, .14, { type: "triangle", vol: .04, slide: .6 }); },
+  prize() { Sound.arp([19, 24, 31], .05, { type: "sine", vol: .06, dur: .2 }); },
+  shower() { Sound.arp([12, 16, 19, 24, 19, 24, 28, 31], .07, { type: "square", vol: .04, dur: .16 }); Sound.noise(.8, { vol: .05, type: "highpass", freq: 3000, sweep: .5 }); } };
+const Music = (() => { let timer = null, stp = 0, nextT = 0; const CH = [[0, 4, 7, 11], [-3, 0, 4, 7], [-7, -3, 0, 4], [-5, -1, 2, 5]];
+  function tick() { if (!Sound.ready()) return; const now = Sound.now(), sd = 60 / 96 / 2; if (nextT < now - .25) nextT = now + .05;
+    while (nextT < now + .12) { const at = nextT - now, k = stp % 16, ch = CH[Math.floor(stp / 16) % 4];
+      if (Sound.on && Sound.musicOn) { const M = { bus: "music" };
+        if (k === 0) ch.forEach(n => Sound.tone(Sound.note(n), sd * 15, { ...M, at, type: "sine", vol: .012, attack: .3 }));
+        if (k % 4 === 0) Sound.tone(Sound.note(ch[0] - 12), sd * 1.4, { ...M, at, type: "triangle", vol: .035, lp: 600 });
+        if (k % 4 === 2) Sound.tone(Sound.note(ch[(k >> 2) % 4] + 12), sd * .8, { ...M, at, type: "sine", vol: .012 }); }
+      stp++; nextT += sd; } }
+  return { start() { if (!timer) { nextT = (Sound.now() || 0) + .1; timer = setInterval(tick, 25); } } }; })();
+
+// ---- wiring ----
+$("snd").addEventListener("click", () => { Sound.on = !Sound.on; $("snd").setAttribute("aria-pressed", String(Sound.on)); });
+$("info").addEventListener("click", () => { $("paytable").innerHTML = `<tr><td>Prize</td><td>Pays</td></tr>` +
+  [["Gold bar", ITEMS.bar.val + " × coin value"], ["Crystal", ITEMS.crystal.val + " × coin value"], ["Jackpot star", ITEMS.star.val + " × coin value"], ["Saucer", `a shower of ${SHOWER} free coins`]].map(([a, b]) => `<tr><td>${a}</td><td>${b}</td></tr>`).join(""); $("sheet").hidden = false; });
+$("close").addEventListener("click", () => $("sheet").hidden = true);
+$("sheet").addEventListener("click", e => { if (e.target.id === "sheet") $("sheet").hidden = true; });
+$("fufo").addEventListener("click", () => { FORCE.item = "ufo"; $("sheet").hidden = true; });
+$("fstar").addEventListener("click", () => { FORCE.item = "star"; $("sheet").hidden = true; });
+$("freset").addEventListener("click", () => { seed(1); save(); $("sheet").hidden = true; });
+document.addEventListener("pointerdown", () => Sound.unlock(), { once: true });
+addEventListener("resize", size);
+size(); paint(); requestAnimationFrame(t => { last = t; frame(t); setTimeout(() => say("Tap above the pusher to drop a coin."), 500); });
+</script>

@@ -1,0 +1,261 @@
+<!-- Star Dozer (coin pusher): page layout, styles, drawing and screen logic. build.py adds the engine and the shared sound engine and writes pusher.html.
+     May use: part_engine.js (physics, payouts, credits), Sound (shared synth). Must not: decide outcomes or change credits itself; the engine does that. -->
+<title>Star Dozer</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Chakra+Petch:wght@500;600;700&family=Monoton&family=Share+Tech+Mono&family=Yellowtail&display=swap">
+<style>
+:root{--void:#03040f;--ink:#e6fbff;--dim:#7fb3c7;--holo:#5fe8ff;--holo2:#b48cff;--gold:#ffc845;--hot:#ff4d6d;--win:#7dff9a;
+  --f-sign:"Bungee",Impact,sans-serif;--f-tech:"Chakra Petch",system-ui,sans-serif;--f-mono:"Share Tech Mono",ui-monospace,monospace;color-scheme:dark}
+html,body{height:100%}
+body{margin:0;background:radial-gradient(100% 60% at 50% 30%,#1a1240 0%,var(--void) 75%);color:var(--ink);font:500 14px var(--f-tech);overflow:hidden;-webkit-tap-highlight-color:transparent;user-select:none}
+[hidden]{display:none!important}
+.app{position:relative;height:100dvh;max-width:480px;margin:0 auto;display:grid;grid-template-rows:auto minmax(0,1fr) auto;gap:8px;box-sizing:border-box;
+  padding:calc(8px + env(safe-area-inset-top,0px)) max(12px,env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) max(12px,env(safe-area-inset-left,0px))}
+.holo{--k:10px;--hc:var(--holo);position:relative;isolation:isolate;border:0;color:var(--ink);
+  clip-path:polygon(var(--k) 0,100% 0,100% calc(100% - var(--k)),calc(100% - var(--k)) 100%,0 100%,0 var(--k));
+  background:linear-gradient(180deg,color-mix(in srgb,var(--hc) 15%,transparent),color-mix(in srgb,var(--hc) 5%,transparent)),repeating-linear-gradient(0deg,color-mix(in srgb,var(--hc) 7%,transparent) 0 1px,transparent 1px 3px);
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--hc) 45%,transparent),inset 0 0 22px color-mix(in srgb,var(--hc) 12%,transparent)}
+.holo::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:2;
+  background:linear-gradient(var(--hc),var(--hc)) 0 100%/12px 1.5px no-repeat,linear-gradient(var(--hc),var(--hc)) 0 100%/1.5px 12px no-repeat,
+    linear-gradient(var(--hc),var(--hc)) 100% 0/12px 1.5px no-repeat,linear-gradient(var(--hc),var(--hc)) 100% 0/1.5px 12px no-repeat;opacity:.9}
+.lbl{font:400 .56rem/1 var(--f-mono);letter-spacing:.22em;color:var(--dim);text-transform:uppercase}
+.hud{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;height:50px}
+.coins{display:flex;align-items:center;gap:7px;justify-self:start;padding:6px 12px 6px 8px}
+.coins i{width:24px;height:18px;background:var(--bar) center/contain no-repeat;filter:drop-shadow(0 0 4px #ffc84588)}
+.coins b{font:700 1.05rem/1 var(--f-mono);text-shadow:0 0 8px var(--holo)}
+.title{position:relative;justify-self:center;text-align:center;white-space:nowrap}
+.title .l2{display:block;font:400 1.35rem/1 "Monoton",var(--f-sign);color:#fff1dc;text-shadow:0 0 4px #fff,0 0 10px #ffb070,0 0 22px #ff7a3a,0 0 40px #ff7a3a88}
+.title .l1{position:absolute;right:-14px;bottom:-14px;font:400 1.2rem/1 "Yellowtail",cursive;color:#e6fbff;transform:rotate(-7deg);text-shadow:0 0 3px #fff,0 0 9px var(--holo),0 0 18px #3f8cff}
+.icons{justify-self:end;display:flex;gap:6px}
+.icon{--k:7px;width:36px;height:36px;display:grid;place-items:center;cursor:pointer;padding:0;color:var(--holo)}
+.icon svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+.icon[aria-pressed="false"] .on{display:none}.icon[aria-pressed="true"] .off{display:none}
+.fieldbox{--k:14px;min-height:0;overflow:hidden;background:radial-gradient(90% 90% at 50% 40%,#140f33,#04050f);touch-action:none}
+#cv{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:pointer}
+.bub{position:absolute;z-index:6;top:10px;left:50%;translate:-50% 0;max-width:84%;width:max-content;padding:6px 10px;background:#04121fe6;border:1px solid var(--gold);color:#fff;
+  font:600 .76rem/1.28 var(--f-tech);text-align:center;box-shadow:0 0 14px #ffc84544;opacity:0;transform:scale(.85);transition:opacity .18s,transform .24s cubic-bezier(.3,1.6,.5,1);pointer-events:none}
+.bub.show{opacity:1;transform:none}
+.bub b{display:block;font:400 .5rem/1 var(--f-mono);letter-spacing:.2em;color:var(--gold);margin-bottom:3px}
+.banner{position:absolute;z-index:7;left:50%;top:44%;translate:-50% -50%;text-align:center;pointer-events:none;opacity:0;font:400 1.6rem/1 var(--f-sign);color:var(--bc,#fff);text-shadow:0 0 18px var(--bc,#5fe8ff),0 0 3px #fff;white-space:nowrap}
+.banner small{display:block;font:400 .7rem var(--f-mono);letter-spacing:.24em;margin-top:6px;color:#fff;text-shadow:0 0 8px var(--bc)}
+.banner.show{animation:ban 1.8s ease-out forwards}
+@keyframes ban{0%{opacity:0;transform:scale(.4)}12%{opacity:1;transform:scale(1.15)}22%{transform:scale(1)}80%{opacity:1}100%{opacity:0;transform:scale(1.05)}}
+.controls{display:grid;gap:7px}
+.row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px}
+.denoms{padding:7px 8px;display:grid;gap:5px}
+.seg{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
+.seg button{border:0;cursor:pointer;padding:8px 0;border-radius:50px;font:700 .9rem var(--f-mono);color:#fff;background:radial-gradient(circle at 35% 30%,color-mix(in srgb,var(--c) 70%,#fff),var(--c) 45%,color-mix(in srgb,var(--c) 45%,#000));opacity:.45;box-shadow:inset 0 -2px 0 #0006}
+.seg button[aria-pressed="true"]{opacity:1;box-shadow:0 0 0 2px #fff,0 0 14px var(--c);text-shadow:0 1px 2px #000a}
+.winbox{--hc:var(--win);min-width:104px;padding:7px 10px;display:grid;align-content:center;gap:4px;text-align:right}
+.winbox b{font:700 1.4rem/1 var(--f-mono);color:#fff;text-shadow:0 0 10px var(--win)}
+.winbox.pop{animation:pop .5s}
+@keyframes pop{30%{transform:scale(1.08);filter:brightness(1.6)}}
+.deck{display:grid;grid-template-columns:auto minmax(0,1fr);gap:7px}
+.tb{--k:10px;width:92px;cursor:pointer;display:grid;place-content:center;gap:3px;font:400 .8rem/1 var(--f-sign);color:#fff;text-shadow:0 0 8px var(--holo2);--hc:var(--holo2)}
+.tb small{font:400 .54rem var(--f-mono);letter-spacing:.1em;color:var(--holo2)}
+.tb[aria-pressed="true"]{--hc:var(--win);animation:glow .6s ease-in-out infinite alternate}
+@keyframes glow{to{box-shadow:inset 0 0 0 1px var(--win),inset 0 0 30px #7dff9a55,0 0 14px #7dff9a66}}
+.hint{--hc:var(--gold);height:56px;display:grid;place-content:center;text-align:center;gap:4px;font:400 .95rem/1 var(--f-sign);letter-spacing:.04em;color:#fff;text-shadow:0 0 10px var(--gold)}
+.hint small{font:400 .6rem var(--f-mono);letter-spacing:.08em;color:var(--gold)}
+.sheet{position:fixed;inset:0;z-index:100;display:grid;place-items:center;background:#000c;padding:16px}
+.card{--k:14px;max-width:360px;max-height:86dvh;overflow:auto;padding:18px;font:500 .88rem/1.45 var(--f-tech);background:#06131fee}
+.card h2{margin:0 0 8px;font:400 1.15rem var(--f-sign);color:var(--holo);text-shadow:0 0 10px var(--holo)}
+.card table{width:100%;border-collapse:collapse;margin:8px 0;font:400 .8rem var(--f-mono)}.card td{padding:3px 0;border-bottom:1px solid #ffffff14}.card td:last-child{text-align:right}
+.card .dbg{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+.card .dbg button{--k:6px;font:600 .72rem var(--f-mono);padding:7px 10px;cursor:pointer;color:var(--holo)}
+.say{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+</style>
+
+<div class="app" id="app">
+  <header class="hud">
+    <div class="coins holo"><i aria-hidden="true"></i><b id="credits">500</b></div>
+    <div class="title" aria-label="Star Dozer"><span class="l2">STAR</span><span class="l1">Dozer</span></div>
+    <div class="icons">
+      <button class="icon holo" id="snd" aria-pressed="true" aria-label="Sound"><svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="on" d="M17 9a4 4 0 0 1 0 6"/><path class="off" d="M17 9l4 6M21 9l-4 6"/></svg></button>
+      <button class="icon holo" id="info" aria-label="How to play"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg></button>
+    </div>
+  </header>
+  <section class="fieldbox holo" id="fieldbox">
+    <canvas id="cv" aria-label="The coin pusher. Tap above the pusher to drop a coin there."></canvas>
+    <div class="banner" id="banner"></div>
+    <div class="bub" id="dealer"><b>ZIB</b><span></span></div>
+    <p class="say" id="say" aria-live="polite"></p>
+  </section>
+  <section class="controls">
+    <div class="row">
+      <div class="denoms holo"><span class="lbl">Coin value</span><div class="seg" id="seg">
+        <button data-v="1" style="--c:#c8d0e0" aria-label="Coins worth 1">1</button><button data-v="5" style="--c:#ffc845" aria-label="Coins worth 5">5</button>
+        <button data-v="10" style="--c:#b48cff" aria-label="Coins worth 10">10</button><button data-v="25" style="--c:#5fe8ff" aria-label="Coins worth 25">25</button></div></div>
+      <div class="winbox holo" id="winbox"><span class="lbl">Won</span><b id="won">0</b></div>
+    </div>
+    <div class="deck">
+      <button class="tb holo" id="auto" aria-pressed="false">AUTO<small>keep dropping</small></button>
+      <div class="hint holo" id="hint">TAP TO DROP<small>tap or hold above the pusher &middot; aim left or right</small></div>
+    </div>
+  </section>
+</div>
+<div class="sheet" id="sheet" hidden><div class="card holo" role="dialog" aria-label="How to play">
+  <h2>How to play</h2>
+  <p>Tap above the pusher to drop a coin there (hold to keep dropping). Pick the coin's value below the machine first.</p>
+  <p>Coins land on the sliding pusher. When it pulls back they're scraped off onto the tray, and when it comes forward it shoves the whole pile.</p>
+  <p>Everything that falls over the <b>front edge</b> is yours. The two <b>corner gutters</b> keep what falls in them. Coins pile up on top of each other and tip over when the pile below moves.</p>
+  <p>Prizes turn up on the pusher now and then. They pay a multiple of the coin value you were playing when they appeared:</p>
+  <table id="paytable"></table>
+  <p>Your pile is kept between visits. Over a long time the machine pays back about 95% of what goes in.</p>
+  <div class="dbg"><button class="holo" id="fufo">Debug: next drop is a saucer</button><button class="holo" id="fstar">Debug: next is a star</button><button class="holo" id="freset">Debug: fresh tray</button><button class="holo" id="close">Close</button></div>
+</div></div>
+
+<script>
+const ART = /*{{ART}}*/;
+/*{{ENGINE}}*/
+/*{{SOUND}}*/
+document.documentElement.style.setProperty("--bar", `url(${ART.bar})`);
+const $ = id => document.getElementById(id);
+const SAVE = "alien-casino-pusher";
+let denom = 1, won = 0, auto = false, holding = null, lastDrop = 0;
+try { const d = +localStorage.getItem(SAVE + "-denom"); if (DENOMS.includes(d)) denom = d; } catch (e) {}
+
+// ---- the tray: the pile you left last time, or a fresh one ----
+(() => { let ok = false; try { ok = restore(JSON.parse(localStorage.getItem(SAVE) || "null")); } catch (e) {} if (!ok) seed(1); })();
+const save = () => { try { localStorage.setItem(SAVE, JSON.stringify(snapshot())); } catch (e) {} };
+setInterval(save, 2500); addEventListener("pagehide", save); document.addEventListener("visibilitychange", save);
+
+// ---- drawing: a sprite for each kind of coin and prize, the machine drawn in perspective ----
+const sprite = (w, h, fn) => { const c = document.createElement("canvas"); c.width = w; c.height = h; fn(c.getContext("2d")); return c; };
+const COIN_COL = { 1: ["#f4f7ff", "#aeb6c8", "#5d6478"], 5: ["#fff3b0", "#ffc845", "#9a6a10"], 10: ["#ecdcff", "#b48cff", "#5a2d9a"], 25: ["#dffcff", "#5fe8ff", "#16707e"] };
+function coinSprite([hi, mid, lo], mark) { return sprite(128, 96, g => {
+  g.fillStyle = lo; g.beginPath(); g.ellipse(64, 58, 58, 29, 0, 0, 7); g.fill();
+  const gr = g.createRadialGradient(46, 36, 4, 64, 48, 62); gr.addColorStop(0, hi); gr.addColorStop(.55, mid); gr.addColorStop(1, lo); g.fillStyle = gr; g.beginPath(); g.ellipse(64, 48, 58, 29, 0, 0, 7); g.fill();
+  g.strokeStyle = "#ffffff99"; g.lineWidth = 3; g.beginPath(); g.ellipse(64, 48, 46, 22, 0, 0, 7); g.stroke();
+  g.fillStyle = lo; g.font = "700 26px 'Share Tech Mono',monospace"; g.textAlign = "center"; g.textBaseline = "middle"; g.save(); g.translate(64, 48); g.scale(1, .55); g.fillText(mark, 0, 2); g.restore(); }); }
+const SPR = { coin: {} };
+for (const d of DENOMS) SPR.coin[d] = coinSprite(COIN_COL[d], String(d));
+const barImg = new Image(); barImg.src = ART.bar;
+SPR.bar = sprite(140, 100, g => { g.fillStyle = "#6a4a08"; g.beginPath(); g.moveTo(14, 62); g.lineTo(34, 30); g.lineTo(126, 30); g.lineTo(126, 50); g.lineTo(106, 82); g.lineTo(14, 82); g.fill();
+  const gr = g.createLinearGradient(0, 30, 0, 64); gr.addColorStop(0, "#fff3b0"); gr.addColorStop(1, "#ffb020"); g.fillStyle = gr; g.beginPath(); g.moveTo(14, 62); g.lineTo(34, 30); g.lineTo(126, 30); g.lineTo(106, 62); g.closePath(); g.fill();
+  g.fillStyle = "#e09a10"; g.fillRect(14, 62, 92, 20); g.fillStyle = "#7a4e00"; g.font = "700 15px 'Share Tech Mono'"; g.fillText("999.9", 46, 52); });
+SPR.crystal = sprite(110, 120, g => { const gr = g.createLinearGradient(20, 10, 90, 110); gr.addColorStop(0, "#e8fdff"); gr.addColorStop(.4, "#5fe8ff"); gr.addColorStop(1, "#2a3fb0");
+  g.fillStyle = gr; g.beginPath(); g.moveTo(55, 8); g.lineTo(96, 48); g.lineTo(55, 112); g.lineTo(14, 48); g.closePath(); g.fill(); g.strokeStyle = "#ffffffcc"; g.lineWidth = 2; g.beginPath(); g.moveTo(14, 48); g.lineTo(96, 48); g.moveTo(55, 8); g.lineTo(40, 48); g.lineTo(55, 112); g.lineTo(70, 48); g.closePath(); g.stroke(); });
+SPR.ufo = sprite(140, 100, g => { g.fillStyle = "#3a3846"; g.beginPath(); g.ellipse(70, 64, 64, 20, 0, 0, 7); g.fill(); const gr = g.createLinearGradient(0, 40, 0, 70); gr.addColorStop(0, "#e8e6f0"); gr.addColorStop(1, "#7a7890"); g.fillStyle = gr; g.beginPath(); g.ellipse(70, 56, 64, 20, 0, 0, 7); g.fill();
+  g.fillStyle = "#8fe8ffcc"; g.beginPath(); g.ellipse(70, 42, 30, 24, 0, Math.PI, 0); g.fill(); [30, 50, 70, 90, 110].forEach((x, i) => { g.fillStyle = ["#ff5fae", "#ffc845", "#7dff9a", "#5fe8ff", "#b48cff"][i]; g.beginPath(); g.arc(x, 60, 5, 0, 7); g.fill(); }); });
+SPR.star = sprite(140, 110, g => { g.fillStyle = "#8a5a00"; g.beginPath(); g.ellipse(70, 62, 64, 32, 0, 0, 7); g.fill(); const gr = g.createRadialGradient(52, 40, 4, 70, 52, 66); gr.addColorStop(0, "#fffbe0"); gr.addColorStop(.5, "#ffd23a"); gr.addColorStop(1, "#b07800"); g.fillStyle = gr; g.beginPath(); g.ellipse(70, 52, 64, 32, 0, 0, 7); g.fill();
+  g.fillStyle = "#fff6c8"; g.save(); g.translate(70, 52); g.scale(1, .55); g.beginPath(); for (let i = 0; i < 10; i++) { const r = i % 2 ? 16 : 40, a = i * Math.PI / 5 - Math.PI / 2; g.lineTo(Math.cos(a) * r, Math.sin(a) * r); } g.fill(); g.restore(); });
+const sprOf = c => c.kind === "coin" ? (SPR.coin[c.val] || SPR.coin[1]) : SPR[c.kind];
+
+const cv = $("cv"), g = cv.getContext("2d"); let V = {};
+function size() { const r = $("fieldbox").getBoundingClientRect(), dpr = Math.min(2, devicePixelRatio || 1); cv.width = r.width * dpr; cv.height = r.height * dpr; g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  // fit the machine to the box: as wide as it can be, the tray stretched deeper on tall phones
+  const TW = Math.min(r.width * .92, r.height / 1.36), depth = Math.max(.62, Math.min(.95, (r.height / TW - .62) / L)), used = TW * (.34 + L * depth + .16);
+  V = { w: r.width, h: r.height, TW, cx: r.width / 2, yb: (r.height - used) / 2 + TW * .34, get yf() { return this.yb + TW * L * depth; } }; }
+// a point on the tray (x across, y from the back, z height) → the screen, and how much nearer things are scaled up
+const P = (x, y, z = 0) => { const k = y / L, s = .7 + .3 * k; return [V.cx + (x - .5) * V.TW * s, V.yb + (V.yf - V.yb) * k - z * V.TW * s, s]; };
+const quad = (pts, fill) => { g.fillStyle = fill; g.beginPath(); pts.forEach(([x, y], i) => g[i ? "lineTo" : "moveTo"](x, y)); g.closePath(); g.fill(); };
+const PH = .07, TH = .013;                       // the pusher's height, a coin's thickness (in tray widths)
+const drops = new Map(), fx = [], floats = [];  // coins in mid-air on their way down, falling winnings, floating "+5"s
+function drawCoin(c, z, now) { const [X, Y, s] = P(c.x, c.y, z), d = drops.get(c.id); let lift = 0; if (d) { const k = Math.min(1, (now - d) / 260); lift = (1 - k) * (1 - k) * .45; if (k >= 1) drops.delete(c.id); }
+  const spr = sprOf(c), rx = c.r * V.TW * s, sc = rx / 58, [, Y2] = P(c.x, c.y, z + lift);
+  if (lift) { g.fillStyle = "#0006"; g.beginPath(); g.ellipse(X, Y, rx, rx * .5, 0, 0, 7); g.fill(); }
+  g.drawImage(spr, X - 64 * sc * spr.width / 128, Y2 - 48 * sc - TH * V.TW * s, spr.width * sc, spr.height * sc); }
+function draw(now) { const { w, h, TW } = V; g.clearRect(0, 0, w, h); const t = now / 1000;
+  // the machine's back wall: a lit panel, chasing lights, the drop rail
+  const [bl] = P(0, 0), [br] = P(1, 0), top = V.yb - TW * .32;
+  const gw = g.createLinearGradient(0, top, 0, V.yb); gw.addColorStop(0, "#1c1240"); gw.addColorStop(1, "#2c1f58"); g.fillStyle = gw; g.fillRect(bl - 6, top, br - bl + 12, V.yb - top);
+  g.font = `400 ${TW * .085}px "Monoton","Bungee",sans-serif`; g.textAlign = "center"; g.textBaseline = "middle"; g.fillStyle = "#fff1dc"; g.shadowColor = "#ff7a3a"; g.shadowBlur = 16; g.fillText("STAR DOZER", V.cx, top + TW * .1); g.shadowBlur = 0;
+  for (let i = 0; i < 18; i++) { const x = bl + (br - bl) * (i + .5) / 18, on = (i + Math.floor(t * 8)) % 3 === 0; g.fillStyle = on ? ["#ff5fae", "#ffc845", "#5fe8ff"][i % 3] : "#3a2a5a"; g.beginPath(); g.arc(x, top + 6, on ? 3.5 : 2.5, 0, 7); g.fill(); }
+  const ry = V.yb - TW * .12; g.fillStyle = "#0c0820"; g.fillRect(bl, ry - 7, br - bl, 14); g.fillStyle = "#5fe8ff"; g.globalAlpha = .5 + .3 * Math.sin(t * 4); g.fillRect(bl, ry - 1, br - bl, 2); g.globalAlpha = 1;
+  if (holding) { const mx = Math.max(bl, Math.min(br, holding.sx)); g.fillStyle = "#ffc845"; g.beginPath(); g.moveTo(mx - 8, ry - 12); g.lineTo(mx + 8, ry - 12); g.lineTo(mx, ry - 2); g.fill(); }
+  // the tray floor, the gutters at the front corners, the winning lip between them
+  const tray = [P(0, 0), P(1, 0), P(1, L), P(0, L)]; const gf = g.createLinearGradient(0, V.yb, 0, V.yf); gf.addColorStop(0, "#0e0a24"); gf.addColorStop(1, "#231a4a"); quad(tray, gf);
+  g.strokeStyle = "#5fe8ff18"; g.lineWidth = 1; for (let i = 1; i < 8; i++) { const [a1, b1] = P(i / 8, 0), [a2, b2] = P(i / 8, L); g.beginPath(); g.moveTo(a1, b1); g.lineTo(a2, b2); g.stroke(); }
+  const [fl, fy] = P(0, L), [fr] = P(1, L), [gl] = P(GUTTER, L), [gr2] = P(1 - GUTTER, L);
+  g.fillStyle = "#7dff9a"; g.globalAlpha = .55; g.fillRect(gl, fy - 2, gr2 - gl, 4); g.globalAlpha = 1;
+  for (const [a, b] of [[fl, gl], [gr2, fr]]) { g.fillStyle = "#000"; g.fillRect(a, fy - 3, b - a, TW * .05); g.fillStyle = "#ff4d6d"; g.globalAlpha = .6 + .2 * Math.sin(t * 5); g.fillRect(a, fy - 3, b - a, 3); g.globalAlpha = 1; }
+  // the front chute where your winnings fall
+  const cg = g.createLinearGradient(0, fy, 0, fy + TW * .2); cg.addColorStop(0, "#0b0820"); cg.addColorStop(1, "#04030c"); g.fillStyle = cg; g.fillRect(gl, fy + 2, gr2 - gl, TW * .2);
+  // the pusher: its top (with the coins riding on it) and its front face
+  const f = face, sw = [P(0, 0, PH), P(1, 0, PH), P(1, f, PH), P(0, f, PH)], fr2 = [P(0, f, PH), P(1, f, PH), P(1, f, 0), P(0, f, 0)];
+  const pt = g.createLinearGradient(0, sw[0][1], 0, sw[2][1]); pt.addColorStop(0, "#4a4860"); pt.addColorStop(1, "#8a88a0"); quad(sw, pt);
+  const pf = g.createLinearGradient(0, fr2[0][1], 0, fr2[2][1]); pf.addColorStop(0, "#c8c6d8"); pf.addColorStop(1, "#5a5870"); quad(fr2, pf);
+  g.fillStyle = "#5fe8ff"; g.fillRect(fr2[0][0], fr2[0][1] - 1, fr2[1][0] - fr2[0][0], 2);
+  const list = coins.slice().sort((a, b) => (a.layer === 1) - (b.layer === 1) || a.y - b.y);
+  for (const c of list) if (c.layer === 1) drawCoin(c, PH, now);
+  for (const c of list) if (c.layer !== 1) { if (c.layer === 2) { const [X, Y, s2] = P(c.x + .012, c.y + .01); g.fillStyle = "#0007"; g.beginPath(); g.ellipse(X, Y, c.r * V.TW * s2, c.r * V.TW * s2 * .5, 0, 0, 7); g.fill(); }   // a shadow under stacked coins
+    drawCoin(c, c.layer === 2 ? TH * 1.9 : 0, now); }
+  // falling winnings and lost coins, floating amounts
+  for (let i = fx.length - 1; i >= 0; i--) { const p = fx[i]; p.t += 1 / 60; p.vy += p.lost ? 1500 / 60 : 1100 / 60; p.y += p.vy / 60; p.x += p.vx / 60; const a = Math.max(0, 1 - p.t / (p.lost ? .45 : .7));
+    if (a <= 0) { fx.splice(i, 1); continue; } g.globalAlpha = a; const sc = p.sc; g.drawImage(p.spr, p.x - 64 * sc * p.spr.width / 128, p.y - 48 * sc, p.spr.width * sc, p.spr.height * sc); g.globalAlpha = 1; }
+  for (let i = floats.length - 1; i >= 0; i--) { const p = floats[i]; p.t += 1 / 60; if (p.t > 1.1) { floats.splice(i, 1); continue; }
+    g.globalAlpha = Math.min(1, 2.2 - p.t * 2); g.font = `700 ${p.big ? 22 : 15}px "Share Tech Mono",monospace`; g.fillStyle = p.col; g.shadowColor = p.col; g.shadowBlur = 10; g.fillText(p.txt, p.x, p.y - p.t * 46); g.shadowBlur = 0; g.globalAlpha = 1; } }
+
+// ---- what happens on the tray ----
+function handle(evs) { for (const e of evs) { const [X, Y, s] = P(e.x, L);
+    if (e.type === "win") { const c = { kind: e.kind, val: e.kind === "coin" ? coinVal(e.val) : e.val }; fx.push({ x: X, y: Y, vx: (Math.random() - .5) * 40, vy: 60, t: 0, spr: sprOf(c), sc: R * V.TW * s / 58 * (e.kind === "coin" ? 1 : 1.3) });
+      won += e.val; floats.push({ x: X, y: Y - 8, t: 0, txt: "+" + e.val, col: e.kind === "coin" ? "#7dff9a" : "#ffc845", big: e.kind !== "coin" }); SFX.win(e.val, e.kind); popWin();
+      if (e.kind !== "coin") { const n = { bar: "GOLD BAR", crystal: "CRYSTAL", ufo: "SAUCER", star: "JACKPOT STAR" }[e.kind]; banner(n + "!", e.val ? `+${e.val}` : "", e.kind === "star" ? "#ffc845" : "#5fe8ff"); say(LINES[e.kind]); } }
+    if (e.type === "gutter") { fx.push({ x: X, y: Y, vx: 0, vy: 40, t: 0, lost: true, spr: sprOf({ kind: e.kind, val: e.kind === "coin" ? coinVal(e.val) : 1 }), sc: R * V.TW * s / 58 }); SFX.gutter(); }
+    if (e.type === "shower") { banner("COIN SHOWER!", `${e.n} free coins`, "#7dff9a"); SFX.shower(); for (const c of coins.slice(-e.n)) drops.set(c.id, performance.now() + Math.random() * 400); }
+    if (e.type === "prize") { SFX.prize(); say(`A ${{ bar: "gold bar", crystal: "crystal", ufo: "saucer", star: "jackpot star" }[e.kind]} on the pusher!`); } }
+  paint(); }
+const coinVal = v => DENOMS.includes(v) ? v : 1;
+function popWin() { const b = $("winbox"); b.classList.remove("pop"); void b.offsetWidth; b.classList.add("pop"); }
+function paint() { $("credits").textContent = credits; $("won").textContent = won; document.querySelectorAll("#seg button").forEach(b => b.setAttribute("aria-pressed", String(+b.dataset.v === denom)));
+  const h = $("hint"); h.firstChild.textContent = credits < denom ? "OUT OF BARS" : "TAP TO DROP"; }
+function say(t) { if (!t) return; $("say").textContent = t; const d = $("dealer"); d.querySelector("span").textContent = t; d.classList.remove("show"); void d.offsetWidth; d.classList.add("show"); clearTimeout(say.t); say.t = setTimeout(() => d.classList.remove("show"), 1600 + t.length * 40); }
+function banner(big, small, col) { const b = $("banner"); b.innerHTML = `${big}<small>${small || ""}</small>`; b.style.setProperty("--bc", col); b.classList.remove("show"); void b.offsetWidth; b.classList.add("show"); }
+const LINES = { bar: "Gold bar! Nice push.", crystal: "Crystal! That's a big one.", ufo: "Saucer down! Here comes the shower.", star: "THE STAR! Jackpot!" };
+
+// ---- dropping coins ----
+function dropAt(sx) { const [bl] = P(0, 0), [br] = P(1, 0), x = (sx - bl) / (br - bl); if (x < -.08 || x > 1.08) return;
+  if (!drop(Math.max(0, Math.min(1, x)), denom)) { say("Out of bars at that coin value."); if (auto) setAuto(false); paint(); return; }
+  drops.set(coins[coins.length - 1].id, performance.now()); SFX.drop(); lastDrop = performance.now(); paint(); }
+cv.addEventListener("pointerdown", e => { Sound.unlock(); Music.start(); const r = cv.getBoundingClientRect(); holding = { id: e.pointerId, sx: e.clientX - r.left }; dropAt(holding.sx); try { cv.setPointerCapture(e.pointerId); } catch (_) {} });
+cv.addEventListener("pointermove", e => { if (holding && e.pointerId === holding.id) holding.sx = e.clientX - cv.getBoundingClientRect().left; });
+const letGo = e => { if (holding && e.pointerId === holding.id) holding = null; }; cv.addEventListener("pointerup", letGo); cv.addEventListener("pointercancel", letGo);
+function setAuto(v) { auto = v; $("auto").setAttribute("aria-pressed", String(v)); }
+$("auto").onclick = () => { Sound.unlock(); Music.start(); setAuto(!auto); };
+document.querySelectorAll("#seg button").forEach(b => b.onclick = () => { denom = +b.dataset.v; try { localStorage.setItem(SAVE + "-denom", denom); } catch (e) {} SFX.chip(); paint(); });
+
+// ---- the loop: the machine runs in small fixed steps; holding or AUTO keeps dropping ----
+let last = performance.now(), acc = 0, sweep = 0;
+function frame(now) { acc = Math.min(.1, acc + (now - last) / 1000); last = now; const evs = [];
+  while (acc >= 1 / 60) { evs.push(...step(1 / 60, denom)); acc -= 1 / 60; }
+  if (evs.length) handle(evs);
+  const gap = now - lastDrop; if (holding && gap > 260) dropAt(holding.sx);
+  if (auto && !holding && gap > 420) { sweep += .9; const [bl] = P(0, 0), [br] = P(1, 0); dropAt(bl + (br - bl) * (.5 + .42 * Math.sin(sweep))); }
+  draw(now); requestAnimationFrame(frame); }
+
+// ---- sound ----
+let lastClink = 0;
+const SFX = {
+  chip() { Sound.tone(2200, .03, { type: "triangle", vol: .05 }); },
+  drop() { Sound.tone(2400 + Math.random() * 500, .05, { type: "triangle", vol: .05 }); Sound.tone(1700, .08, { type: "triangle", vol: .035, at: .2 }); Sound.thud(.08, 900); },
+  win(v, kind) { const now = performance.now(); if (kind === "coin" && now - lastClink < 60) return; lastClink = now;
+    if (kind === "coin") { Sound.tone(1900 + Math.random() * 300, .06, { type: "triangle", vol: .06 }); Sound.tone(2800, .05, { type: "sine", vol: .03, at: .03 }); }
+    else Sound.arp(kind === "star" ? [12, 16, 19, 24, 28, 31, 36] : [12, 16, 19, 24], .06, { type: "triangle", vol: .1, dur: .22 }); },
+  gutter() { Sound.tone(260, .14, { type: "triangle", vol: .04, slide: .6 }); },
+  prize() { Sound.arp([19, 24, 31], .05, { type: "sine", vol: .06, dur: .2 }); },
+  shower() { Sound.arp([12, 16, 19, 24, 19, 24, 28, 31], .07, { type: "square", vol: .04, dur: .16 }); Sound.noise(.8, { vol: .05, type: "highpass", freq: 3000, sweep: .5 }); } };
+const Music = (() => { let timer = null, stp = 0, nextT = 0; const CH = [[0, 4, 7, 11], [-3, 0, 4, 7], [-7, -3, 0, 4], [-5, -1, 2, 5]];
+  function tick() { if (!Sound.ready()) return; const now = Sound.now(), sd = 60 / 96 / 2; if (nextT < now - .25) nextT = now + .05;
+    while (nextT < now + .12) { const at = nextT - now, k = stp % 16, ch = CH[Math.floor(stp / 16) % 4];
+      if (Sound.on && Sound.musicOn) { const M = { bus: "music" };
+        if (k === 0) ch.forEach(n => Sound.tone(Sound.note(n), sd * 15, { ...M, at, type: "sine", vol: .012, attack: .3 }));
+        if (k % 4 === 0) Sound.tone(Sound.note(ch[0] - 12), sd * 1.4, { ...M, at, type: "triangle", vol: .035, lp: 600 });
+        if (k % 4 === 2) Sound.tone(Sound.note(ch[(k >> 2) % 4] + 12), sd * .8, { ...M, at, type: "sine", vol: .012 }); }
+      stp++; nextT += sd; } }
+  return { start() { if (!timer) { nextT = (Sound.now() || 0) + .1; timer = setInterval(tick, 25); } } }; })();
+
+// ---- wiring ----
+$("snd").addEventListener("click", () => { Sound.on = !Sound.on; $("snd").setAttribute("aria-pressed", String(Sound.on)); });
+$("info").addEventListener("click", () => { $("paytable").innerHTML = `<tr><td>Prize</td><td>Pays</td></tr>` +
+  [["Gold bar", ITEMS.bar.val + " × coin value"], ["Crystal", ITEMS.crystal.val + " × coin value"], ["Jackpot star", ITEMS.star.val + " × coin value"], ["Saucer", `a shower of ${SHOWER} free coins`]].map(([a, b]) => `<tr><td>${a}</td><td>${b}</td></tr>`).join(""); $("sheet").hidden = false; });
+$("close").addEventListener("click", () => $("sheet").hidden = true);
+$("sheet").addEventListener("click", e => { if (e.target.id === "sheet") $("sheet").hidden = true; });
+$("fufo").addEventListener("click", () => { FORCE.item = "ufo"; $("sheet").hidden = true; });
+$("fstar").addEventListener("click", () => { FORCE.item = "star"; $("sheet").hidden = true; });
+$("freset").addEventListener("click", () => { seed(1); save(); $("sheet").hidden = true; });
+document.addEventListener("pointerdown", () => Sound.unlock(), { once: true });
+addEventListener("resize", size);
+size(); paint(); requestAnimationFrame(t => { last = t; frame(t); setTimeout(() => say("Tap above the pusher to drop a coin."), 500); });
+</script>
