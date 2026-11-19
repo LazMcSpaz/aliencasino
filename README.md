@@ -38,9 +38,9 @@ asteroid/    Asteroid Field: a "mines" game — crack asteroids for crystals, co
   part_engine.js   5×5 field, 1–24 black holes, multiplier = fair odds × 97% · tools/sim.js checks payback, tools/playtest.js browser test
   shell.html       holo field with procedural rocks and crystals, multiplier ladder, escalating effects, black-hole pull · build.py → asteroid.html
 
-pusher/      Star Dozer, a coin pusher: drop coins on the sliding pusher, shove the pile over the front edge; coins stack one level; the tray is kept between visits
-  part_engine.js   physics (coins, pusher, stacking), payouts, prizes; pure logic · shell.html drawing + screen · build.py → pusher.html
-  tools/sim.js     payback check (about 95% over a long run) · tools/playtest.js headless play-through
+pusher/      Star Dozer, a pusher with real 3D physics (Rapier, loaded from the CDN): drop gold bars on the sliding pusher, shove the pile over the front edge; crystal prizes; the tray is kept between visits
+  part_engine.js   the physics world, payouts, crystals; no drawing · shell.html the three.js view + screen · build.py → pusher.html
+  tools/sim.js     payback check in Node (about 95%; needs @dimforge/rapier3d-compat@0.14.0) · tools/playtest.js headless play-through
 lobby/       the Alien Casino floor: walk it in first person (or switch to the bird's-eye view), walk up to a machine and tap it to play
   lobby.src.html   room, lights, picking, the card, the game overlay, the wallet · build.py → lobby.html (+ copies the built games into games/, not committed)
   part_walk.js     first-person walking: swipe up to walk, sideways to turn, release to stop; hologram controls; collisions

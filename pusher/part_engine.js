@@ -1,103 +1,91 @@
-// Star Dozer: the coin pusher's rules and physics. Pure logic: no drawing, no sound. The screen (shell.html) calls these; tools/sim.js checks the payback in Node.
-// The tray, seen from above: x runs 0…W across, y runs 0 (the back wall) … L (the front edge). A pusher block slides back and forth at the back.
-// Coins you drop land on top of the pusher. When it pulls back they're scraped off its front onto the tray, and when it comes forward it shoves the pile.
-// Whatever goes over the front edge between the gutters is yours; over the front corners (the gutters) it's lost.
-// Coins stack one level deep: a coin that falls onto a crowded spot sits on top of the coins below (layer 2), rides along as they're pushed,
-// and drops down (or tips over the edge) once nothing is holding it up. Layers: 0 = on the tray, 1 = on top of the pusher, 2 = stacked on tray coins.
-// May use: nothing (Wallet if the page has it). Must not: touch the page.
-const W = 1, L = 1.3, R = .043;               // tray width, length, coin radius
-const FACE = [.12, .38], PERIOD = 3.4;          // the pusher's front face slides between these y positions, once every PERIOD seconds
-const GUTTER = .082;                             // the front corners: this much of the width at each side drops into the gutters (lost)
-const DENOMS = [1, 5, 10, 25];
-const START = 500;
-// bonus prizes that turn up on the pusher now and then: value (× the coin value you're playing), size, weight, and how often one replaces a dropped coin
+// Star Dozer: the coin pusher's rules, with real 3D physics (the Rapier engine). No drawing, no sound: the screen (shell.html) reads the pieces' positions
+// and calls these; tools/sim.js runs the same engine in Node to check the payback.
+// The machine (metres, y up): the tray floor is y = 0, x runs −W/2…W/2 across, z runs 0 (the back wall) … L (the front edge, toward the player).
+// A pusher block slides back and forth at the back. Gold bars you drop land on top of it; when it pulls back, the scraper wall above it pushes them off
+// its front onto the tray; when it comes forward it shoves the pile. Bars stack, slide and tip like the real thing.
+// Whatever falls over the front edge between the gutters is yours; over the front corners (the gutters) it's lost.
+// May use: RAPIER (handed to init), Wallet if the page has it. Must not: touch the page.
+const W = 1.0, L = 1.2, PH = .075, PD = .6;           // tray width, length, pusher height and depth
+const FACE = [.13, .37], PERIOD = 3.4;                 // the pusher's front face slides between these z positions, once every PERIOD seconds
+const GUTTER = .085;                                    // the front corners: this much of the width at each side drops into the gutters (lost)
+const BAR = [.11, .028, .066];                           // a gold bar: width, height, depth
+const DENOMS = [1, 5, 10, 25], START = 500;
+// crystal prizes that turn up now and then instead of a bar: pays val × the bar value you were playing; the rainbow one sets off a bar shower.
+// Tuned with tools/sim.js: bars alone return about 76%, crystals about 19%, so the machine pays back about 95% over a long run.
 const ITEMS = {
-  bar:     { val: 4,  r: .058, m: 2.2, odds: .014 },   // a gold bar
-  crystal: { val: 9,  r: .05,  m: 1.6, odds: .005 },   // a big crystal
-  ufo:     { val: 0,  r: .062, m: 2.0, odds: .004 },   // a toy saucer: off the front, it sets off a COIN SHOWER (free coins onto the pusher)
-  star:    { val: 30, r: .066, m: 3.0, odds: .0012 } };   // the jackpot star coin
-const SHOWER = 8, MAXSTACK = 40, CLIMB = 16;                              // coins in a coin shower
+  blue:    { val: 4,  size: .085, odds: .016 },
+  violet:  { val: 8,  size: .095, odds: .006 },
+  pink:    { val: 16, size: .105, odds: .0025 },
+  gold:    { val: 35, size: .12,  odds: .0009 },        // the jackpot crystal
+  rainbow: { val: 0,  size: .1,   odds: .004 } };      // off the front: a BAR SHOWER (free bars onto the pusher)
+const SHOWER = 8;
+const TRAYF = .3, BARF = .32;                           // friction: the tray floor, and bar on bar (lower = the pile slides forward instead of heaping up)
 let credits = typeof Wallet !== "undefined" ? Wallet.load() : START;
-let coins = [], clock = 0, nextId = 1, face = FACE[0], events = [];
-const FORCE = { item: null };                   // debug / tests: the next drop is this prize
+let RP = null, world = null, pusher = null, pieces = [], clock = 0, face = FACE[0], nextId = 1, events = [];
+const FORCE = { item: null };                           // debug / tests: the next drop is this prize
 
 const faceAt = t => FACE[0] + (FACE[1] - FACE[0]) * (.5 - .5 * Math.cos(2 * Math.PI * t / PERIOD));   // eases at both ends, like a cam
-function mk(x, y, val, kind = "coin", layer = 0) { const it = ITEMS[kind]; return { id: nextId++, x, y, px: x, py: y, val, kind, layer, r: it ? it.r : R, m: it ? it.m : 1, spin: Math.random() * 6.28 }; }
+// a crystal's shape: a six-sided gem, pointed top and bottom (the screen draws the same points)
+const gemPoints = s => { const p = []; for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; p.push(Math.cos(a) * s * .5, 0, Math.sin(a) * s * .5); } p.push(0, s * .62, 0, 0, -s * .38, 0); return new Float32Array(p); };
 
-// drop a coin at x (0…W) with value `denom`. It lands on top of the pusher. Returns false if you can't afford it.
-function drop(x, denom) { if (!DENOMS.includes(denom) || credits < denom) return false; credits -= denom;
-  let kind = "coin"; if (FORCE.item) { kind = FORCE.item; FORCE.item = null; } else { const r = Math.random(); let acc = 0; for (const [k, it] of Object.entries(ITEMS)) { acc += it.odds; if (r < acc) { kind = k; break; } } }
-  const it = ITEMS[kind], val = it ? it.val * denom : denom;
-  coins.push(mk(Math.max(R, Math.min(W - R, x)), Math.max(R, face * (.25 + Math.random() * .5)), val, kind, 1));
-  if (kind !== "coin") events.push({ type: "prize", kind });
-  return true; }
-// free coins (a coin shower), spread across the pusher
-function shower(denom, n = SHOWER) { for (let i = 0; i < n; i++) coins.push(mk(R + Math.random() * (W - 2 * R), Math.max(R, face * Math.random()), denom, "coin", 1)); }
+// build the machine. RAPIER must already be initialised (await RAPIER.init()).
+function init(RAPIER) { RP = RAPIER; world = new RP.World({ x: 0, y: -9.81, z: 0 }); world.timestep = 1 / 60;
+  if (world.integrationParameters && "lengthUnit" in world.integrationParameters) world.integrationParameters.lengthUnit = .1;   // small pieces: settle and sleep at small-object scales
+  const fixed = (hx, hy, hz, x, y, z, fr = TRAYF) => world.createCollider(RP.ColliderDesc.cuboid(hx, hy, hz).setTranslation(x, y, z).setFriction(fr));
+  fixed(W / 2 + .1, .05, (L + .7) / 2, 0, -.05, (L - .7) / 2);              // the tray floor (running back under the pusher)
+  for (const s of [-1, 1]) fixed(.05, .3, (L + .7) / 2, s * (W / 2 + .05), .3, (L - .7) / 2, .2);   // side walls
+  fixed(W / 2, .25, .03, 0, PH + .004 + .25, -.03, .1);                      // the scraper wall above the pusher's top
+  pusher = world.createRigidBody(RP.RigidBodyDesc.kinematicPositionBased().setTranslation(0, PH / 2, face - PD / 2));
+  world.createCollider(RP.ColliderDesc.cuboid(W / 2 - .003, PH / 2, PD / 2).setFriction(.35), pusher); }
 
-// push overlapping coins apart (several passes); a heavier piece moves less. Coins only touch others on the same level.
-function separate(list) {
-  const cell = 2 * .066, grid = new Map(), key = (i, j) => i * 1000 + j;
-  for (const c of list) { const k = key(Math.floor(c.x / cell), Math.floor(c.y / cell)); let a = grid.get(k); if (!a) grid.set(k, a = []); a.push(c); }
-  for (const c of list) { const ci = Math.floor(c.x / cell), cj = Math.floor(c.y / cell);
-    for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) { const a = grid.get(key(ci + di, cj + dj)); if (!a) continue;
-      for (const d of a) { if (d.id <= c.id) continue; const dx = d.x - c.x, dy = d.y - c.y, min = c.r + d.r, q = dx * dx + dy * dy; if (q >= min * min || q === 0) continue;
-        const dist = Math.sqrt(q), push = (min - dist), wc = 1 / c.m, wd = 1 / d.m, s = push / (wc + wd) / dist;
-        c.x -= dx * s * wc; c.y -= dy * s * wc; d.x += dx * s * wd; d.y += dy * s * wd; } } } }
+function addPiece(kind, val, x, y, z, q, denom) { const it = ITEMS[kind];
+  const bd = RP.RigidBodyDesc.dynamic().setTranslation(x, y, z).setLinearDamping(.15).setAngularDamping(.4); if (q) bd.setRotation(q);
+  const body = world.createRigidBody(bd);
+  const cd = it ? RP.ColliderDesc.convexHull(gemPoints(it.size)) : RP.ColliderDesc.cuboid(BAR[0] / 2, BAR[1] / 2, BAR[2] / 2);
+  cd.setFriction(it ? .3 : BARF).setRestitution(.05).setDensity(it ? 1400 : 2000);
+  world.createCollider(cd, body); const p = { id: nextId++, body, kind, val, denom: denom || val, born: clock }; pieces.push(p); return p; }
+const randYaw = (spread = Math.PI) => { const a = (Math.random() - .5) * spread; return { x: 0, y: Math.sin(a / 2), z: 0, w: Math.cos(a / 2) }; };
 
-// advance the machine by dt seconds (call with small steps, e.g. 1/60). Returns what happened: [{type:"win"|"gutter", x, val, kind}, {type:"shower"}…]
+// drop a bar at x (−W/2…W/2) worth `denom`. It falls onto the pusher. Returns the new piece, or null if you can't afford it.
+function drop(x, denom) { if (!DENOMS.includes(denom) || credits < denom) return null; credits -= denom;
+  let kind = "bar"; if (FORCE.item) { kind = FORCE.item; FORCE.item = null; } else { const r = Math.random(); let acc = 0; for (const [k, it] of Object.entries(ITEMS)) { acc += it.odds; if (r < acc) { kind = k; break; } } }
+  const it = ITEMS[kind], xx = Math.max(-W / 2 + .06, Math.min(W / 2 - .06, x));
+  const p = addPiece(kind, it ? it.val * denom : denom, xx, PH + .22, .03 + Math.random() * Math.max(.02, face - .08), randYaw(.6), denom);
+  if (kind !== "bar") events.push({ type: "prize", kind }); return p; }
+// free bars (a bar shower), raining onto the pusher
+function shower(denom, n = SHOWER) { for (let i = 0; i < n; i++) addPiece("bar", denom, (Math.random() - .5) * (W - .14), PH + .25 + i * .05, .03 + Math.random() * Math.max(.02, face - .08), randYaw(), denom); }
+
+// advance the machine by dt seconds. Returns what happened: [{type:"win"|"gutter", x, y, z, val, kind}, {type:"shower"}, {type:"prize"}…]
 function step(dt, denomForShower = 1) {
-  clock += dt; const f0 = face; face = faceAt(clock); const df = face - f0;
-  for (const c of coins) { c.px = c.x; c.py = c.y; }
-  const top = [], tray = [], stack = [];
-  for (const c of coins) (c.layer === 1 ? top : c.layer === 2 ? stack : tray).push(c);
-  // on top of the pusher: carried with it, scraped by the back wall, falling off its front onto the tray (or onto the coins already there)
-  for (const c of top) { c.y += df; if (c.y < c.r) c.y = c.r; }
-  for (let k = 0; k < 3; k++) { separate(top); for (const c of top) { c.x = Math.max(c.r, Math.min(W - c.r, c.x)); if (c.y < c.r) c.y = c.r; } }
-  for (const c of top) if (c.y > face + c.r * .2) { const crowd = tray.filter(d => (d.x - c.x) ** 2 + (d.y - c.y) ** 2 < (d.r + c.r) ** 2 * .98).length;
-    c.layer = crowd ? 2 : 0; (crowd ? stack : tray).push(c); }   // no room on the tray right there: it lands on top
-  // on the tray: the pusher's face shoves, coins shove each other, the side walls hold them in
-  for (let k = 0; k < 6; k++) { for (const c of tray) { if (c.y - c.r < face) c.y = face + c.r; c.x = Math.max(c.r, Math.min(W - c.r, c.x)); } separate(tray); }
-  for (const c of tray) if (c.y - c.r < face) c.y = face + c.r;
-  // squeezed: while the pusher drives forward, a coin pressed against its face (with coins packed in front) sometimes rides up on top of the pile
-  if (df > 0 && stack.length < MAXSTACK) for (const c of tray) { if (c.kind !== "coin" || c.y - c.r > face + .004 || Math.random() > df * CLIMB) continue;
-    let ahead = 0; for (const d of tray) if (d !== c && d.y > c.y && Math.hypot(d.x - c.x, d.y - c.y) < (d.r + c.r) * 1.08) ahead++;
-    if (ahead >= 2) { c.layer = 2; c.y += c.r * .6; stack.push(c); if (stack.length >= MAXSTACK) break; } }
-  tray.splice(0, tray.length, ...tray.filter(c => c.layer === 0));
-  // stacked coins ride on the coins under them; with nothing under them (or only an edge to hang on) they drop down
-  for (const c of stack) { let n = 0, mx = 0, my = 0, sx = 0, sy = 0;
-    for (const d of tray) { const q = (d.x - c.x) ** 2 + (d.y - c.y) ** 2, reach = (d.r + c.r) * .92; if (q < reach * reach) { n++; mx += d.x - d.px; my += d.y - d.py; sx += d.x; sy += d.y; } }
-    if (!n) { c.layer = 0; continue; }
-    c.x += mx / n; c.y += my / n;
-    const off = Math.hypot(sx / n - c.x, sy / n - c.y); if (n === 1 && off > c.r * 1.05) c.layer = 0; }   // balanced on one coin's rim: it slides off
-  const still = stack.filter(c => c.layer === 2);
-  for (let k = 0; k < 3; k++) { separate(still); for (const c of still) { c.x = Math.max(c.r, Math.min(W - c.r, c.x)); if (c.y - c.r < face) c.y = face + c.r; } }
-  if (still.length < stack.length) for (let k = 0; k < 3; k++) separate(coins.filter(c => c.layer === 0));   // ones that dropped down make room for themselves
-  // over the front edge
+  clock += dt; face = faceAt(clock); pusher.setNextKinematicTranslation({ x: 0, y: PH / 2, z: face - PD / 2 });
+  world.timestep = dt; world.step();
   const out = events; events = [];
-  coins = coins.filter(c => { if (c.layer === 1 || c.y <= L) return true;
-    const win = c.x > GUTTER && c.x < W - GUTTER;
-    if (win) { credits += c.val; out.push({ type: "win", x: c.x, val: c.val, kind: c.kind }); if (c.kind === "ufo") { shower(denomForShower); out.push({ type: "shower", n: SHOWER }); } }
-    else out.push({ type: "gutter", x: c.x, val: c.val, kind: c.kind });
-    return false; });
+  pieces = pieces.filter(p => { const t = p.body.translation(); if (t.y > -.12 && Math.abs(t.x) < W && t.z < L + .5) return true;
+    const win = t.z > L - .1 && Math.abs(t.x) < W / 2 - GUTTER;
+    if (win) { credits += p.val; out.push({ type: "win", x: t.x, y: t.y, z: t.z, val: p.val, kind: p.kind, denom: p.denom }); if (p.kind === "rainbow") { shower(denomForShower); out.push({ type: "shower", n: SHOWER }); } }
+    else out.push({ type: "gutter", x: t.x, y: t.y, z: t.z, val: p.val, kind: p.kind, denom: p.denom });
+    world.removeRigidBody(p.body); return false; });
   return out; }
 
-// a fresh tray: packed edge to edge right up to the front lip (so play pays from the first drops), a few coins already stacked, and the starting prizes
-function seed(denom = 1) { coins = []; clock = 0; face = FACE[0];
-  const dx = 2 * R * 1.02, dy = dx * .87;
-  for (let row = 0, y = FACE[1] + R; y < L - R * .2; row++, y += dy) for (let x = R + (row % 2) * dx / 2; x < W - R; x += dx)
-    if (Math.random() < .93) coins.push(mk(x + (Math.random() - .5) * R * .3, y + (Math.random() - .5) * R * .3, denom, "coin", 0));
-  for (const [k, n] of [["bar", 2], ["crystal", 1], ["ufo", 1]]) for (let i = 0; i < n; i++) { const c = coins[Math.floor(coins.length * (.25 + Math.random() * .5))]; const it = ITEMS[k]; Object.assign(c, { kind: k, val: it.val * denom, r: it.r, m: it.m }); }
-  for (let i = 0; i < 30; i++) { const base = coins[Math.floor(Math.random() * coins.length)]; if (base.kind === "coin" && base.y < L - 3 * R) coins.push(mk(base.x + R * .5, base.y + R * .3, denom, "coin", 2)); }
-  for (let i = 0; i < 20; i++) coins.push(mk(R + Math.random() * (W - 2 * R), R + Math.random() * (FACE[0] - R), denom, "coin", 1));   // and a layer already riding on the pusher
-  for (let i = 0; i < 40; i++) { step(1 / 60); coins = coins.filter(c => c.y < L - c.r * .1); }   // let it settle without paying out
-  clock = 0; face = faceAt(0); events = []; }
+function clear() { for (const p of pieces) world.removeRigidBody(p.body); pieces = []; }
+// a fresh tray: rows of bars right up to the front lip (so play pays from the first drops), some stacked, some on the pusher, a few crystals; then let it settle
+function seed(denom = 1) { const keep = credits; clear(); clock = 0; face = FACE[0]; pusher.setTranslation({ x: 0, y: PH / 2, z: face - PD / 2 }, true);
+  const dx = BAR[0] + .012, dz = BAR[2] + .014;
+  for (let z = FACE[1] + .06, row = 0; z < L - .02; z += dz, row++) for (let x = -W / 2 + .06 + (row % 2) * dx / 2; x < W / 2 - .05; x += dx)
+    if (Math.random() < .9) addPiece("bar", denom, x + (Math.random() - .5) * .01, BAR[1] / 2 + .002, z, randYaw(.5), denom);
+  for (let i = 0; i < 60; i++) addPiece("bar", denom, (Math.random() - .5) * (W - .14), BAR[1] * 1.6, FACE[1] + .1 + Math.random() * (L - FACE[1] - .2), randYaw(), denom);   // a second layer here and there
+  for (let i = 0; i < 24; i++) addPiece("bar", denom, (Math.random() - .5) * (W - .14), PH + .03 + (i % 3) * .03, .03 + Math.random() * (FACE[0] - .06), randYaw(), denom);   // riding on the pusher
+  for (const k of ["blue", "blue", "violet", "rainbow"]) addPiece(k, ITEMS[k].val * denom, (Math.random() - .5) * .6, .12, .55 + Math.random() * .4, randYaw(), denom);
+  for (let i = 0; i < 150; i++) step(1 / 60);       // settle (anything that falls off now doesn't count)
+  credits = keep; clock = 0; events = []; }
 
 // the tray as plain data, to save between visits (so the pile you built up is still there) and to restore
-const snapshot = () => ({ clock, coins: coins.map(c => [Math.round(c.x * 1e4) / 1e4, Math.round(c.y * 1e4) / 1e4, c.val, c.kind, c.layer]) });
-function restore(s) { try { if (!s || !Array.isArray(s.coins) || s.coins.length < 20) return false; coins = s.coins.map(([x, y, val, kind, layer]) => mk(x, y, val, kind, layer)); clock = s.clock || 0; face = faceAt(clock); return true; } catch (e) { return false; } }
+const snapshot = () => ({ v: 2, clock: Math.round(clock * 100) / 100, p: pieces.map(p => { const t = p.body.translation(), q = p.body.rotation(); return [t.x, t.y, t.z, q.x, q.y, q.z, q.w].map(v => Math.round(v * 1e4) / 1e4).concat([p.kind, p.val, p.denom]); }) });
+function restore(s) { try { if (!s || s.v !== 2 || !Array.isArray(s.p) || s.p.length < 40) return false; clear(); clock = s.clock || 0; face = faceAt(clock); pusher.setTranslation({ x: 0, y: PH / 2, z: face - PD / 2 }, true);
+    for (const [x, y, z, qx, qy, qz, qw, kind, val, denom] of s.p) { const p = addPiece(kind, val, x, y, z, { x: qx, y: qy, z: qz, w: qw }, denom); p.body.sleep(); } return true; } catch (e) { return false; } }
 
 // keep the shared wallet in step with this game's balance (not in Node tests)
 if (typeof Wallet !== "undefined") Wallet.watch(() => credits);
 
-if (typeof module !== "undefined") module.exports = { W, L, R, FACE, PERIOD, GUTTER, DENOMS, ITEMS, SHOWER, drop, shower, step, seed, snapshot, restore, faceAt, FORCE,
-  get credits() { return credits; }, set credits(v) { credits = v; }, get coins() { return coins; }, get face() { return face; } };
+if (typeof module !== "undefined") module.exports = { W, L, PH, PD, FACE, PERIOD, GUTTER, BAR, DENOMS, ITEMS, SHOWER, init, drop, shower, step, seed, snapshot, restore, faceAt, gemPoints, FORCE,
+  get credits() { return credits; }, set credits(v) { credits = v; }, get pieces() { return pieces; }, get face() { return face; }, get world() { return world; } };

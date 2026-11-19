@@ -1,5 +1,5 @@
 // Star Dozer coin pusher cabinet: a base with a lit front and a winnings chute full of coins, a glass case on top holding the tray
-// (a heap of coins, a couple of gold bars and a toy saucer on it), the pusher block sliding back and forth at the back with coins riding on it,
+// (a heap of gold bars, the casino's currency, with a few glowing crystals on it), the pusher block sliding back and forth at the back with bars riding on it,
 // and a marquee with chasing lights. Units are metres; it faces +Z (players stand in front); the floor is y = 0.
 // Node names: StarDozer, Base, Chute, Case, Tray, Pusher, Marquee. update(t) slides the pusher and runs the lights.
 function buildPusher(THREE, opts = {}) {
@@ -25,9 +25,9 @@ function buildPusher(THREE, opts = {}) {
   for (const y of [BH - .01, .02]) add(base, new THREE.BoxGeometry(BW + .02, .025, BD + .02), mat.trim, [0, y, 0]);
   const chute = grp(base, "Chute", [0, BH * .62, BD / 2 - .12]);
   add(chute, new THREE.BoxGeometry(BW * .8, .14, .28), mat.dark, [0, 0, 0]); add(chute, new THREE.BoxGeometry(BW * .82, .02, .02), mat.neon, [0, .075, .14]);
-  // ---- coins: two batches (gold and silver), heaped on the tray, in the chute and on the pusher ----
-  const coinGeo = new THREE.CylinderGeometry(.032, .032, .009, 18), heap = { gold: [], silver: [] };
-  const coin = (x, y, z, tilt = 0) => heap[Math.random() < .35 ? "gold" : "silver"].push([x, y, z, tilt]);
+  // ---- gold bars: one batch, heaped on the tray, in the chute and on the pusher ----
+  const coinGeo = new THREE.BoxGeometry(.06, .016, .038), heap = { gold: [] };
+  const coin = (x, y, z, tilt = 0) => heap.gold.push([x, y, z, tilt]);
   for (let i = 0; i < 26; i++) coin(chute.position.x + (Math.random() - .5) * BW * .7, chute.position.y + .075 + Math.random() * .02, chute.position.z + (Math.random() - .5) * .2, (Math.random() - .5) * .8);
   // ---- glass case on top ----
   const cs = grp(root, "Case", [0, BH, 0]);
@@ -44,7 +44,7 @@ function buildPusher(THREE, opts = {}) {
   for (let row = 0; row < 9; row++) for (let i = 0; i < 16; i++) { const x = -BW / 2 + .1 + i * .072 + (row % 2) * .036, z = TZ0 + .36 + row * .062; if (x > BW / 2 - .08 || z > TZ1 - .02 || Math.random() < .08) continue;
     coin(x + (Math.random() - .5) * .01, cs.position.y + tray.position.y + .02 + (Math.random() < .25 ? .01 : 0), z, (Math.random() - .5) * .15); }
   const barGeo = new THREE.BoxGeometry(.12, .04, .06); for (const [x, z, ry] of [[-.25, .12, .3], [.2, .3, -.4]]) add(tray, barGeo, mat.gold, [x, .045, z], [0, ry, 0]);
-  const ufo = grp(tray, "Saucer", [.05, .045, -.02]); add(ufo, new THREE.CylinderGeometry(.075, .085, .025, 20), mat.chrome); add(ufo, new THREE.SphereGeometry(.04, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x8fe8ff, transparent: true, opacity: .7 }), [0, .01, 0]);
+  const gems = []; for (const [x, z, c] of [[.05, -.02, 0x1e8cff], [-.35, .28, 0xff2d8a], [.38, .05, 0x9a4dff]]) { const gm = add(tray, new THREE.OctahedronGeometry(.045, 0), new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: .7, roughness: .15, flatShading: true }), [x, .06, z]); gm.scale.y = 1.4; gems.push(gm); }
   // ---- the pusher block, sliding at the back, coins riding on it ----
   const pusher = grp(tray, "Pusher", [0, 0, 0]);
   add(pusher, new THREE.BoxGeometry(BW - .12, .09, .34), mat.chrome, [0, .06, TZ0 + .17]); add(pusher, new THREE.BoxGeometry(BW - .12, .012, .012), mat.cyan, [0, .1, TZ0 + .34]);
@@ -62,7 +62,7 @@ function buildPusher(THREE, opts = {}) {
   const bulbs = [], bulbGeo = new THREE.SphereGeometry(.018, 8, 6), COLS = [0xff5fae, 0xffc845, 0x8dff6a, 0x5fe8ff];
   for (let i = 0; i < 22; i++) { const x = -BW / 2 + .02 + i * (BW - .04) / 21; for (const y of [.205, -.205]) { const b = add(mq, bulbGeo, new THREE.MeshBasicMaterial({ color: COLS[i % 4] }), [x, y, .13]); b.castShadow = false; bulbs.push({ b, i, col: new THREE.Color(COLS[i % 4]) }); } }
   const off = new THREE.Color(0x2a2040);
-  function update(t) { const k = .5 - .5 * Math.cos(2 * Math.PI * t / 3.4); pusher.position.z = k * .2; ufo.rotation.y = t * .3;
+  function update(t) { const k = .5 - .5 * Math.cos(2 * Math.PI * t / 3.4); pusher.position.z = k * .2; gems.forEach((g, i) => g.rotation.y = t * .4 + i);
     const step = Math.floor(t * 8); bulbs.forEach(o => o.b.material.color.copy((o.i + step) % 3 === 0 ? o.col : off)); }
   return { root, clips: [], height: BH + CH + .4, update };
 }

@@ -1,8 +1,11 @@
-<!-- Star Dozer (coin pusher): page layout, styles, drawing and screen logic. build.py adds the engine and the shared sound engine and writes pusher.html.
+<!-- Star Dozer (coin pusher): page layout, styles, the 3D view and screen logic. build.py adds the engine and the shared sound engine and writes pusher.html.
+     The physics engine (Rapier) and three.js load from the CDN; the engine runs the physics, this page draws it.
      May use: part_engine.js (physics, payouts, credits), Sound (shared synth). Must not: decide outcomes or change credits itself; the engine does that. -->
 <title>Star Dozer</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/environments/RoomEnvironment.js"></script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Chakra+Petch:wght@500;600;700&family=Monoton&family=Share+Tech+Mono&family=Yellowtail&display=swap">
 <style>
 :root{--void:#03040f;--ink:#e6fbff;--dim:#7fb3c7;--holo:#5fe8ff;--holo2:#b48cff;--gold:#ffc845;--hot:#ff4d6d;--win:#7dff9a;
@@ -33,6 +36,9 @@ body{margin:0;background:radial-gradient(100% 60% at 50% 30%,#1a1240 0%,var(--vo
 .icon[aria-pressed="false"] .on{display:none}.icon[aria-pressed="true"] .off{display:none}
 .fieldbox{--k:14px;min-height:0;overflow:hidden;background:radial-gradient(90% 90% at 50% 40%,#140f33,#04050f);touch-action:none}
 #cv{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:pointer}
+#fx{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:3}
+.boot{position:absolute;inset:0;display:grid;place-items:center;z-index:8;font:400 .7rem var(--f-mono);letter-spacing:.2em;color:var(--dim);text-align:center;padding:20px;pointer-events:none}
+.boot.err{color:var(--hot);pointer-events:auto}
 .bub{position:absolute;z-index:6;top:10px;left:50%;translate:-50% 0;max-width:84%;width:max-content;padding:6px 10px;background:#04121fe6;border:1px solid var(--gold);color:#fff;
   font:600 .76rem/1.28 var(--f-tech);text-align:center;box-shadow:0 0 14px #ffc84544;opacity:0;transform:scale(.85);transition:opacity .18s,transform .24s cubic-bezier(.3,1.6,.5,1);pointer-events:none}
 .bub.show{opacity:1;transform:none}
@@ -77,33 +83,35 @@ body{margin:0;background:radial-gradient(100% 60% at 50% 30%,#1a1240 0%,var(--vo
     </div>
   </header>
   <section class="fieldbox holo" id="fieldbox">
-    <canvas id="cv" aria-label="The coin pusher. Tap above the pusher to drop a coin there."></canvas>
+    <canvas id="cv" aria-label="The coin pusher. Tap to drop a gold bar onto the pusher there."></canvas>
+    <canvas id="fx" aria-hidden="true"></canvas>
+    <div class="boot" id="boot">Starting the 3D physics…</div>
     <div class="banner" id="banner"></div>
     <div class="bub" id="dealer"><b>ZIB</b><span></span></div>
     <p class="say" id="say" aria-live="polite"></p>
   </section>
   <section class="controls">
     <div class="row">
-      <div class="denoms holo"><span class="lbl">Coin value</span><div class="seg" id="seg">
-        <button data-v="1" style="--c:#c8d0e0" aria-label="Coins worth 1">1</button><button data-v="5" style="--c:#ffc845" aria-label="Coins worth 5">5</button>
-        <button data-v="10" style="--c:#b48cff" aria-label="Coins worth 10">10</button><button data-v="25" style="--c:#5fe8ff" aria-label="Coins worth 25">25</button></div></div>
+      <div class="denoms holo"><span class="lbl">Bar value</span><div class="seg" id="seg">
+        <button data-v="1" style="--c:#c8d0e0" aria-label="Bars worth 1">1</button><button data-v="5" style="--c:#ffc845" aria-label="Bars worth 5">5</button>
+        <button data-v="10" style="--c:#b48cff" aria-label="Bars worth 10">10</button><button data-v="25" style="--c:#5fe8ff" aria-label="Bars worth 25">25</button></div></div>
       <div class="winbox holo" id="winbox"><span class="lbl">Won</span><b id="won">0</b></div>
     </div>
     <div class="deck">
       <button class="tb holo" id="auto" aria-pressed="false">AUTO<small>keep dropping</small></button>
-      <div class="hint holo" id="hint">TAP TO DROP<small>tap or hold above the pusher &middot; aim left or right</small></div>
+      <div class="hint holo" id="hint">TAP TO DROP<small>tap or hold over the machine &middot; aim left or right</small></div>
     </div>
   </section>
 </div>
 <div class="sheet" id="sheet" hidden><div class="card holo" role="dialog" aria-label="How to play">
   <h2>How to play</h2>
-  <p>Tap above the pusher to drop a coin there (hold to keep dropping). Pick the coin's value below the machine first.</p>
-  <p>Coins land on the sliding pusher. When it pulls back they're scraped off onto the tray, and when it comes forward it shoves the whole pile.</p>
-  <p>Everything that falls over the <b>front edge</b> is yours. The two <b>corner gutters</b> keep what falls in them. Coins pile up on top of each other and tip over when the pile below moves.</p>
-  <p>Prizes turn up on the pusher now and then. They pay a multiple of the coin value you were playing when they appeared:</p>
+  <p>Tap over the machine to drop a gold bar onto the sliding pusher, left or right where you tap (hold to keep dropping). Pick the bar's value first.</p>
+  <p>When the pusher pulls back, the wall behind it scrapes the bars off onto the tray. When it comes forward, it shoves the whole pile. Bars stack, slide and tip over like real ones.</p>
+  <p>Everything that falls over the <b>front edge</b> is yours. The two <b>corner gutters</b> keep what falls in them.</p>
+  <p>Crystals turn up now and then instead of a bar. They pay a multiple of the bar value you were playing when they appeared:</p>
   <table id="paytable"></table>
   <p>Your pile is kept between visits. Over a long time the machine pays back about 95% of what goes in.</p>
-  <div class="dbg"><button class="holo" id="fufo">Debug: next drop is a saucer</button><button class="holo" id="fstar">Debug: next is a star</button><button class="holo" id="freset">Debug: fresh tray</button><button class="holo" id="close">Close</button></div>
+  <div class="dbg"><button class="holo" id="fufo">Debug: next is a rainbow crystal</button><button class="holo" id="fstar">Debug: next is the gold crystal</button><button class="holo" id="freset">Debug: fresh tray</button><button class="holo" id="close">Close</button></div>
 </div></div>
 
 <script>
@@ -124,109 +132,97 @@ const Wallet = (() => {
   };
 })();
 
-// Star Dozer: the coin pusher's rules and physics. Pure logic: no drawing, no sound. The screen (shell.html) calls these; tools/sim.js checks the payback in Node.
-// The tray, seen from above: x runs 0…W across, y runs 0 (the back wall) … L (the front edge). A pusher block slides back and forth at the back.
-// Coins you drop land on top of the pusher. When it pulls back they're scraped off its front onto the tray, and when it comes forward it shoves the pile.
-// Whatever goes over the front edge between the gutters is yours; over the front corners (the gutters) it's lost.
-// Coins stack one level deep: a coin that falls onto a crowded spot sits on top of the coins below (layer 2), rides along as they're pushed,
-// and drops down (or tips over the edge) once nothing is holding it up. Layers: 0 = on the tray, 1 = on top of the pusher, 2 = stacked on tray coins.
-// May use: nothing (Wallet if the page has it). Must not: touch the page.
-const W = 1, L = 1.3, R = .043;               // tray width, length, coin radius
-const FACE = [.12, .38], PERIOD = 3.4;          // the pusher's front face slides between these y positions, once every PERIOD seconds
-const GUTTER = .082;                             // the front corners: this much of the width at each side drops into the gutters (lost)
-const DENOMS = [1, 5, 10, 25];
-const START = 500;
-// bonus prizes that turn up on the pusher now and then: value (× the coin value you're playing), size, weight, and how often one replaces a dropped coin
+// Star Dozer: the coin pusher's rules, with real 3D physics (the Rapier engine). No drawing, no sound: the screen (shell.html) reads the pieces' positions
+// and calls these; tools/sim.js runs the same engine in Node to check the payback.
+// The machine (metres, y up): the tray floor is y = 0, x runs −W/2…W/2 across, z runs 0 (the back wall) … L (the front edge, toward the player).
+// A pusher block slides back and forth at the back. Gold bars you drop land on top of it; when it pulls back, the scraper wall above it pushes them off
+// its front onto the tray; when it comes forward it shoves the pile. Bars stack, slide and tip like the real thing.
+// Whatever falls over the front edge between the gutters is yours; over the front corners (the gutters) it's lost.
+// May use: RAPIER (handed to init), Wallet if the page has it. Must not: touch the page.
+const W = 1.0, L = 1.2, PH = .075, PD = .6;           // tray width, length, pusher height and depth
+const FACE = [.13, .37], PERIOD = 3.4;                 // the pusher's front face slides between these z positions, once every PERIOD seconds
+const GUTTER = .085;                                    // the front corners: this much of the width at each side drops into the gutters (lost)
+const BAR = [.11, .028, .066];                           // a gold bar: width, height, depth
+const DENOMS = [1, 5, 10, 25], START = 500;
+// crystal prizes that turn up now and then instead of a bar: pays val × the bar value you were playing; the rainbow one sets off a bar shower.
+// Tuned with tools/sim.js: bars alone return about 76%, crystals about 19%, so the machine pays back about 95% over a long run.
 const ITEMS = {
-  bar:     { val: 4,  r: .058, m: 2.2, odds: .014 },   // a gold bar
-  crystal: { val: 9,  r: .05,  m: 1.6, odds: .005 },   // a big crystal
-  ufo:     { val: 0,  r: .062, m: 2.0, odds: .004 },   // a toy saucer: off the front, it sets off a COIN SHOWER (free coins onto the pusher)
-  star:    { val: 30, r: .066, m: 3.0, odds: .0012 } };   // the jackpot star coin
-const SHOWER = 8, MAXSTACK = 40, CLIMB = 16;                              // coins in a coin shower
+  blue:    { val: 4,  size: .085, odds: .016 },
+  violet:  { val: 8,  size: .095, odds: .006 },
+  pink:    { val: 16, size: .105, odds: .0025 },
+  gold:    { val: 35, size: .12,  odds: .0009 },        // the jackpot crystal
+  rainbow: { val: 0,  size: .1,   odds: .004 } };      // off the front: a BAR SHOWER (free bars onto the pusher)
+const SHOWER = 8;
+const TRAYF = .3, BARF = .32;                           // friction: the tray floor, and bar on bar (lower = the pile slides forward instead of heaping up)
 let credits = typeof Wallet !== "undefined" ? Wallet.load() : START;
-let coins = [], clock = 0, nextId = 1, face = FACE[0], events = [];
-const FORCE = { item: null };                   // debug / tests: the next drop is this prize
+let RP = null, world = null, pusher = null, pieces = [], clock = 0, face = FACE[0], nextId = 1, events = [];
+const FORCE = { item: null };                           // debug / tests: the next drop is this prize
 
 const faceAt = t => FACE[0] + (FACE[1] - FACE[0]) * (.5 - .5 * Math.cos(2 * Math.PI * t / PERIOD));   // eases at both ends, like a cam
-function mk(x, y, val, kind = "coin", layer = 0) { const it = ITEMS[kind]; return { id: nextId++, x, y, px: x, py: y, val, kind, layer, r: it ? it.r : R, m: it ? it.m : 1, spin: Math.random() * 6.28 }; }
+// a crystal's shape: a six-sided gem, pointed top and bottom (the screen draws the same points)
+const gemPoints = s => { const p = []; for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; p.push(Math.cos(a) * s * .5, 0, Math.sin(a) * s * .5); } p.push(0, s * .62, 0, 0, -s * .38, 0); return new Float32Array(p); };
 
-// drop a coin at x (0…W) with value `denom`. It lands on top of the pusher. Returns false if you can't afford it.
-function drop(x, denom) { if (!DENOMS.includes(denom) || credits < denom) return false; credits -= denom;
-  let kind = "coin"; if (FORCE.item) { kind = FORCE.item; FORCE.item = null; } else { const r = Math.random(); let acc = 0; for (const [k, it] of Object.entries(ITEMS)) { acc += it.odds; if (r < acc) { kind = k; break; } } }
-  const it = ITEMS[kind], val = it ? it.val * denom : denom;
-  coins.push(mk(Math.max(R, Math.min(W - R, x)), Math.max(R, face * (.25 + Math.random() * .5)), val, kind, 1));
-  if (kind !== "coin") events.push({ type: "prize", kind });
-  return true; }
-// free coins (a coin shower), spread across the pusher
-function shower(denom, n = SHOWER) { for (let i = 0; i < n; i++) coins.push(mk(R + Math.random() * (W - 2 * R), Math.max(R, face * Math.random()), denom, "coin", 1)); }
+// build the machine. RAPIER must already be initialised (await RAPIER.init()).
+function init(RAPIER) { RP = RAPIER; world = new RP.World({ x: 0, y: -9.81, z: 0 }); world.timestep = 1 / 60;
+  if (world.integrationParameters && "lengthUnit" in world.integrationParameters) world.integrationParameters.lengthUnit = .1;   // small pieces: settle and sleep at small-object scales
+  const fixed = (hx, hy, hz, x, y, z, fr = TRAYF) => world.createCollider(RP.ColliderDesc.cuboid(hx, hy, hz).setTranslation(x, y, z).setFriction(fr));
+  fixed(W / 2 + .1, .05, (L + .7) / 2, 0, -.05, (L - .7) / 2);              // the tray floor (running back under the pusher)
+  for (const s of [-1, 1]) fixed(.05, .3, (L + .7) / 2, s * (W / 2 + .05), .3, (L - .7) / 2, .2);   // side walls
+  fixed(W / 2, .25, .03, 0, PH + .004 + .25, -.03, .1);                      // the scraper wall above the pusher's top
+  pusher = world.createRigidBody(RP.RigidBodyDesc.kinematicPositionBased().setTranslation(0, PH / 2, face - PD / 2));
+  world.createCollider(RP.ColliderDesc.cuboid(W / 2 - .003, PH / 2, PD / 2).setFriction(.35), pusher); }
 
-// push overlapping coins apart (several passes); a heavier piece moves less. Coins only touch others on the same level.
-function separate(list) {
-  const cell = 2 * .066, grid = new Map(), key = (i, j) => i * 1000 + j;
-  for (const c of list) { const k = key(Math.floor(c.x / cell), Math.floor(c.y / cell)); let a = grid.get(k); if (!a) grid.set(k, a = []); a.push(c); }
-  for (const c of list) { const ci = Math.floor(c.x / cell), cj = Math.floor(c.y / cell);
-    for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) { const a = grid.get(key(ci + di, cj + dj)); if (!a) continue;
-      for (const d of a) { if (d.id <= c.id) continue; const dx = d.x - c.x, dy = d.y - c.y, min = c.r + d.r, q = dx * dx + dy * dy; if (q >= min * min || q === 0) continue;
-        const dist = Math.sqrt(q), push = (min - dist), wc = 1 / c.m, wd = 1 / d.m, s = push / (wc + wd) / dist;
-        c.x -= dx * s * wc; c.y -= dy * s * wc; d.x += dx * s * wd; d.y += dy * s * wd; } } } }
+function addPiece(kind, val, x, y, z, q, denom) { const it = ITEMS[kind];
+  const bd = RP.RigidBodyDesc.dynamic().setTranslation(x, y, z).setLinearDamping(.15).setAngularDamping(.4); if (q) bd.setRotation(q);
+  const body = world.createRigidBody(bd);
+  const cd = it ? RP.ColliderDesc.convexHull(gemPoints(it.size)) : RP.ColliderDesc.cuboid(BAR[0] / 2, BAR[1] / 2, BAR[2] / 2);
+  cd.setFriction(it ? .3 : BARF).setRestitution(.05).setDensity(it ? 1400 : 2000);
+  world.createCollider(cd, body); const p = { id: nextId++, body, kind, val, denom: denom || val, born: clock }; pieces.push(p); return p; }
+const randYaw = (spread = Math.PI) => { const a = (Math.random() - .5) * spread; return { x: 0, y: Math.sin(a / 2), z: 0, w: Math.cos(a / 2) }; };
 
-// advance the machine by dt seconds (call with small steps, e.g. 1/60). Returns what happened: [{type:"win"|"gutter", x, val, kind}, {type:"shower"}…]
+// drop a bar at x (−W/2…W/2) worth `denom`. It falls onto the pusher. Returns the new piece, or null if you can't afford it.
+function drop(x, denom) { if (!DENOMS.includes(denom) || credits < denom) return null; credits -= denom;
+  let kind = "bar"; if (FORCE.item) { kind = FORCE.item; FORCE.item = null; } else { const r = Math.random(); let acc = 0; for (const [k, it] of Object.entries(ITEMS)) { acc += it.odds; if (r < acc) { kind = k; break; } } }
+  const it = ITEMS[kind], xx = Math.max(-W / 2 + .06, Math.min(W / 2 - .06, x));
+  const p = addPiece(kind, it ? it.val * denom : denom, xx, PH + .22, .03 + Math.random() * Math.max(.02, face - .08), randYaw(.6), denom);
+  if (kind !== "bar") events.push({ type: "prize", kind }); return p; }
+// free bars (a bar shower), raining onto the pusher
+function shower(denom, n = SHOWER) { for (let i = 0; i < n; i++) addPiece("bar", denom, (Math.random() - .5) * (W - .14), PH + .25 + i * .05, .03 + Math.random() * Math.max(.02, face - .08), randYaw(), denom); }
+
+// advance the machine by dt seconds. Returns what happened: [{type:"win"|"gutter", x, y, z, val, kind}, {type:"shower"}, {type:"prize"}…]
 function step(dt, denomForShower = 1) {
-  clock += dt; const f0 = face; face = faceAt(clock); const df = face - f0;
-  for (const c of coins) { c.px = c.x; c.py = c.y; }
-  const top = [], tray = [], stack = [];
-  for (const c of coins) (c.layer === 1 ? top : c.layer === 2 ? stack : tray).push(c);
-  // on top of the pusher: carried with it, scraped by the back wall, falling off its front onto the tray (or onto the coins already there)
-  for (const c of top) { c.y += df; if (c.y < c.r) c.y = c.r; }
-  for (let k = 0; k < 3; k++) { separate(top); for (const c of top) { c.x = Math.max(c.r, Math.min(W - c.r, c.x)); if (c.y < c.r) c.y = c.r; } }
-  for (const c of top) if (c.y > face + c.r * .2) { const crowd = tray.filter(d => (d.x - c.x) ** 2 + (d.y - c.y) ** 2 < (d.r + c.r) ** 2 * .98).length;
-    c.layer = crowd ? 2 : 0; (crowd ? stack : tray).push(c); }   // no room on the tray right there: it lands on top
-  // on the tray: the pusher's face shoves, coins shove each other, the side walls hold them in
-  for (let k = 0; k < 6; k++) { for (const c of tray) { if (c.y - c.r < face) c.y = face + c.r; c.x = Math.max(c.r, Math.min(W - c.r, c.x)); } separate(tray); }
-  for (const c of tray) if (c.y - c.r < face) c.y = face + c.r;
-  // squeezed: while the pusher drives forward, a coin pressed against its face (with coins packed in front) sometimes rides up on top of the pile
-  if (df > 0 && stack.length < MAXSTACK) for (const c of tray) { if (c.kind !== "coin" || c.y - c.r > face + .004 || Math.random() > df * CLIMB) continue;
-    let ahead = 0; for (const d of tray) if (d !== c && d.y > c.y && Math.hypot(d.x - c.x, d.y - c.y) < (d.r + c.r) * 1.08) ahead++;
-    if (ahead >= 2) { c.layer = 2; c.y += c.r * .6; stack.push(c); if (stack.length >= MAXSTACK) break; } }
-  tray.splice(0, tray.length, ...tray.filter(c => c.layer === 0));
-  // stacked coins ride on the coins under them; with nothing under them (or only an edge to hang on) they drop down
-  for (const c of stack) { let n = 0, mx = 0, my = 0, sx = 0, sy = 0;
-    for (const d of tray) { const q = (d.x - c.x) ** 2 + (d.y - c.y) ** 2, reach = (d.r + c.r) * .92; if (q < reach * reach) { n++; mx += d.x - d.px; my += d.y - d.py; sx += d.x; sy += d.y; } }
-    if (!n) { c.layer = 0; continue; }
-    c.x += mx / n; c.y += my / n;
-    const off = Math.hypot(sx / n - c.x, sy / n - c.y); if (n === 1 && off > c.r * 1.05) c.layer = 0; }   // balanced on one coin's rim: it slides off
-  const still = stack.filter(c => c.layer === 2);
-  for (let k = 0; k < 3; k++) { separate(still); for (const c of still) { c.x = Math.max(c.r, Math.min(W - c.r, c.x)); if (c.y - c.r < face) c.y = face + c.r; } }
-  if (still.length < stack.length) for (let k = 0; k < 3; k++) separate(coins.filter(c => c.layer === 0));   // ones that dropped down make room for themselves
-  // over the front edge
+  clock += dt; face = faceAt(clock); pusher.setNextKinematicTranslation({ x: 0, y: PH / 2, z: face - PD / 2 });
+  world.timestep = dt; world.step();
   const out = events; events = [];
-  coins = coins.filter(c => { if (c.layer === 1 || c.y <= L) return true;
-    const win = c.x > GUTTER && c.x < W - GUTTER;
-    if (win) { credits += c.val; out.push({ type: "win", x: c.x, val: c.val, kind: c.kind }); if (c.kind === "ufo") { shower(denomForShower); out.push({ type: "shower", n: SHOWER }); } }
-    else out.push({ type: "gutter", x: c.x, val: c.val, kind: c.kind });
-    return false; });
+  pieces = pieces.filter(p => { const t = p.body.translation(); if (t.y > -.12 && Math.abs(t.x) < W && t.z < L + .5) return true;
+    const win = t.z > L - .1 && Math.abs(t.x) < W / 2 - GUTTER;
+    if (win) { credits += p.val; out.push({ type: "win", x: t.x, y: t.y, z: t.z, val: p.val, kind: p.kind, denom: p.denom }); if (p.kind === "rainbow") { shower(denomForShower); out.push({ type: "shower", n: SHOWER }); } }
+    else out.push({ type: "gutter", x: t.x, y: t.y, z: t.z, val: p.val, kind: p.kind, denom: p.denom });
+    world.removeRigidBody(p.body); return false; });
   return out; }
 
-// a fresh tray: packed edge to edge right up to the front lip (so play pays from the first drops), a few coins already stacked, and the starting prizes
-function seed(denom = 1) { coins = []; clock = 0; face = FACE[0];
-  const dx = 2 * R * 1.02, dy = dx * .87;
-  for (let row = 0, y = FACE[1] + R; y < L - R * .2; row++, y += dy) for (let x = R + (row % 2) * dx / 2; x < W - R; x += dx)
-    if (Math.random() < .93) coins.push(mk(x + (Math.random() - .5) * R * .3, y + (Math.random() - .5) * R * .3, denom, "coin", 0));
-  for (const [k, n] of [["bar", 2], ["crystal", 1], ["ufo", 1]]) for (let i = 0; i < n; i++) { const c = coins[Math.floor(coins.length * (.25 + Math.random() * .5))]; const it = ITEMS[k]; Object.assign(c, { kind: k, val: it.val * denom, r: it.r, m: it.m }); }
-  for (let i = 0; i < 30; i++) { const base = coins[Math.floor(Math.random() * coins.length)]; if (base.kind === "coin" && base.y < L - 3 * R) coins.push(mk(base.x + R * .5, base.y + R * .3, denom, "coin", 2)); }
-  for (let i = 0; i < 20; i++) coins.push(mk(R + Math.random() * (W - 2 * R), R + Math.random() * (FACE[0] - R), denom, "coin", 1));   // and a layer already riding on the pusher
-  for (let i = 0; i < 40; i++) { step(1 / 60); coins = coins.filter(c => c.y < L - c.r * .1); }   // let it settle without paying out
-  clock = 0; face = faceAt(0); events = []; }
+function clear() { for (const p of pieces) world.removeRigidBody(p.body); pieces = []; }
+// a fresh tray: rows of bars right up to the front lip (so play pays from the first drops), some stacked, some on the pusher, a few crystals; then let it settle
+function seed(denom = 1) { const keep = credits; clear(); clock = 0; face = FACE[0]; pusher.setTranslation({ x: 0, y: PH / 2, z: face - PD / 2 }, true);
+  const dx = BAR[0] + .012, dz = BAR[2] + .014;
+  for (let z = FACE[1] + .06, row = 0; z < L - .02; z += dz, row++) for (let x = -W / 2 + .06 + (row % 2) * dx / 2; x < W / 2 - .05; x += dx)
+    if (Math.random() < .9) addPiece("bar", denom, x + (Math.random() - .5) * .01, BAR[1] / 2 + .002, z, randYaw(.5), denom);
+  for (let i = 0; i < 60; i++) addPiece("bar", denom, (Math.random() - .5) * (W - .14), BAR[1] * 1.6, FACE[1] + .1 + Math.random() * (L - FACE[1] - .2), randYaw(), denom);   // a second layer here and there
+  for (let i = 0; i < 24; i++) addPiece("bar", denom, (Math.random() - .5) * (W - .14), PH + .03 + (i % 3) * .03, .03 + Math.random() * (FACE[0] - .06), randYaw(), denom);   // riding on the pusher
+  for (const k of ["blue", "blue", "violet", "rainbow"]) addPiece(k, ITEMS[k].val * denom, (Math.random() - .5) * .6, .12, .55 + Math.random() * .4, randYaw(), denom);
+  for (let i = 0; i < 150; i++) step(1 / 60);       // settle (anything that falls off now doesn't count)
+  credits = keep; clock = 0; events = []; }
 
 // the tray as plain data, to save between visits (so the pile you built up is still there) and to restore
-const snapshot = () => ({ clock, coins: coins.map(c => [Math.round(c.x * 1e4) / 1e4, Math.round(c.y * 1e4) / 1e4, c.val, c.kind, c.layer]) });
-function restore(s) { try { if (!s || !Array.isArray(s.coins) || s.coins.length < 20) return false; coins = s.coins.map(([x, y, val, kind, layer]) => mk(x, y, val, kind, layer)); clock = s.clock || 0; face = faceAt(clock); return true; } catch (e) { return false; } }
+const snapshot = () => ({ v: 2, clock: Math.round(clock * 100) / 100, p: pieces.map(p => { const t = p.body.translation(), q = p.body.rotation(); return [t.x, t.y, t.z, q.x, q.y, q.z, q.w].map(v => Math.round(v * 1e4) / 1e4).concat([p.kind, p.val, p.denom]); }) });
+function restore(s) { try { if (!s || s.v !== 2 || !Array.isArray(s.p) || s.p.length < 40) return false; clear(); clock = s.clock || 0; face = faceAt(clock); pusher.setTranslation({ x: 0, y: PH / 2, z: face - PD / 2 }, true);
+    for (const [x, y, z, qx, qy, qz, qw, kind, val, denom] of s.p) { const p = addPiece(kind, val, x, y, z, { x: qx, y: qy, z: qz, w: qw }, denom); p.body.sleep(); } return true; } catch (e) { return false; } }
 
 // keep the shared wallet in step with this game's balance (not in Node tests)
 if (typeof Wallet !== "undefined") Wallet.watch(() => credits);
 
-if (typeof module !== "undefined") module.exports = { W, L, R, FACE, PERIOD, GUTTER, DENOMS, ITEMS, SHOWER, drop, shower, step, seed, snapshot, restore, faceAt, FORCE,
-  get credits() { return credits; }, set credits(v) { credits = v; }, get coins() { return coins; }, get face() { return face; } };
+if (typeof module !== "undefined") module.exports = { W, L, PH, PD, FACE, PERIOD, GUTTER, BAR, DENOMS, ITEMS, SHOWER, init, drop, shower, step, seed, snapshot, restore, faceAt, gemPoints, FORCE,
+  get credits() { return credits; }, set credits(v) { credits = v; }, get pieces() { return pieces; }, get face() { return face; }, get world() { return world; } };
 
 // ---- Sound: all synthesized live with Web Audio, no sound files needed ----
 const Sound = (()=>{
@@ -315,150 +311,197 @@ const Sound = (()=>{
 })();
 document.documentElement.style.setProperty("--bar", `url(${ART.bar})`);
 const $ = id => document.getElementById(id);
-const SAVE = "alien-casino-pusher";
-let denom = 1, won = 0, auto = false, holding = null, lastDrop = 0;
+const SAVE = "alien-casino-pusher3d", RAPIER_URL = "https://cdn.jsdelivr.net/npm/@dimforge/rapier3d-compat@0.14.0/rapier.es.js";
+let denom = 1, won = 0, auto = false, holding = null, lastDrop = 0, ready = false;
 try { const d = +localStorage.getItem(SAVE + "-denom"); if (DENOMS.includes(d)) denom = d; } catch (e) {}
 
-// ---- the tray: the pile you left last time, or a fresh one ----
-(() => { let ok = false; try { ok = restore(JSON.parse(localStorage.getItem(SAVE) || "null")); } catch (e) {} if (!ok) seed(1); })();
-const save = () => { try { localStorage.setItem(SAVE, JSON.stringify(snapshot())); } catch (e) {} };
-setInterval(save, 2500); addEventListener("pagehide", save); document.addEventListener("visibilitychange", save);
+// ---- the 3D view ----
+const cv = $("cv"), renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true });
+renderer.setPixelRatio(Math.min(2, devicePixelRatio || 1)); renderer.outputEncoding = THREE.sRGBEncoding; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = .82;
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x07040f);
+scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new THREE.RoomEnvironment(), .04).texture; const ENV = .45;   // how strongly things reflect it   // soft reflections, so the gold looks like gold
+const cam = new THREE.PerspectiveCamera(45, 1, .05, 20);
+scene.add(new THREE.HemisphereLight(0xc8b8ff, 0x1a1030, .3));
+const key = new THREE.DirectionalLight(0xfff2dc, 1.15); key.position.set(.5, 2.4, 1.5); key.target.position.set(0, 0, .55); scene.add(key, key.target);
+key.castShadow = true; key.shadow.mapSize.set(1024, 1024); Object.assign(key.shadow.camera, { left: -.75, right: .75, top: .9, bottom: -.9, near: .5, far: 5 }); key.shadow.bias = -.0004; key.shadow.normalBias = .01;
+const glowL = new THREE.PointLight(0xff5fae, .7, 2.5, 2); glowL.position.set(-.45, .5, .9); const glowR = new THREE.PointLight(0x5fe8ff, .7, 2.5, 2); glowR.position.set(.45, .5, .9); scene.add(glowL, glowR);
+const ctex = (c, rep) => { const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 8; if (rep) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(...rep); } return t; };
+const canvas = (w, h) => { const c = document.createElement("canvas"); c.width = w; c.height = h; return [c, c.getContext("2d")]; };
+const M = (o) => new THREE.MeshStandardMaterial({ envMapIntensity: ENV, ...o }), Bm = c => new THREE.MeshBasicMaterial({ color: c });
+const add = (geo, m, p = [0, 0, 0], r = [0, 0, 0], shadow = true) => { const o = new THREE.Mesh(geo, m); o.position.set(...p); o.rotation.set(...r); o.castShadow = o.receiveShadow = shadow; scene.add(o); return o; };
 
-// ---- drawing: a sprite for each kind of coin and prize, the machine drawn in perspective ----
-const sprite = (w, h, fn) => { const c = document.createElement("canvas"); c.width = w; c.height = h; fn(c.getContext("2d")); return c; };
-const COIN_COL = { 1: ["#f4f7ff", "#aeb6c8", "#5d6478"], 5: ["#fff3b0", "#ffc845", "#9a6a10"], 10: ["#ecdcff", "#b48cff", "#5a2d9a"], 25: ["#dffcff", "#5fe8ff", "#16707e"] };
-function coinSprite([hi, mid, lo], mark) { return sprite(128, 96, g => {
-  g.fillStyle = lo; g.beginPath(); g.ellipse(64, 58, 58, 29, 0, 0, 7); g.fill();
-  const gr = g.createRadialGradient(46, 36, 4, 64, 48, 62); gr.addColorStop(0, hi); gr.addColorStop(.55, mid); gr.addColorStop(1, lo); g.fillStyle = gr; g.beginPath(); g.ellipse(64, 48, 58, 29, 0, 0, 7); g.fill();
-  g.strokeStyle = "#ffffff99"; g.lineWidth = 3; g.beginPath(); g.ellipse(64, 48, 46, 22, 0, 0, 7); g.stroke();
-  g.fillStyle = lo; g.font = "700 26px 'Share Tech Mono',monospace"; g.textAlign = "center"; g.textBaseline = "middle"; g.save(); g.translate(64, 48); g.scale(1, .55); g.fillText(mark, 0, 2); g.restore(); }); }
-const SPR = { coin: {} };
-for (const d of DENOMS) SPR.coin[d] = coinSprite(COIN_COL[d], String(d));
-const barImg = new Image(); barImg.src = ART.bar;
-SPR.bar = sprite(140, 100, g => { g.fillStyle = "#6a4a08"; g.beginPath(); g.moveTo(14, 62); g.lineTo(34, 30); g.lineTo(126, 30); g.lineTo(126, 50); g.lineTo(106, 82); g.lineTo(14, 82); g.fill();
-  const gr = g.createLinearGradient(0, 30, 0, 64); gr.addColorStop(0, "#fff3b0"); gr.addColorStop(1, "#ffb020"); g.fillStyle = gr; g.beginPath(); g.moveTo(14, 62); g.lineTo(34, 30); g.lineTo(126, 30); g.lineTo(106, 62); g.closePath(); g.fill();
-  g.fillStyle = "#e09a10"; g.fillRect(14, 62, 92, 20); g.fillStyle = "#7a4e00"; g.font = "700 15px 'Share Tech Mono'"; g.fillText("999.9", 46, 52); });
-SPR.crystal = sprite(110, 120, g => { const gr = g.createLinearGradient(20, 10, 90, 110); gr.addColorStop(0, "#e8fdff"); gr.addColorStop(.4, "#5fe8ff"); gr.addColorStop(1, "#2a3fb0");
-  g.fillStyle = gr; g.beginPath(); g.moveTo(55, 8); g.lineTo(96, 48); g.lineTo(55, 112); g.lineTo(14, 48); g.closePath(); g.fill(); g.strokeStyle = "#ffffffcc"; g.lineWidth = 2; g.beginPath(); g.moveTo(14, 48); g.lineTo(96, 48); g.moveTo(55, 8); g.lineTo(40, 48); g.lineTo(55, 112); g.lineTo(70, 48); g.closePath(); g.stroke(); });
-SPR.ufo = sprite(140, 100, g => { g.fillStyle = "#3a3846"; g.beginPath(); g.ellipse(70, 64, 64, 20, 0, 0, 7); g.fill(); const gr = g.createLinearGradient(0, 40, 0, 70); gr.addColorStop(0, "#e8e6f0"); gr.addColorStop(1, "#7a7890"); g.fillStyle = gr; g.beginPath(); g.ellipse(70, 56, 64, 20, 0, 0, 7); g.fill();
-  g.fillStyle = "#8fe8ffcc"; g.beginPath(); g.ellipse(70, 42, 30, 24, 0, Math.PI, 0); g.fill(); [30, 50, 70, 90, 110].forEach((x, i) => { g.fillStyle = ["#ff5fae", "#ffc845", "#7dff9a", "#5fe8ff", "#b48cff"][i]; g.beginPath(); g.arc(x, 60, 5, 0, 7); g.fill(); }); });
-SPR.star = sprite(140, 110, g => { g.fillStyle = "#8a5a00"; g.beginPath(); g.ellipse(70, 62, 64, 32, 0, 0, 7); g.fill(); const gr = g.createRadialGradient(52, 40, 4, 70, 52, 66); gr.addColorStop(0, "#fffbe0"); gr.addColorStop(.5, "#ffd23a"); gr.addColorStop(1, "#b07800"); g.fillStyle = gr; g.beginPath(); g.ellipse(70, 52, 64, 32, 0, 0, 7); g.fill();
-  g.fillStyle = "#fff6c8"; g.save(); g.translate(70, 52); g.scale(1, .55); g.beginPath(); for (let i = 0; i < 10; i++) { const r = i % 2 ? 16 : 40, a = i * Math.PI / 5 - Math.PI / 2; g.lineTo(Math.cos(a) * r, Math.sin(a) * r); } g.fill(); g.restore(); });
-const sprOf = c => c.kind === "coin" ? (SPR.coin[c.val] || SPR.coin[1]) : SPR[c.kind];
+// ---- the machine ----
+{ // tray floor: a dark violet plate with a faint grid
+  const [c, g] = canvas(256, 256); g.fillStyle = "#140c30"; g.fillRect(0, 0, 256, 256); g.strokeStyle = "#5fe8ff22"; g.lineWidth = 2; for (let i = 0; i <= 256; i += 64) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i, 256); g.moveTo(0, i); g.lineTo(256, i); g.stroke(); }
+  add(new THREE.BoxGeometry(W + .2, .04, L + .7), M({ map: ctex(c, [5, 9]), roughness: .7, metalness: .2, envMapIntensity: .15 }), [0, -.02, (L - .7) / 2]).castShadow = false;
+  // the front: a green lip where your winnings go over, red gutters at the corners, the chute below
+  add(new THREE.BoxGeometry(W - 2 * GUTTER, .006, .012), Bm(0x7dff9a), [0, .003, L - .006], [0, 0, 0], false);
+  for (const s of [-1, 1]) { add(new THREE.BoxGeometry(GUTTER, .006, .012), Bm(0xff4d6d), [s * (W / 2 - GUTTER / 2), .003, L - .006], [0, 0, 0], false);
+    add(new THREE.BoxGeometry(GUTTER, .2, .2), M({ color: 0x050308, roughness: .9 }), [s * (W / 2 - GUTTER / 2), -.13, L + .1], [0, 0, 0], false); }
+  add(new THREE.BoxGeometry(W - 2 * GUTTER, .05, .3), M({ color: 0x07050f, roughness: .8, metalness: .2, envMapIntensity: .1 }), [0, -.22, L + .14], [-.25, 0, 0]);
+  add(new THREE.BoxGeometry(W + .3, .3, .06), M({ color: 0x0b0918, metalness: .3, roughness: .7, envMapIntensity: .1 }), [0, -.2, L + .32]);
+  add(new THREE.BoxGeometry(W + .3, .01, .012), Bm(0x8dff6a), [0, -.05, L + .35], [0, 0, 0], false);
+  // side walls: chrome posts and glass, with a lit strip along the bottom
+  const glass = new THREE.MeshStandardMaterial({ color: 0xbfefff, roughness: .05, transparent: true, opacity: .1, depthWrite: false });
+  for (const s of [-1, 1]) { add(new THREE.PlaneGeometry(L + .2, .5), glass, [s * (W / 2 + .001), .25, L / 2 - .1], [0, -s * Math.PI / 2, 0], false);
+    add(new THREE.BoxGeometry(.03, .55, .03), M({ color: 0x8d8aa0, metalness: .9, roughness: .25 }), [s * (W / 2 + .015), .27, L - .015]);
+    add(new THREE.BoxGeometry(.01, .012, L + .2), Bm(s < 0 ? 0xff5fae : 0x5fe8ff), [s * (W / 2 - .002), .01, L / 2 - .1], [0, 0, 0], false); }
+  // the back: a panel above the pusher (the wall that scrapes bars off it), the marquee, the drop rail
+  add(new THREE.BoxGeometry(W + .1, .62, .06), M({ color: 0x0e0a22, metalness: .3, roughness: .7, envMapIntensity: .15 }), [0, PH + .004 + .31, -.03]);
+  add(new THREE.BoxGeometry(W, .008, .02), Bm(0x5fe8ff), [0, PH + .012, .001], [0, 0, 0], false);
+  add(new THREE.BoxGeometry(W - .1, .025, .05), M({ color: 0x0c0820, roughness: .4 }), [0, PH + .3, .03]); add(new THREE.BoxGeometry(W - .1, .005, .052), Bm(0xff5fae), [0, PH + .29, .03], [0, 0, 0], false);
+}
+const [mqc, mqg] = canvas(1024, 300), mqTex = ctex(mqc);
+add(new THREE.PlaneGeometry(W - .06, (W - .06) * 300 / 1024), new THREE.MeshBasicMaterial({ map: mqTex }), [0, PH + .48, .002], [0, 0, 0], false);
+function drawMarquee(t) { const g = mqg; g.fillStyle = "#120b26"; g.fillRect(0, 0, 1024, 300); g.textAlign = "center"; g.textBaseline = "middle";
+  g.font = '400 132px "Monoton","Bungee",Impact,sans-serif'; g.shadowColor = "#ff7a3a"; g.shadowBlur = 30; g.fillStyle = "#fff1dc"; g.fillText("STAR", 470, 120);
+  g.font = '400 104px "Yellowtail",cursive'; g.shadowColor = "#5fe8ff"; g.fillStyle = "#e6fbff"; g.fillText("Dozer", 640, 225); g.shadowBlur = 0;
+  for (let i = 0; i < 26; i++) { const on = (i + Math.floor(t * 8)) % 3 === 0; g.fillStyle = on ? ["#ff5fae", "#ffc845", "#8dff6a"][i % 3] : "#3a2a5a"; for (const y of [14, 286]) { g.beginPath(); g.arc(20 + i * 38.5, y, on ? 9 : 6, 0, 7); g.fill(); } }
+  mqTex.needsUpdate = true; }
+// the pusher block: chrome, with a lit strip along its front edge
+const pusherMesh = new THREE.Group(); scene.add(pusherMesh);
+{ const b = new THREE.Mesh(new THREE.BoxGeometry(W - .006, PH, PD), M({ color: 0x5a5870, metalness: .85, roughness: .38, envMapIntensity: .3 })); b.castShadow = b.receiveShadow = true; pusherMesh.add(b);
+  const s = new THREE.Mesh(new THREE.BoxGeometry(W - .006, .008, .006), Bm(0x5fe8ff)); s.position.set(0, PH / 2 - .006, PD / 2 + .002); pusherMesh.add(s); }
 
-const cv = $("cv"), g = cv.getContext("2d"); let V = {};
-function size() { const r = $("fieldbox").getBoundingClientRect(), dpr = Math.min(2, devicePixelRatio || 1); cv.width = r.width * dpr; cv.height = r.height * dpr; g.setTransform(dpr, 0, 0, dpr, 0, 0);
-  // fit the machine to the box: as wide as it can be, the tray stretched deeper on tall phones
-  const TW = Math.min(r.width * .92, r.height / 1.36), depth = Math.max(.62, Math.min(.95, (r.height / TW - .62) / L)), used = TW * (.34 + L * depth + .16);
-  V = { w: r.width, h: r.height, TW, cx: r.width / 2, yb: (r.height - used) / 2 + TW * .34, get yf() { return this.yb + TW * L * depth; } }; }
-// a point on the tray (x across, y from the back, z height) → the screen, and how much nearer things are scaled up
-const P = (x, y, z = 0) => { const k = y / L, s = .7 + .3 * k; return [V.cx + (x - .5) * V.TW * s, V.yb + (V.yf - V.yb) * k - z * V.TW * s, s]; };
-const quad = (pts, fill) => { g.fillStyle = fill; g.beginPath(); pts.forEach(([x, y], i) => g[i ? "lineTo" : "moveTo"](x, y)); g.closePath(); g.fill(); };
-const PH = .07, TH = .013;                       // the pusher's height, a coin's thickness (in tray widths)
-const drops = new Map(), fx = [], floats = [];  // coins in mid-air on their way down, falling winnings, floating "+5"s
-function drawCoin(c, z, now) { const [X, Y, s] = P(c.x, c.y, z), d = drops.get(c.id); let lift = 0; if (d) { const k = Math.min(1, (now - d) / 260); lift = (1 - k) * (1 - k) * .45; if (k >= 1) drops.delete(c.id); }
-  const spr = sprOf(c), rx = c.r * V.TW * s, sc = rx / 58, [, Y2] = P(c.x, c.y, z + lift);
-  if (lift) { g.fillStyle = "#0006"; g.beginPath(); g.ellipse(X, Y, rx, rx * .5, 0, 0, 7); g.fill(); }
-  g.drawImage(spr, X - 64 * sc * spr.width / 128, Y2 - 48 * sc - TH * V.TW * s, spr.width * sc, spr.height * sc); }
-function draw(now) { const { w, h, TW } = V; g.clearRect(0, 0, w, h); const t = now / 1000;
-  // the machine's back wall: a lit panel, chasing lights, the drop rail
-  const [bl] = P(0, 0), [br] = P(1, 0), top = V.yb - TW * .32;
-  const gw = g.createLinearGradient(0, top, 0, V.yb); gw.addColorStop(0, "#1c1240"); gw.addColorStop(1, "#2c1f58"); g.fillStyle = gw; g.fillRect(bl - 6, top, br - bl + 12, V.yb - top);
-  g.font = `400 ${TW * .085}px "Monoton","Bungee",sans-serif`; g.textAlign = "center"; g.textBaseline = "middle"; g.fillStyle = "#fff1dc"; g.shadowColor = "#ff7a3a"; g.shadowBlur = 16; g.fillText("STAR DOZER", V.cx, top + TW * .1); g.shadowBlur = 0;
-  for (let i = 0; i < 18; i++) { const x = bl + (br - bl) * (i + .5) / 18, on = (i + Math.floor(t * 8)) % 3 === 0; g.fillStyle = on ? ["#ff5fae", "#ffc845", "#5fe8ff"][i % 3] : "#3a2a5a"; g.beginPath(); g.arc(x, top + 6, on ? 3.5 : 2.5, 0, 7); g.fill(); }
-  const ry = V.yb - TW * .12; g.fillStyle = "#0c0820"; g.fillRect(bl, ry - 7, br - bl, 14); g.fillStyle = "#5fe8ff"; g.globalAlpha = .5 + .3 * Math.sin(t * 4); g.fillRect(bl, ry - 1, br - bl, 2); g.globalAlpha = 1;
-  if (holding) { const mx = Math.max(bl, Math.min(br, holding.sx)); g.fillStyle = "#ffc845"; g.beginPath(); g.moveTo(mx - 8, ry - 12); g.lineTo(mx + 8, ry - 12); g.lineTo(mx, ry - 2); g.fill(); }
-  // the tray floor, the gutters at the front corners, the winning lip between them
-  const tray = [P(0, 0), P(1, 0), P(1, L), P(0, L)]; const gf = g.createLinearGradient(0, V.yb, 0, V.yf); gf.addColorStop(0, "#0e0a24"); gf.addColorStop(1, "#231a4a"); quad(tray, gf);
-  g.strokeStyle = "#5fe8ff18"; g.lineWidth = 1; for (let i = 1; i < 8; i++) { const [a1, b1] = P(i / 8, 0), [a2, b2] = P(i / 8, L); g.beginPath(); g.moveTo(a1, b1); g.lineTo(a2, b2); g.stroke(); }
-  const [fl, fy] = P(0, L), [fr] = P(1, L), [gl] = P(GUTTER, L), [gr2] = P(1 - GUTTER, L);
-  g.fillStyle = "#7dff9a"; g.globalAlpha = .55; g.fillRect(gl, fy - 2, gr2 - gl, 4); g.globalAlpha = 1;
-  for (const [a, b] of [[fl, gl], [gr2, fr]]) { g.fillStyle = "#000"; g.fillRect(a, fy - 3, b - a, TW * .05); g.fillStyle = "#ff4d6d"; g.globalAlpha = .6 + .2 * Math.sin(t * 5); g.fillRect(a, fy - 3, b - a, 3); g.globalAlpha = 1; }
-  // the front chute where your winnings fall
-  const cg = g.createLinearGradient(0, fy, 0, fy + TW * .2); cg.addColorStop(0, "#0b0820"); cg.addColorStop(1, "#04030c"); g.fillStyle = cg; g.fillRect(gl, fy + 2, gr2 - gl, TW * .2);
-  // the pusher: its top (with the coins riding on it) and its front face
-  const f = face, sw = [P(0, 0, PH), P(1, 0, PH), P(1, f, PH), P(0, f, PH)], fr2 = [P(0, f, PH), P(1, f, PH), P(1, f, 0), P(0, f, 0)];
-  const pt = g.createLinearGradient(0, sw[0][1], 0, sw[2][1]); pt.addColorStop(0, "#4a4860"); pt.addColorStop(1, "#8a88a0"); quad(sw, pt);
-  const pf = g.createLinearGradient(0, fr2[0][1], 0, fr2[2][1]); pf.addColorStop(0, "#c8c6d8"); pf.addColorStop(1, "#5a5870"); quad(fr2, pf);
-  g.fillStyle = "#5fe8ff"; g.fillRect(fr2[0][0], fr2[0][1] - 1, fr2[1][0] - fr2[0][0], 2);
-  const list = coins.slice().sort((a, b) => (a.layer === 1) - (b.layer === 1) || a.y - b.y);
-  for (const c of list) if (c.layer === 1) drawCoin(c, PH, now);
-  for (const c of list) if (c.layer !== 1) { if (c.layer === 2) { const [X, Y, s2] = P(c.x + .012, c.y + .01); g.fillStyle = "#0007"; g.beginPath(); g.ellipse(X, Y, c.r * V.TW * s2, c.r * V.TW * s2 * .5, 0, 0, 7); g.fill(); }   // a shadow under stacked coins
-    drawCoin(c, c.layer === 2 ? TH * 1.9 : 0, now); }
-  // falling winnings and lost coins, floating amounts
-  for (let i = fx.length - 1; i >= 0; i--) { const p = fx[i]; p.t += 1 / 60; p.vy += p.lost ? 1500 / 60 : 1100 / 60; p.y += p.vy / 60; p.x += p.vx / 60; const a = Math.max(0, 1 - p.t / (p.lost ? .45 : .7));
-    if (a <= 0) { fx.splice(i, 1); continue; } g.globalAlpha = a; const sc = p.sc; g.drawImage(p.spr, p.x - 64 * sc * p.spr.width / 128, p.y - 48 * sc, p.spr.width * sc, p.spr.height * sc); g.globalAlpha = 1; }
-  for (let i = floats.length - 1; i >= 0; i--) { const p = floats[i]; p.t += 1 / 60; if (p.t > 1.1) { floats.splice(i, 1); continue; }
-    g.globalAlpha = Math.min(1, 2.2 - p.t * 2); g.font = `700 ${p.big ? 22 : 15}px "Share Tech Mono",monospace`; g.fillStyle = p.col; g.shadowColor = p.col; g.shadowBlur = 10; g.fillText(p.txt, p.x, p.y - p.t * 46); g.shadowBlur = 0; g.globalAlpha = 1; } }
+// ---- the pieces: gold bars (your currency: a rounded plaque with the alien emblem), crystals ----
+function emblem(g, cx, cy, sc, ink, hi) { g.save(); g.translate(cx, cy); g.scale(sc, sc); g.lineCap = "round"; g.lineJoin = "round";
+  for (const [ox, k] of [[1.5, hi], [0, ink]]) { g.strokeStyle = k; g.fillStyle = k; g.translate(ox, ox);
+    g.lineWidth = 7; for (const [a, l] of [[-1.25, 1], [-.65, 1.1], [0, 1.15], [.65, 1.1], [1.25, 1]]) { g.beginPath(); g.moveTo(0, -12); const ex = Math.sin(a) * 34 * l, ey = -12 - Math.cos(a) * 30 * l; g.quadraticCurveTo(ex * .6, ey - 6, ex, ey); g.quadraticCurveTo(ex + Math.sign(a || 1) * 9, ey + 4, ex + Math.sign(a || 1) * 4, ey + 11); g.stroke(); }   // the crest of curling tentacles
+    g.beginPath(); g.moveTo(0, -16); g.bezierCurveTo(19, -16, 21, 4, 0, 24); g.bezierCurveTo(-21, 4, -19, -16, 0, -16); g.fill();   // the head
+    g.translate(-ox, -ox); }
+  g.restore(); }
+function barFaceTexture(d) { const [c, g] = canvas(256, 160), inlay = { 1: null, 5: "#7dff9a", 10: "#b48cff", 25: "#5fe8ff" }[d];
+  const gr = g.createLinearGradient(0, 0, 256, 160); gr.addColorStop(0, "#ffe27a"); gr.addColorStop(.45, "#f2b12a"); gr.addColorStop(1, "#b0700a"); g.fillStyle = gr; g.fillRect(0, 0, 256, 160);
+  g.strokeStyle = "#a86a08"; g.lineWidth = 6; g.strokeRect(14, 14, 228, 132); g.strokeStyle = "#fff6c8"; g.lineWidth = 2; g.strokeRect(20, 20, 216, 120);
+  emblem(g, 128, 92, 1.25, "#b0740c", "#fff3b8");
+  g.fillStyle = inlay || "#2a1600"; for (const x of [117, 139]) { g.beginPath(); g.ellipse(x, 88, 5, 7, x < 128 ? .5 : -.5, 0, 7); g.fill(); }   // eyes: enamel on the bigger bars
+  if (d > 1) { g.font = "700 26px 'Share Tech Mono',monospace"; g.fillStyle = "#8a5406"; g.textAlign = "right"; g.fillText(String(d), 232, 40); g.fillStyle = inlay; g.fillRect(24, 26, 8, 8); }
+  return ctex(c); }
+function barGeometry() { const [bw, bh, bd] = BAR, r = .012, e = .003, sh = new THREE.Shape(), x = -bw / 2 + e, y = -bd / 2 + e, w = bw - 2 * e, h = bd - 2 * e;
+  sh.moveTo(x + r, y); sh.lineTo(x + w - r, y); sh.quadraticCurveTo(x + w, y, x + w, y + r); sh.lineTo(x + w, y + h - r); sh.quadraticCurveTo(x + w, y + h, x + w - r, y + h); sh.lineTo(x + r, y + h); sh.quadraticCurveTo(x, y + h, x, y + h - r); sh.lineTo(x, y + r); sh.quadraticCurveTo(x, y, x + r, y);
+  const g = new THREE.ExtrudeGeometry(sh, { depth: bh - 2 * e, bevelEnabled: true, bevelThickness: e, bevelSize: e, bevelSegments: 2, curveSegments: 4 });
+  g.rotateX(-Math.PI / 2); g.translate(0, -(bh - 2 * e) / 2, 0);
+  const pos = g.attributes.position, uv = g.attributes.uv; for (let i = 0; i < pos.count; i++) uv.setXY(i, (pos.getX(i) + bw / 2) / bw, 1 - (pos.getZ(i) + bd / 2) / bd);   // the face picture runs across the top
+  g.computeVertexNormals(); return g; }
+const barGeo = barGeometry(), sideMat = M({ color: 0xe8a420, metalness: .95, roughness: .3, envMapIntensity: .8 }), MAXN = 420;
+const barMesh = {}; for (const d of DENOMS) { const im = new THREE.InstancedMesh(barGeo, [M({ map: barFaceTexture(d), metalness: .8, roughness: .34, envMapIntensity: .8 }), sideMat], MAXN); im.count = 0; im.castShadow = im.receiveShadow = true; im.frustumCulled = false; scene.add(im); barMesh[d] = im; }
+const GEM_COL = { blue: [0x1e8cff, 0x0a4ad0], violet: [0x9a4dff, 0x5a1ad0], pink: [0xff2d8a, 0xc0105a], gold: [0xffb000, 0xd08000], rainbow: [0xffffff, 0x8a3ab0] };
+function gemGeometry(size) { const v = gemPoints(size), P = i => [v[i * 3], v[i * 3 + 1], v[i * 3 + 2]], tri = []; for (let i = 0; i < 6; i++) { const j = (i + 1) % 6; tri.push(...P(j), ...P(i), ...P(6), ...P(i), ...P(j), ...P(7)); }
+  const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(tri, 3)); g.computeVertexNormals(); return g; }
+const gemGeo = {}, gemMat = {}; for (const [k, it] of Object.entries(ITEMS)) { gemGeo[k] = gemGeometry(it.size); const [c, e] = GEM_COL[k];
+  gemMat[k] = new THREE.MeshPhysicalMaterial({ color: c, emissive: e, emissiveIntensity: .75, metalness: .2, roughness: .12, flatShading: true, envMapIntensity: .5, transparent: true, opacity: .9 }); }
+const rainbowCols = [0xff5fae, 0xffc845, 0x7dff9a, 0x5fe8ff, 0xb48cff];
+const gemMeshes = new Map();   // piece id → its mesh
+const ghost = new THREE.Mesh(barGeo, new THREE.MeshBasicMaterial({ color: 0xffc845, transparent: true, opacity: .35, depthWrite: false })); ghost.visible = false; scene.add(ghost);
+
+// ---- framing: the whole tray in view, tall phones see it from higher up ----
+const fx = $("fx"), fg = fx.getContext("2d"); let VW = 1, VH = 1;
+function size() { const r = $("fieldbox").getBoundingClientRect(); VW = r.width; VH = r.height; renderer.setSize(VW, VH, false); const dpr = Math.min(2, devicePixelRatio || 1); fx.width = VW * dpr; fx.height = VH * dpr; fg.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const a = VW / VH; cam.aspect = a; cam.fov = a < .62 ? 50 : 40; const d = Math.max(1.5, 1.46 * .72 / Math.max(.45, a));   // further back on narrow screens so the full width fits
+  cam.position.set(0, d * .8, L * .5 + d * .66); cam.lookAt(0, .07, L * .38); cam.updateProjectionMatrix(); }
+
+// ---- each frame: copy the physics into the meshes ----
+const tmpM = new THREE.Matrix4(), tmpQ = new THREE.Quaternion(), tmpP = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1);
+function sync(t) { pusherMesh.position.set(0, PH / 2, face - PD / 2); const n = {}; for (const d of DENOMS) n[d] = 0; const seen = new Set();
+  for (const p of pieces) { const tr = p.body.translation(), q = p.body.rotation(); tmpP.set(tr.x, tr.y, tr.z); tmpQ.set(q.x, q.y, q.z, q.w);
+    if (p.kind === "bar") { const im = barMesh[p.denom] || barMesh[1], i = n[p.denom] = (n[p.denom] || 0); if (i >= MAXN) continue; tmpM.compose(tmpP, tmpQ, one); im.setMatrixAt(i, tmpM); n[p.denom] = i + 1; }
+    else { let m = gemMeshes.get(p.id); if (!m) { m = new THREE.Mesh(gemGeo[p.kind], p.kind === "rainbow" ? gemMat.rainbow.clone() : gemMat[p.kind]); m.castShadow = true; scene.add(m); gemMeshes.set(p.id, m); }
+      m.position.copy(tmpP); m.quaternion.copy(tmpQ); if (p.kind === "rainbow") { const c = rainbowCols[Math.floor(t * 4 + p.id) % 5]; m.material.color.setHex(c); m.material.emissive.setHex(c); } seen.add(p.id); } }
+  for (const d of DENOMS) { barMesh[d].count = n[d]; barMesh[d].instanceMatrix.needsUpdate = true; }
+  for (const [id, m] of gemMeshes) if (!seen.has(id)) { scene.remove(m); gemMeshes.delete(id); } }
+
+// ---- floating amounts and sparkles, drawn over the 3D view ----
+const floats = [], sparks = [];
+const toScreen = (x, y, z) => { tmpP.set(x, y, z).project(cam); return [(tmpP.x + 1) / 2 * VW, (1 - tmpP.y) / 2 * VH]; };
+function drawFx(dt) { fg.clearRect(0, 0, VW, VH);
+  for (let i = sparks.length - 1; i >= 0; i--) { const s = sparks[i]; s.t += dt; if (s.t > s.life) { sparks.splice(i, 1); continue; } s.x += s.vx * dt; s.y += s.vy * dt; s.vy += 400 * dt;
+    fg.globalAlpha = 1 - s.t / s.life; fg.fillStyle = s.col; fg.beginPath(); fg.arc(s.x, s.y, s.r, 0, 7); fg.fill(); }
+  for (let i = floats.length - 1; i >= 0; i--) { const f = floats[i]; f.t += dt; if (f.t > 1.2) { floats.splice(i, 1); continue; }
+    fg.globalAlpha = Math.min(1, 2.4 - f.t * 2); fg.font = `700 ${f.big ? 24 : 16}px "Share Tech Mono",monospace`; fg.textAlign = "center"; fg.fillStyle = f.col; fg.shadowColor = f.col; fg.shadowBlur = 10; fg.fillText(f.txt, f.x, f.y - f.t * 50); fg.shadowBlur = 0; }
+  fg.globalAlpha = 1; }
+const burst = (x, y, col, n) => { for (let i = 0; i < n; i++) { const a = Math.random() * 6.28, v = 60 + Math.random() * 160; sparks.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 120, r: 1.5 + Math.random() * 2.5, col, t: 0, life: .5 + Math.random() * .4 }); } };
 
 // ---- what happens on the tray ----
-function handle(evs) { for (const e of evs) { const [X, Y, s] = P(e.x, L);
-    if (e.type === "win") { const c = { kind: e.kind, val: e.kind === "coin" ? coinVal(e.val) : e.val }; fx.push({ x: X, y: Y, vx: (Math.random() - .5) * 40, vy: 60, t: 0, spr: sprOf(c), sc: R * V.TW * s / 58 * (e.kind === "coin" ? 1 : 1.3) });
-      won += e.val; floats.push({ x: X, y: Y - 8, t: 0, txt: "+" + e.val, col: e.kind === "coin" ? "#7dff9a" : "#ffc845", big: e.kind !== "coin" }); SFX.win(e.val, e.kind); popWin();
-      if (e.kind !== "coin") { const n = { bar: "GOLD BAR", crystal: "CRYSTAL", ufo: "SAUCER", star: "JACKPOT STAR" }[e.kind]; banner(n + "!", e.val ? `+${e.val}` : "", e.kind === "star" ? "#ffc845" : "#5fe8ff"); say(LINES[e.kind]); } }
-    if (e.type === "gutter") { fx.push({ x: X, y: Y, vx: 0, vy: 40, t: 0, lost: true, spr: sprOf({ kind: e.kind, val: e.kind === "coin" ? coinVal(e.val) : 1 }), sc: R * V.TW * s / 58 }); SFX.gutter(); }
-    if (e.type === "shower") { banner("COIN SHOWER!", `${e.n} free coins`, "#7dff9a"); SFX.shower(); for (const c of coins.slice(-e.n)) drops.set(c.id, performance.now() + Math.random() * 400); }
-    if (e.type === "prize") { SFX.prize(); say(`A ${{ bar: "gold bar", crystal: "crystal", ufo: "saucer", star: "jackpot star" }[e.kind]} on the pusher!`); } }
+const NAMES = { blue: "BLUE CRYSTAL", violet: "VIOLET CRYSTAL", pink: "PINK CRYSTAL", gold: "GOLD CRYSTAL", rainbow: "RAINBOW CRYSTAL" }, GEMHEX = { blue: "#5fe8ff", violet: "#b48cff", pink: "#ff5fae", gold: "#ffc845", rainbow: "#ffffff" };
+function handle(evs) { for (const e of evs) {
+    if (e.type === "win") { const [sx, sy] = toScreen(e.x, 0, Math.min(L, e.z)); won += e.val; const gem = e.kind !== "bar";
+      floats.push({ x: sx, y: sy - 6, t: 0, txt: "+" + e.val, col: gem ? GEMHEX[e.kind] : "#7dff9a", big: gem }); burst(sx, sy, gem ? GEMHEX[e.kind] : "#ffc845", gem ? 26 : 5); SFX.win(e.kind); popWin();
+      if (gem) { banner(NAMES[e.kind] + "!", e.val ? `+${e.val}` : "bar shower coming", GEMHEX[e.kind]); say(LINES[e.kind]); } }
+    if (e.type === "gutter") { const [sx, sy] = toScreen(e.x, 0, L); burst(sx, sy, "#ff4d6d", 4); SFX.gutter(); }
+    if (e.type === "shower") { banner("BAR SHOWER!", `${e.n} free bars`, "#7dff9a"); SFX.shower(); }
+    if (e.type === "prize") { SFX.prize(); say(`A ${NAMES[e.kind].toLowerCase()} on the pusher!`); } }
   paint(); }
-const coinVal = v => DENOMS.includes(v) ? v : 1;
 function popWin() { const b = $("winbox"); b.classList.remove("pop"); void b.offsetWidth; b.classList.add("pop"); }
 function paint() { $("credits").textContent = credits; $("won").textContent = won; document.querySelectorAll("#seg button").forEach(b => b.setAttribute("aria-pressed", String(+b.dataset.v === denom)));
-  const h = $("hint"); h.firstChild.textContent = credits < denom ? "OUT OF BARS" : "TAP TO DROP"; }
+  $("hint").firstChild.textContent = credits < denom ? "OUT OF BARS" : "TAP TO DROP"; }
 function say(t) { if (!t) return; $("say").textContent = t; const d = $("dealer"); d.querySelector("span").textContent = t; d.classList.remove("show"); void d.offsetWidth; d.classList.add("show"); clearTimeout(say.t); say.t = setTimeout(() => d.classList.remove("show"), 1600 + t.length * 40); }
 function banner(big, small, col) { const b = $("banner"); b.innerHTML = `${big}<small>${small || ""}</small>`; b.style.setProperty("--bc", col); b.classList.remove("show"); void b.offsetWidth; b.classList.add("show"); }
-const LINES = { bar: "Gold bar! Nice push.", crystal: "Crystal! That's a big one.", ufo: "Saucer down! Here comes the shower.", star: "THE STAR! Jackpot!" };
+const LINES = { blue: "A blue crystal! Nice push.", violet: "Violet crystal! Shiny.", pink: "Pink crystal! That's a good one.", gold: "THE GOLD CRYSTAL! Jackpot!", rainbow: "Rainbow crystal! Bars incoming!" };
 
-// ---- dropping coins ----
-function dropAt(sx) { const [bl] = P(0, 0), [br] = P(1, 0), x = (sx - bl) / (br - bl); if (x < -.08 || x > 1.08) return;
-  if (!drop(Math.max(0, Math.min(1, x)), denom)) { say("Out of bars at that coin value."); if (auto) setAuto(false); paint(); return; }
-  drops.set(coins[coins.length - 1].id, performance.now()); SFX.drop(); lastDrop = performance.now(); paint(); }
-cv.addEventListener("pointerdown", e => { Sound.unlock(); Music.start(); const r = cv.getBoundingClientRect(); holding = { id: e.pointerId, sx: e.clientX - r.left }; dropAt(holding.sx); try { cv.setPointerCapture(e.pointerId); } catch (_) {} });
-cv.addEventListener("pointermove", e => { if (holding && e.pointerId === holding.id) holding.sx = e.clientX - cv.getBoundingClientRect().left; });
+// ---- dropping: where you tap, across the machine ----
+const ray = new THREE.Raycaster(), dropPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -(PH + .1)), hit = new THREE.Vector3();
+function aimX(cx, cy) { const r = cv.getBoundingClientRect(); ray.setFromCamera({ x: (cx - r.left) / r.width * 2 - 1, y: -((cy - r.top) / r.height) * 2 + 1 }, cam);
+  // project the tap onto the tray, then read off how far across it is (the further back the tap, the more the perspective narrows it)
+  if (!ray.ray.intersectPlane(dropPlane, hit)) return 0; return Math.max(-W / 2 + .06, Math.min(W / 2 - .06, hit.x)); }
+function dropAt(x) { if (!ready) return; const p = drop(x, denom); if (!p) { say("Out of bars at that value."); if (auto) setAuto(false); paint(); return; } SFX.drop(); lastDrop = performance.now(); setTimeout(() => SFX.land(), 230); paint(); }
+cv.addEventListener("pointerdown", e => { Sound.unlock(); Music.start(); holding = { id: e.pointerId, x: aimX(e.clientX, e.clientY) }; dropAt(holding.x); try { cv.setPointerCapture(e.pointerId); } catch (_) {} });
+cv.addEventListener("pointermove", e => { if (holding && e.pointerId === holding.id) holding.x = aimX(e.clientX, e.clientY); });
 const letGo = e => { if (holding && e.pointerId === holding.id) holding = null; }; cv.addEventListener("pointerup", letGo); cv.addEventListener("pointercancel", letGo);
 function setAuto(v) { auto = v; $("auto").setAttribute("aria-pressed", String(v)); }
 $("auto").onclick = () => { Sound.unlock(); Music.start(); setAuto(!auto); };
 document.querySelectorAll("#seg button").forEach(b => b.onclick = () => { denom = +b.dataset.v; try { localStorage.setItem(SAVE + "-denom", denom); } catch (e) {} SFX.chip(); paint(); });
 
-// ---- the loop: the machine runs in small fixed steps; holding or AUTO keeps dropping ----
+// ---- the loop: physics in fixed 1/60 s steps (at most a few per frame), then draw ----
 let last = performance.now(), acc = 0, sweep = 0;
-function frame(now) { acc = Math.min(.1, acc + (now - last) / 1000); last = now; const evs = [];
-  while (acc >= 1 / 60) { evs.push(...step(1 / 60, denom)); acc -= 1 / 60; }
-  if (evs.length) handle(evs);
-  const gap = now - lastDrop; if (holding && gap > 260) dropAt(holding.sx);
-  if (auto && !holding && gap > 420) { sweep += .9; const [bl] = P(0, 0), [br] = P(1, 0); dropAt(bl + (br - bl) * (.5 + .42 * Math.sin(sweep))); }
-  draw(now); requestAnimationFrame(frame); }
+function frame(now) { const dt = Math.min(.1, (now - last) / 1000); last = now; acc = Math.min(4 / 60, acc + dt); const evs = [];
+  if (ready) { while (acc >= 1 / 60) { evs.push(...step(1 / 60, denom)); acc -= 1 / 60; } if (evs.length) handle(evs);
+    const gap = now - lastDrop; if (holding && gap > 250) dropAt(holding.x);
+    if (auto && !holding && gap > 450) { sweep += .9; dropAt(Math.sin(sweep) * (W / 2 - .1)); }
+    sync(now / 1000); }
+  ghost.visible = !!holding; if (holding) ghost.position.set(holding.x, PH + .22, .08);
+  if (Math.floor(now / 125) !== frame.mq) { frame.mq = Math.floor(now / 125); drawMarquee(now / 1000); }
+  renderer.render(scene, cam); drawFx(dt); requestAnimationFrame(frame); }
 
 // ---- sound ----
 let lastClink = 0;
 const SFX = {
   chip() { Sound.tone(2200, .03, { type: "triangle", vol: .05 }); },
-  drop() { Sound.tone(2400 + Math.random() * 500, .05, { type: "triangle", vol: .05 }); Sound.tone(1700, .08, { type: "triangle", vol: .035, at: .2 }); Sound.thud(.08, 900); },
-  win(v, kind) { const now = performance.now(); if (kind === "coin" && now - lastClink < 60) return; lastClink = now;
-    if (kind === "coin") { Sound.tone(1900 + Math.random() * 300, .06, { type: "triangle", vol: .06 }); Sound.tone(2800, .05, { type: "sine", vol: .03, at: .03 }); }
-    else Sound.arp(kind === "star" ? [12, 16, 19, 24, 28, 31, 36] : [12, 16, 19, 24], .06, { type: "triangle", vol: .1, dur: .22 }); },
-  gutter() { Sound.tone(260, .14, { type: "triangle", vol: .04, slide: .6 }); },
+  drop() { Sound.tone(1300 + Math.random() * 200, .04, { type: "triangle", vol: .04 }); },
+  land() { Sound.thud(.12, 700); Sound.tone(2100 + Math.random() * 400, .05, { type: "triangle", vol: .04 }); Sound.tone(3100, .04, { type: "sine", vol: .02, at: .02 }); },
+  win(kind) { const now = performance.now(); if (kind === "bar" && now - lastClink < 60) return; lastClink = now;
+    if (kind === "bar") { Sound.tone(1800 + Math.random() * 300, .07, { type: "triangle", vol: .06 }); Sound.tone(2700, .05, { type: "sine", vol: .03, at: .03 }); }
+    else Sound.arp(kind === "gold" ? [12, 16, 19, 24, 28, 31, 36] : [12, 16, 19, 24], .06, { type: "triangle", vol: .1, dur: .22 }); },
+  gutter() { Sound.tone(240, .14, { type: "triangle", vol: .04, slide: .6 }); },
   prize() { Sound.arp([19, 24, 31], .05, { type: "sine", vol: .06, dur: .2 }); },
   shower() { Sound.arp([12, 16, 19, 24, 19, 24, 28, 31], .07, { type: "square", vol: .04, dur: .16 }); Sound.noise(.8, { vol: .05, type: "highpass", freq: 3000, sweep: .5 }); } };
 const Music = (() => { let timer = null, stp = 0, nextT = 0; const CH = [[0, 4, 7, 11], [-3, 0, 4, 7], [-7, -3, 0, 4], [-5, -1, 2, 5]];
   function tick() { if (!Sound.ready()) return; const now = Sound.now(), sd = 60 / 96 / 2; if (nextT < now - .25) nextT = now + .05;
     while (nextT < now + .12) { const at = nextT - now, k = stp % 16, ch = CH[Math.floor(stp / 16) % 4];
-      if (Sound.on && Sound.musicOn) { const M = { bus: "music" };
-        if (k === 0) ch.forEach(n => Sound.tone(Sound.note(n), sd * 15, { ...M, at, type: "sine", vol: .012, attack: .3 }));
-        if (k % 4 === 0) Sound.tone(Sound.note(ch[0] - 12), sd * 1.4, { ...M, at, type: "triangle", vol: .035, lp: 600 });
-        if (k % 4 === 2) Sound.tone(Sound.note(ch[(k >> 2) % 4] + 12), sd * .8, { ...M, at, type: "sine", vol: .012 }); }
+      if (Sound.on && Sound.musicOn) { const Mu = { bus: "music" };
+        if (k === 0) ch.forEach(n => Sound.tone(Sound.note(n), sd * 15, { ...Mu, at, type: "sine", vol: .012, attack: .3 }));
+        if (k % 4 === 0) Sound.tone(Sound.note(ch[0] - 12), sd * 1.4, { ...Mu, at, type: "triangle", vol: .035, lp: 600 });
+        if (k % 4 === 2) Sound.tone(Sound.note(ch[(k >> 2) % 4] + 12), sd * .8, { ...Mu, at, type: "sine", vol: .012 }); }
       stp++; nextT += sd; } }
   return { start() { if (!timer) { nextT = (Sound.now() || 0) + .1; timer = setInterval(tick, 25); } } }; })();
 
 // ---- wiring ----
+const save = () => { if (!ready) return; try { localStorage.setItem(SAVE, JSON.stringify(snapshot())); } catch (e) {} };
+setInterval(save, 3000); addEventListener("pagehide", save); document.addEventListener("visibilitychange", save);
 $("snd").addEventListener("click", () => { Sound.on = !Sound.on; $("snd").setAttribute("aria-pressed", String(Sound.on)); });
-$("info").addEventListener("click", () => { $("paytable").innerHTML = `<tr><td>Prize</td><td>Pays</td></tr>` +
-  [["Gold bar", ITEMS.bar.val + " × coin value"], ["Crystal", ITEMS.crystal.val + " × coin value"], ["Jackpot star", ITEMS.star.val + " × coin value"], ["Saucer", `a shower of ${SHOWER} free coins`]].map(([a, b]) => `<tr><td>${a}</td><td>${b}</td></tr>`).join(""); $("sheet").hidden = false; });
+$("info").addEventListener("click", () => { $("paytable").innerHTML = `<tr><td>Crystal</td><td>Pays</td></tr>` +
+  [["Blue", ITEMS.blue.val + " × bar value"], ["Violet", ITEMS.violet.val + " × bar value"], ["Pink", ITEMS.pink.val + " × bar value"], ["Gold (jackpot)", ITEMS.gold.val + " × bar value"], ["Rainbow", `a shower of ${SHOWER} free bars`]].map(([a, b]) => `<tr><td>${a}</td><td>${b}</td></tr>`).join(""); $("sheet").hidden = false; });
 $("close").addEventListener("click", () => $("sheet").hidden = true);
 $("sheet").addEventListener("click", e => { if (e.target.id === "sheet") $("sheet").hidden = true; });
-$("fufo").addEventListener("click", () => { FORCE.item = "ufo"; $("sheet").hidden = true; });
-$("fstar").addEventListener("click", () => { FORCE.item = "star"; $("sheet").hidden = true; });
-$("freset").addEventListener("click", () => { seed(1); save(); $("sheet").hidden = true; });
+$("fufo").addEventListener("click", () => { FORCE.item = "rainbow"; $("sheet").hidden = true; });
+$("fstar").addEventListener("click", () => { FORCE.item = "gold"; $("sheet").hidden = true; });
+$("freset").addEventListener("click", () => { if (ready) { seed(1); save(); } $("sheet").hidden = true; });
 document.addEventListener("pointerdown", () => Sound.unlock(), { once: true });
 addEventListener("resize", size);
-size(); paint(); requestAnimationFrame(t => { last = t; frame(t); setTimeout(() => say("Tap above the pusher to drop a coin."), 500); });
+size(); paint(); drawMarquee(0); requestAnimationFrame(t => { last = t; frame(t); });
+// start the physics engine (a WebAssembly module from the CDN), then the pile you left last time or a fresh one
+(async () => { try { const mod = await import(RAPIER_URL), RAPIER = mod.default || mod; await RAPIER.init(); init(RAPIER);
+    let ok = false; try { ok = restore(JSON.parse(localStorage.getItem(SAVE) || "null")); } catch (e) {} if (!ok) seed(1);
+    ready = true; $("boot").hidden = true; paint(); setTimeout(() => say("Tap over the machine to drop a gold bar."), 400); window.__ready = true; }
+  catch (e) { const b = $("boot"); b.classList.add("err"); b.textContent = "The 3D physics couldn't start here (" + (e && e.message || e) + ")."; console.error(e); } })();
 </script>
