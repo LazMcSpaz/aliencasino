@@ -83,6 +83,8 @@ body{margin:0;background:radial-gradient(100% 60% at 50% 30%,#1a1240 0%,var(--vo
 .slap:active{transform:scale(.9)!important}
 .flash{position:absolute;inset:0;z-index:4;pointer-events:none;opacity:0;background:radial-gradient(closest-side,transparent 40%,#ff1e3c88)}
 .flash.go{animation:flash 1.4s ease-out}
+.flash.rb{background:radial-gradient(closest-side,transparent 45%,#ffffff00 55%),conic-gradient(from 0deg,#ff5fae88,#ffc84588,#7dff9a88,#5fe8ff88,#b48cff88,#ff5fae88);-webkit-mask:radial-gradient(closest-side,transparent 55%,#000);mask:radial-gradient(closest-side,transparent 55%,#000);animation:flashrb 2.4s ease-out}
+@keyframes flashrb{0%{opacity:0;filter:hue-rotate(0)}10%{opacity:1}100%{opacity:0;filter:hue-rotate(360deg)}}
 @keyframes flash{0%,30%,60%{opacity:1}15%,45%{opacity:.2}100%{opacity:0}}
 .guard{position:absolute;z-index:6;bottom:0;width:120px;height:190px;pointer-events:none;opacity:0;transition:transform .35s cubic-bezier(.2,1.3,.5,1),opacity .2s}
 .guard.l{left:-10px;transform:translateX(-110%)}.guard.r{right:-10px;transform:translateX(110%) scaleX(-1)}
@@ -166,15 +168,15 @@ const FACE = [.13, .37], PERIOD = 3.4;                 // the pusher's front fac
 const GUTTER = .085;                                    // the front corners: this much of the width at each side drops into the gutters (lost)
 const BAR = [.11, .014, .066];                           // a gold bar: width, height, depth
 const DENOMS = [1], START = 500;                       // one kind of bar, worth 1; the crystals are the big prizes
-// crystal prizes that turn up now and then instead of a bar: pays val × the bar value you were playing; the rainbow one sets off a bar shower.
-// Tuned with tools/sim.js: bars alone return about 76%, crystals about 18%, so the machine pays back about 95% over a long run (slapping every clear window included).
+// crystal prizes that turn up now and then instead of a bar: pays val bars; the rainbow one sets off a bar shower.
+// Tuned with tools/sim.js: bars alone (with slapping every clear window and the bar showers) return about 84%, crystals about 11%, so about 95% over a long run.
 const ITEMS = {
-  blue:    { val: 5,  size: .085, odds: .012 },
-  violet:  { val: 10, size: .095, odds: .005 },
-  pink:    { val: 25, size: .105, odds: .0016 },
-  gold:    { val: 50, size: .12,  odds: .0006 },        // the jackpot crystal
-  rainbow: { val: 0,  size: .1,   odds: .004 } };      // off the front: a BAR SHOWER (free bars onto the pusher)
-const SHOWER = 8;
+  blue:    { val: 5,  size: .085, odds: .009 },
+  violet:  { val: 10, size: .095, odds: .0038 },
+  pink:    { val: 25, size: .105, odds: .0012 },
+  gold:    { val: 50, size: .12,  odds: .00045 },        // the jackpot crystal
+  rainbow: { val: 0,  size: .1,   odds: .0025 } };      // off the front: a BAR SHOWER (free bars rain down across the tray)
+const SHOWER = 12;
 const TRAYF = .22, BARF = .2;                            // friction: the tray floor, and bar on bar (lower = the pile slides forward instead of heaping up)
 let credits = typeof Wallet !== "undefined" ? Wallet.load() : START;
 let RP = null, world = null, pusher = null, pieces = [], clock = 0, face = FACE[0], nextId = 1, events = [];
@@ -214,8 +216,13 @@ function drop(x, denom) { if (!DENOMS.includes(denom) || credits < denom) return
   const it = ITEMS[kind], xx = Math.max(-W / 2 + .06, Math.min(W / 2 - .06, x));
   const p = addPiece(kind, it ? it.val * denom : denom, xx, PH + .22, .03 + Math.random() * Math.max(.02, face - .08), randYaw(.6), denom);
   if (kind !== "bar") events.push({ type: "prize", kind }); return p; }
-// free bars (a bar shower), raining onto the pusher
-function shower(denom, n = SHOWER) { for (let i = 0; i < n; i++) addPiece("bar", denom, (Math.random() - .5) * (W - .14), PH + .25 + i * .05, .03 + Math.random() * Math.max(.02, face - .08), randYaw(), denom); }
+// free bars (a bar shower): they rain down one after another from under the hood, tumbling, across the middle of the tray
+let rain = [];
+function shower(denom, n = SHOWER) { const t0 = rain.length ? rain[rain.length - 1].at : clock; for (let i = 0; i < n; i++) rain.push({ at: t0 + .3 + i * .12, denom }); }
+function rainOne(denom) { const a = Math.random() * Math.PI * 2, b = (Math.random() - .5) * 1.2;
+  const p = addPiece("bar", denom, (Math.random() - .5) * (W - .16), .72, .35 + Math.random() * (L - .65), { x: Math.sin(b / 2) * Math.cos(a), y: Math.sin(a / 2) * .5, z: Math.sin(b / 2) * Math.sin(a), w: Math.cos(b / 2) }, denom);
+  const q = p.body.rotation(), m = Math.hypot(q.x, q.y, q.z, q.w); p.body.setRotation({ x: q.x / m, y: q.y / m, z: q.z / m, w: q.w / m }, true);
+  p.body.setAngvel({ x: (Math.random() - .5) * 14, y: (Math.random() - .5) * 8, z: (Math.random() - .5) * 14 }, true); p.rain = true; const t = p.body.translation(); events.push({ type: "rain", x: t.x, z: t.z, id: p.id }); }
 
 // advance the machine by dt seconds. Returns what happened: [{type:"win"|"gutter", x, y, z, val, kind}, {type:"shower"}, {type:"prize"}…]
 function step(dt, denomForShower = 1) {
@@ -224,6 +231,7 @@ function step(dt, denomForShower = 1) {
   if (look.state === "watch" && look.t <= LOOK.soon) { look.state = "soon"; events.push({ type: "soon" }); }
   else if (look.state === "soon" && look.t <= 0) { look.state = "clear"; look.t = LOOK.clear; look.left = LOOK.slaps; events.push({ type: "clear" }); }
   else if (look.state === "clear" && (look.t <= 0 || look.left <= 0)) { look.state = "watch"; look.t = rnd(...LOOK.gap); const used = look.left <= 0; look.left = 0; events.push({ type: "watch", used }); }
+  while (rain.length && rain[0].at <= clock) rainOne(rain.shift().denom);
   world.timestep = dt; world.step();
   const out = events; events = [];
   pieces = pieces.filter(p => { const t = p.body.translation(); if (t.y > -.12 && Math.abs(t.x) < W && t.z < L + .5) return true;
@@ -245,7 +253,7 @@ function slap(side, denom = 1) {
 function forceClear() { look.state = "clear"; look.t = LOOK.clear; look.left = LOOK.slaps; }   // debug / tests
 const lookout = () => ({ state: look.state, t: Math.max(0, look.t), left: look.left });
 
-function clear() { for (const p of pieces) world.removeRigidBody(p.body); pieces = []; }
+function clear() { for (const p of pieces) world.removeRigidBody(p.body); pieces = []; rain = []; }
 // a fresh tray: rows of bars right up to the front lip (so play pays from the first drops), some stacked, some on the pusher, a few crystals; then let it settle
 function seed(denom = 1) { const keep = credits; clear(); clock = 0; face = FACE[0]; pusher.setTranslation({ x: 0, y: PH / 2, z: face - PD / 2 }, true);
   const dx = BAR[0] + .012, dz = BAR[2] + .014;
@@ -633,6 +641,11 @@ function size() { const r = $("fieldbox").getBoundingClientRect(); VW = r.width;
 
 // ---- each frame: copy the physics into the meshes ----
 const tmpM = new THREE.Matrix4(), tmpQ = new THREE.Quaternion(), tmpP = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1);
+let showerT = -1e9; const rainLight = new THREE.PointLight(0xffffff, 0, 2.2, 1.6); rainLight.position.set(0, .6, .7); scene.add(rainLight);
+const RB = ["#ff5fae", "#ffc845", "#7dff9a", "#5fe8ff", "#b48cff"];
+function rainFx(now) { const k = (now - showerT) / 3200; rainLight.intensity = k >= 0 && k < 1 ? 2.2 * Math.sin(Math.PI * k) : 0; if (rainLight.intensity) { rainLight.color.setHSL((now / 600) % 1, 1, .6); rainLight.position.x = Math.sin(now / 300) * .35; }
+  for (const p of pieces) if (p.rain) { if (!p.rainT) p.rainT = now; const age = now - p.rainT; if (age > 1300) { p.rain = false; continue; }
+    const tr = p.body.translation(), [sx, sy] = toScreen(tr.x, tr.y, tr.z); if (Math.random() < .8) sparks.push({ x: sx + (Math.random() - .5) * 8, y: sy, vx: (Math.random() - .5) * 40, vy: -20 - Math.random() * 40, r: 1.5 + Math.random() * 2, col: RB[Math.floor(Math.random() * 5)], t: 0, life: .45 + Math.random() * .3 }); } }
 function sync(t) { machine.setFace(face); const n = {}; for (const d of DENOMS) n[d] = 0; const seen = new Set();
   for (const p of pieces) { const tr = p.body.translation(), q = p.body.rotation(); tmpP.set(tr.x, tr.y, tr.z); tmpQ.set(q.x, q.y, q.z, q.w);
     if (p.kind === "bar") { const im = barMesh[p.denom] || barMesh[1], i = n[p.denom] = (n[p.denom] || 0); if (i >= MAXN) continue; tmpM.compose(tmpP, tmpQ, one); im.setMatrixAt(i, tmpM); n[p.denom] = i + 1; }
@@ -659,7 +672,9 @@ function handle(evs) { for (const e of evs) {
       floats.push({ x: sx, y: sy - 6, t: 0, txt: "+" + e.val, col: gem ? GEMHEX[e.kind] : "#7dff9a", big: gem }); burst(sx, sy, gem ? GEMHEX[e.kind] : "#ffc845", gem ? 26 : 5); SFX.win(e.kind); popWin();
       if (gem) { banner(NAMES[e.kind] + "!", e.val ? `+${e.val}` : "bar shower coming", GEMHEX[e.kind]); say(LINES[e.kind]); } }
     if (e.type === "gutter") { const [sx, sy] = toScreen(e.x, 0, L); burst(sx, sy, "#ff4d6d", 4); SFX.gutter(); }
-    if (e.type === "shower") { banner("BAR SHOWER!", `${e.n} free bars`, "#7dff9a"); SFX.shower(); }
+    if (e.type === "shower") { banner("BAR SHOWER!", `${e.n} free bars incoming`, "#ffffff"); SFX.shower(); showerT = performance.now();
+      const f = $("flash"); f.classList.remove("go", "rb"); void f.offsetWidth; f.classList.add("rb"); for (let i = 0; i < 70; i++) { const c = ["#ff5fae", "#ffc845", "#7dff9a", "#5fe8ff", "#b48cff"][i % 5]; sparks.push({ x: Math.random() * VW, y: -10 - Math.random() * 60, vx: (Math.random() - .5) * 60, vy: 80 + Math.random() * 160, r: 2 + Math.random() * 3, col: c, t: 0, life: 1.6 + Math.random() * .8 }); } }
+    if (e.type === "rain") SFX.rain();
     if (e.type === "prize") { SFX.prize(); say(`A ${NAMES[e.kind].toLowerCase()} on the pusher!`); }
     if (e.type === "soon") { say(pick(LOOKLINES.soon)); SFX.psst(); }
     if (e.type === "clear") { say(pick(LOOKLINES.clear)); SFX.clear(); }
@@ -706,7 +721,7 @@ function frame(now) { const dt = Math.min(.1, (now - last) / 1000); last = now; 
   if (ready) { while (acc >= 1 / 60) { evs.push(...step(1 / 60, denom)); acc -= 1 / 60; } if (evs.length) handle(evs);
     const gap = now - lastDrop; if (holding && gap > 250) dropAt(holding.x);
     if (auto && !holding && gap > 450) { sweep += .9; dropAt(Math.sin(sweep) * (W / 2 - .1)); }
-    sync(now / 1000); const ls = lookout().state + (now < busted); if (ls !== lastLook) { lastLook = ls; frame.mq = -1; $("fieldbox").classList.toggle("ready", lookout().state === "clear"); } }
+    sync(now / 1000); rainFx(now); const ls = lookout().state + (now < busted); if (ls !== lastLook) { lastLook = ls; frame.mq = -1; $("fieldbox").classList.toggle("ready", lookout().state === "clear"); } }
   ghost.visible = !!holding; if (holding) ghost.position.set(holding.x, PH + .22, .08);
   machine.update(now / 1000);
   if (Math.floor(now / 125) !== frame.mq) { frame.mq = Math.floor(now / 125); const Lk = lookout(), bz = now < busted ? (now < busted - 2500 ? 1 : 2) : 0;
@@ -729,7 +744,8 @@ const SFX = {
   psst() { Sound.noise(.25, { vol: .05, type: "highpass", freq: 4000 }); },
   clear() { Sound.arp([12, 19, 24], .07, { type: "square", vol: .05, dur: .12 }); },
   siren() { for (let i = 0; i < 3; i++) { Sound.tone(700, .28, { type: "square", vol: .05, at: i * .56, slide: 1.6, lp: 2200 }); Sound.tone(1120, .28, { type: "square", vol: .05, at: i * .56 + .28, slide: .62, lp: 2200 }); } },
-  shower() { Sound.arp([12, 16, 19, 24, 19, 24, 28, 31], .07, { type: "square", vol: .04, dur: .16 }); Sound.noise(.8, { vol: .05, type: "highpass", freq: 3000, sweep: .5 }); } };
+  rain() { Sound.tone(2400 + Math.random() * 1200, .06, { type: "triangle", vol: .035 }); Sound.tone(3600 + Math.random() * 800, .05, { type: "sine", vol: .02, at: .04 }); },
+  shower() { Sound.arp([12, 16, 19, 24, 28, 31, 36, 31, 36, 40, 43, 48], .06, { type: "square", vol: .035, dur: .14 }); Sound.noise(1.2, { vol: .05, type: "highpass", freq: 3000, sweep: .5 }); return; Sound.arp([12, 16, 19, 24, 19, 24, 28, 31], .07, { type: "square", vol: .04, dur: .16 }); Sound.noise(.8, { vol: .05, type: "highpass", freq: 3000, sweep: .5 }); } };
 const Music = (() => { let timer = null, stp = 0, nextT = 0; const CH = [[0, 4, 7, 11], [-3, 0, 4, 7], [-7, -3, 0, 4], [-5, -1, 2, 5]];
   function tick() { if (!Sound.ready()) return; const now = Sound.now(), sd = 60 / 96 / 2; if (nextT < now - .25) nextT = now + .05;
     while (nextT < now + .12) { const at = nextT - now, k = stp % 16, ch = CH[Math.floor(stp / 16) % 4];
@@ -745,7 +761,7 @@ const save = () => { if (!ready) return; try { localStorage.setItem(SAVE, JSON.s
 setInterval(save, 3000); addEventListener("pagehide", save); document.addEventListener("visibilitychange", save);
 $("snd").addEventListener("click", () => { Sound.on = !Sound.on; $("snd").setAttribute("aria-pressed", String(Sound.on)); });
 $("info").addEventListener("click", () => { $("paytable").innerHTML = `<tr><td>Crystal</td><td>Pays</td></tr>` +
-  [["Blue", ITEMS.blue.val + " bars"], ["Violet", ITEMS.violet.val + " bars"], ["Pink", ITEMS.pink.val + " bars"], ["Gold (jackpot)", ITEMS.gold.val + " bars"], ["Rainbow", `a shower of ${SHOWER} free bars`]].map(([a, b]) => `<tr><td>${a}</td><td>${b}</td></tr>`).join(""); $("sheet").hidden = false; });
+  [["Blue", ITEMS.blue.val + " bars"], ["Violet", ITEMS.violet.val + " bars"], ["Pink", ITEMS.pink.val + " bars"], ["Gold (jackpot)", ITEMS.gold.val + " bars"], ["Rainbow", `a shower of ${SHOWER} free bars raining down`]].map(([a, b]) => `<tr><td>${a}</td><td>${b}</td></tr>`).join(""); $("sheet").hidden = false; });
 $("close").addEventListener("click", () => $("sheet").hidden = true);
 $("sheet").addEventListener("click", e => { if (e.target.id === "sheet") $("sheet").hidden = true; });
 $("fufo").addEventListener("click", () => { FORCE.item = "rainbow"; $("sheet").hidden = true; });

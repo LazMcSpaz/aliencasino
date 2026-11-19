@@ -10,15 +10,15 @@ const FACE = [.13, .37], PERIOD = 3.4;                 // the pusher's front fac
 const GUTTER = .085;                                    // the front corners: this much of the width at each side drops into the gutters (lost)
 const BAR = [.11, .014, .066];                           // a gold bar: width, height, depth
 const DENOMS = [1], START = 500;                       // one kind of bar, worth 1; the crystals are the big prizes
-// crystal prizes that turn up now and then instead of a bar: pays val × the bar value you were playing; the rainbow one sets off a bar shower.
-// Tuned with tools/sim.js: bars alone return about 76%, crystals about 18%, so the machine pays back about 95% over a long run (slapping every clear window included).
+// crystal prizes that turn up now and then instead of a bar: pays val bars; the rainbow one sets off a bar shower.
+// Tuned with tools/sim.js: bars alone (with slapping every clear window and the bar showers) return about 84%, crystals about 11%, so about 95% over a long run.
 const ITEMS = {
-  blue:    { val: 5,  size: .085, odds: .012 },
-  violet:  { val: 10, size: .095, odds: .005 },
-  pink:    { val: 25, size: .105, odds: .0016 },
-  gold:    { val: 50, size: .12,  odds: .0006 },        // the jackpot crystal
-  rainbow: { val: 0,  size: .1,   odds: .004 } };      // off the front: a BAR SHOWER (free bars onto the pusher)
-const SHOWER = 8;
+  blue:    { val: 5,  size: .085, odds: .009 },
+  violet:  { val: 10, size: .095, odds: .0038 },
+  pink:    { val: 25, size: .105, odds: .0012 },
+  gold:    { val: 50, size: .12,  odds: .00045 },        // the jackpot crystal
+  rainbow: { val: 0,  size: .1,   odds: .0025 } };      // off the front: a BAR SHOWER (free bars rain down across the tray)
+const SHOWER = 12;
 const TRAYF = .22, BARF = .2;                            // friction: the tray floor, and bar on bar (lower = the pile slides forward instead of heaping up)
 let credits = typeof Wallet !== "undefined" ? Wallet.load() : START;
 let RP = null, world = null, pusher = null, pieces = [], clock = 0, face = FACE[0], nextId = 1, events = [];
@@ -58,8 +58,13 @@ function drop(x, denom) { if (!DENOMS.includes(denom) || credits < denom) return
   const it = ITEMS[kind], xx = Math.max(-W / 2 + .06, Math.min(W / 2 - .06, x));
   const p = addPiece(kind, it ? it.val * denom : denom, xx, PH + .22, .03 + Math.random() * Math.max(.02, face - .08), randYaw(.6), denom);
   if (kind !== "bar") events.push({ type: "prize", kind }); return p; }
-// free bars (a bar shower), raining onto the pusher
-function shower(denom, n = SHOWER) { for (let i = 0; i < n; i++) addPiece("bar", denom, (Math.random() - .5) * (W - .14), PH + .25 + i * .05, .03 + Math.random() * Math.max(.02, face - .08), randYaw(), denom); }
+// free bars (a bar shower): they rain down one after another from under the hood, tumbling, across the middle of the tray
+let rain = [];
+function shower(denom, n = SHOWER) { const t0 = rain.length ? rain[rain.length - 1].at : clock; for (let i = 0; i < n; i++) rain.push({ at: t0 + .3 + i * .12, denom }); }
+function rainOne(denom) { const a = Math.random() * Math.PI * 2, b = (Math.random() - .5) * 1.2;
+  const p = addPiece("bar", denom, (Math.random() - .5) * (W - .16), .72, .35 + Math.random() * (L - .65), { x: Math.sin(b / 2) * Math.cos(a), y: Math.sin(a / 2) * .5, z: Math.sin(b / 2) * Math.sin(a), w: Math.cos(b / 2) }, denom);
+  const q = p.body.rotation(), m = Math.hypot(q.x, q.y, q.z, q.w); p.body.setRotation({ x: q.x / m, y: q.y / m, z: q.z / m, w: q.w / m }, true);
+  p.body.setAngvel({ x: (Math.random() - .5) * 14, y: (Math.random() - .5) * 8, z: (Math.random() - .5) * 14 }, true); p.rain = true; const t = p.body.translation(); events.push({ type: "rain", x: t.x, z: t.z, id: p.id }); }
 
 // advance the machine by dt seconds. Returns what happened: [{type:"win"|"gutter", x, y, z, val, kind}, {type:"shower"}, {type:"prize"}…]
 function step(dt, denomForShower = 1) {
@@ -68,6 +73,7 @@ function step(dt, denomForShower = 1) {
   if (look.state === "watch" && look.t <= LOOK.soon) { look.state = "soon"; events.push({ type: "soon" }); }
   else if (look.state === "soon" && look.t <= 0) { look.state = "clear"; look.t = LOOK.clear; look.left = LOOK.slaps; events.push({ type: "clear" }); }
   else if (look.state === "clear" && (look.t <= 0 || look.left <= 0)) { look.state = "watch"; look.t = rnd(...LOOK.gap); const used = look.left <= 0; look.left = 0; events.push({ type: "watch", used }); }
+  while (rain.length && rain[0].at <= clock) rainOne(rain.shift().denom);
   world.timestep = dt; world.step();
   const out = events; events = [];
   pieces = pieces.filter(p => { const t = p.body.translation(); if (t.y > -.12 && Math.abs(t.x) < W && t.z < L + .5) return true;
@@ -89,7 +95,7 @@ function slap(side, denom = 1) {
 function forceClear() { look.state = "clear"; look.t = LOOK.clear; look.left = LOOK.slaps; }   // debug / tests
 const lookout = () => ({ state: look.state, t: Math.max(0, look.t), left: look.left });
 
-function clear() { for (const p of pieces) world.removeRigidBody(p.body); pieces = []; }
+function clear() { for (const p of pieces) world.removeRigidBody(p.body); pieces = []; rain = []; }
 // a fresh tray: rows of bars right up to the front lip (so play pays from the first drops), some stacked, some on the pusher, a few crystals; then let it settle
 function seed(denom = 1) { const keep = credits; clear(); clock = 0; face = FACE[0]; pusher.setTranslation({ x: 0, y: PH / 2, z: face - PD / 2 }, true);
   const dx = BAR[0] + .012, dz = BAR[2] + .014;
