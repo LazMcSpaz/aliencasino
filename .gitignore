@@ -3,3 +3,4 @@ node_modules/
 *.wav
 .DS_Store
 lobby/games/
+lobby/assets/*.b64.txt

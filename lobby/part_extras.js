@@ -100,11 +100,21 @@ const EXTRAS = (() => {
     { p: [-6.4, 0, -.6], r: .32, plant: "plant_1", s: .4 } ];
   function planters() { for (const o of POTS) { const g = grp(o.p); add(g, new THREE.CylinderGeometry(o.r, o.r * .78, .55, 20), mat.dark, [0, .275, 0]); add(g, new THREE.TorusGeometry(o.r, .025, 6, 24), mat.gold, [0, .55, 0], [Math.PI / 2, 0, 0], false); o.g = g; } }
 
+  // ---- a ceiling for walking around: dark panels with little lights. It only faces down, so from the bird's-eye view above it isn't drawn ----
+  function ceiling() { const [c, g] = canvas(512, 512); g.fillStyle = "#0c0820"; g.fillRect(0, 0, 512, 512);
+    g.strokeStyle = "#1c1440"; g.lineWidth = 4; for (let i = 0; i <= 512; i += 128) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i, 512); g.moveTo(0, i); g.lineTo(512, i); g.stroke(); }
+    for (let i = 0; i < 90; i++) { const x = Math.random() * 512, y = Math.random() * 512, r = Math.random() < .15 ? 3 : 1.5; g.fillStyle = ["#ffffff", "#bfefff", "#ffd8f0", "#e8dcff"][i % 4]; g.globalAlpha = .5 + Math.random() * .5; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); } g.globalAlpha = 1;
+    for (const [x, y] of [[64, 64], [320, 320]]) { g.strokeStyle = "#5fe8ff99"; g.lineWidth = 2; g.beginPath(); g.arc(x, y, 40, 0, 7); g.stroke(); g.strokeStyle = "#b48cff88"; g.beginPath(); g.arc(x, y, 50, 0, 7); g.stroke(); }
+    const t = ctex(c, [3.5, 4]), back = -6, front = 9.5, len = front - back;
+    add(scene, new THREE.PlaneGeometry(14, len), new THREE.MeshStandardMaterial({ map: t, emissive: 0xffffff, emissiveMap: t, emissiveIntensity: .28, roughness: .9 }), [0, WH, (back + front) / 2], [Math.PI / 2, 0, 0], false); }
+
   // ---- the edge of the room at the front: a neon line on the floor ----
   function frontEdge() { add(scene, new THREE.BoxGeometry(14, .015, .05), mat.violet, [0, .01, 9.75], [0, 0, 0], false); }
 
   // ---- loading the CC0 models ----
-  function loadGLB(name) { return fetch("assets/" + name + ".glb").then(r => { if (!r.ok) throw new Error(name + " " + r.status); return r.arrayBuffer(); }).then(buf => new Promise((res, rej) => {
+  // each model is published as base64 text (the artifact host doesn't serve .glb files); build.py writes assets/<name>.b64.txt
+  function loadGLB(name) { return fetch("assets/" + name + ".b64.txt").then(r => { if (!r.ok) throw new Error(name + " " + r.status); return r.text(); })
+    .then(txt => { const bin = atob(txt.trim()), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u.buffer; }).then(buf => new Promise((res, rej) => {
     // the page may not fetch blob: URLs, so make the loader decode textures through <img> instead of fetch
     const cib = window.createImageBitmap; try { window.createImageBitmap = undefined; } catch (e) {}
     try { new THREE.GLTFLoader().parse(buf, "", res, rej); } finally { try { window.createImageBitmap = cib; } catch (e) {} } })); }
@@ -178,5 +188,5 @@ const EXTRAS = (() => {
   // footprints the first-person walker can't pass through: [x0, z0, x1, z1]
   const obstacles = [[-7, 5.7, -4.8, 9.3], [4.55, 5.15, 7, 7.55], [4.55, 7.45, 7, 9.85], [1.75, 7.25, 2.65, 8.15]];
   POTS.forEach(o => obstacles.push([o.p[0] - o.r, o.p[2] - o.r, o.p[0] + o.r, o.p[2] + o.r]));
-  return { build(TX) { stage(); danceFloor(); booths(); jackpot(); screens(TX); planters(); frontEdge(); return life(); }, aliens, obstacles };
+  return { build(TX) { stage(); danceFloor(); booths(); jackpot(); screens(TX); planters(); frontEdge(); ceiling(); return life(); }, aliens, obstacles };
 })();
