@@ -15,7 +15,7 @@ tex = {
 }
 models = "\n".join((M/f).read_text() for f in ["model.js", "pyramid_model.js", "gravity_model.js", "moons_model.js", "warp_model.js"])
 art = {"bar": d(here/"../slot/icons3/bar1.a.webp")}
-s = (here/"lobby.src.html").read_text().replace("/*{{ART}}*/", json.dumps(art)).replace("/*{{MODELS}}*/", models + "\n" + (here/"part_extras.js").read_text()).replace("/*{{MUSIC}}*/", (here/"part_music.js").read_text()).replace("/*{{TEX}}*/", json.dumps(tex))
+s = (here/"lobby.src.html").read_text().replace("/*{{ART}}*/", json.dumps(art)).replace("/*{{MODELS}}*/", models + "\n" + (here/"part_extras.js").read_text()).replace("/*{{MUSIC}}*/", (here/"part_music.js").read_text()).replace("/*{{WALK}}*/", (here/"part_walk.js").read_text()).replace("/*{{TEX}}*/", json.dumps(tex))
 (here/"lobby.html").write_text(s); print("lobby.html", len(s)//1024, "KB")
 g = here/"games"; g.mkdir(exist_ok=True)
 for name, src in [("slot", "slot/slot.html"), ("pyramid", "pyramid/pyramid.html"), ("asteroid", "asteroid/asteroid.html"), ("gravity", "gravity/gravity.html"), ("moons", "moons/moons.html"), ("warp", "warp/warp.html")]:

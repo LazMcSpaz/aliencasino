@@ -38,9 +38,13 @@ asteroid/    Asteroid Field: a "mines" game — crack asteroids for crystals, co
   part_engine.js   5×5 field, 1–24 black holes, multiplier = fair odds × 97% · tools/sim.js checks payback, tools/playtest.js browser test
   shell.html       holo field with procedural rocks and crystals, multiplier ladder, escalating effects, black-hole pull · build.py → asteroid.html
 
-lobby/       the Alien Casino floor: a packed room — slot banks back to back, robots wandering, a bar, the tables; tap a machine to play
-  lobby.src.html   room, lights, picking, the card, the game overlay · build.py → lobby.html (+ copies the built games into games/, not committed)
-  tools/shot.js    screenshots (serve lobby/ over http first)
+lobby/       the Alien Casino floor: walk it in first person (or switch to the bird's-eye view), walk up to a machine and tap it to play
+  lobby.src.html   room, lights, picking, the card, the game overlay, the wallet · build.py → lobby.html (+ copies the built games into games/, not committed)
+  part_walk.js     first-person walking: swipe up to walk, sideways to turn, release to stop; hologram controls; collisions
+  part_extras.js   the front lounge (DJ stage, dance floor, booths), jackpot board, screens, plants, planets, and the alien patrons
+  part_music.js    lounge music made live in the browser (no audio files)
+  assets/          CC0 models by Quaternius (quaternius.com: Ultimate Space Kit, Ultimate Modular Sci-Fi), unpacked from Draco and trimmed
+  tools/shot.js, tools/views.js   screenshots (serve lobby/ over http first)
 
 model3d/     the walking slot-machine robot
   model.js         builds the robot in code (cabinet, corrugated legs and arms, claws, animations)

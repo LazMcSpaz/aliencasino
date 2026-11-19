@@ -25,6 +25,23 @@ header{position:fixed;z-index:5;top:0;left:0;right:0;padding:calc(10px + env(saf
 .music svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .music[aria-pressed="true"]{color:#fff;--hc:var(--holo)}
 .music[aria-pressed="false"] svg{opacity:.55}
+.wpad{position:fixed;z-index:4;width:124px;height:124px;margin:-62px 0 0 -62px;pointer-events:none;opacity:.32;transition:opacity .25s,left .25s,top .25s}
+.wpad.active{opacity:.7;transition:opacity .1s}
+.wring{position:absolute;inset:0;border-radius:50%;border:1.5px solid #5fe8ffaa;background:radial-gradient(circle,#5fe8ff14,#5fe8ff06 62%,transparent 71%);box-shadow:0 0 16px #5fe8ff44,inset 0 0 20px #5fe8ff2a}
+.wring i{position:absolute;width:11px;height:11px;border:solid #8ff3ff;border-width:2px 0 0 2px;filter:drop-shadow(0 0 4px #5fe8ff)}
+.wring .cu{left:50%;top:12px;margin-left:-6px;transform:rotate(45deg)}.wring .cl{left:12px;top:50%;margin-top:-6px;transform:rotate(-45deg)}.wring .cr{right:12px;top:50%;margin-top:-6px;transform:rotate(135deg)}
+.wdot{position:absolute;left:50%;top:50%;width:36px;height:36px;margin:-18px 0 0 -18px;border-radius:50%;background:radial-gradient(circle,#eafcffdd,#5fe8ff77 45%,transparent 72%);box-shadow:0 0 18px #5fe8ff88}
+.whint{position:fixed;z-index:4;left:0;right:0;bottom:calc(228px + env(safe-area-inset-bottom,0px));margin:0;text-align:center;font:400 .6rem/1.9 var(--f-mono);letter-spacing:.18em;color:#bfefffbb;text-shadow:0 0 8px #5fe8ff;pointer-events:none;transition:opacity .8s}
+.wprompt{--k:8px;position:fixed;z-index:4;left:50%;top:62%;translate:-50% 0;padding:8px 14px;font:400 .78rem/1 var(--f-sign);letter-spacing:.06em;white-space:nowrap;color:#fff;pointer-events:none;
+  background:color-mix(in srgb,var(--gc,#5fe8ff) 14%,#06091466);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--gc,#5fe8ff) 70%,transparent),0 0 18px color-mix(in srgb,var(--gc,#5fe8ff) 35%,transparent);text-shadow:0 0 10px var(--gc,#5fe8ff);
+  clip-path:polygon(var(--k) 0,100% 0,100% calc(100% - var(--k)),calc(100% - var(--k)) 100%,0 100%,0 var(--k))}
+.wtoast{position:fixed;z-index:6;left:50%;top:42%;translate:-50% 0;padding:8px 14px;border-radius:8px;font:500 .85rem var(--f-tech);color:#fff;background:#07040fb0;box-shadow:inset 0 0 0 1px #b48cff66;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap}
+.wtoast.show{opacity:1}
+.wfade{position:fixed;inset:0;z-index:3;background:#07040f;opacity:0;pointer-events:none}
+/* walking: the bottom controls turn into faint holograms */
+body.walk nav{background:none}
+body.walk nav button{background:linear-gradient(180deg,color-mix(in srgb,var(--hc) 10%,#06091433),#06091422);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--hc) 45%,transparent);color:color-mix(in srgb,var(--hc) 60%,#fff);text-shadow:0 0 8px var(--hc);opacity:.72}
+body.walk .card{display:none}
 .coins i{width:22px;height:16px;background:var(--bar) center/contain no-repeat}
 .hint{position:fixed;z-index:4;left:0;right:0;top:calc(62px + env(safe-area-inset-top,0px));text-align:center;font:400 .66rem var(--f-mono);letter-spacing:.2em;color:var(--dim);pointer-events:none;transition:opacity .4s}
 /* the game list along the bottom */
@@ -56,9 +73,15 @@ nav button[aria-pressed="true"]{--hc:var(--gold);color:#fff;text-shadow:0 0 8px 
 .loading.done{opacity:0;pointer-events:none}
 </style>
 <canvas id="c" aria-label="The Alien Casino floor"></canvas>
-<header><div class="logo">ALIEN<i>Casino</i></div><div class="right"><button class="music holo" id="music" aria-label="Music" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></svg></button><div class="coins holo"><i></i><span id="bars">500</span><button class="refill" id="refill" hidden>Refill</button></div></div></header>
+<header><div class="logo">ALIEN<i>Casino</i></div><div class="right"><button class="music holo" id="view" aria-label="Bird's-eye view"><svg viewBox="0 0 24 24" id="viewIcon"></svg></button><button class="music holo" id="music" aria-label="Music" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></svg></button><div class="coins holo"><i></i><span id="bars">500</span><button class="refill" id="refill" hidden>Refill</button></div></div></header>
 <p class="hint" id="hint">TAP A GAME &middot; DRAG TO LOOK AROUND</p>
 <nav id="nav" aria-label="Games"></nav>
+<!-- first-person controls: a hologram ring that follows your finger, a hint, a "tap to play" prompt, short messages -->
+<div class="wpad" id="wpad" hidden><div class="wring"><i class="cu"></i><i class="cl"></i><i class="cr"></i></div><div class="wdot" id="wdot"></div></div>
+<p class="whint" id="whint" hidden>SWIPE UP TO WALK &middot; SIDEWAYS TO TURN<br>WALK UP TO A MACHINE AND TAP IT TO PLAY</p>
+<div class="wprompt" id="wprompt" hidden></div>
+<div class="wtoast" id="wtoast"></div>
+<div class="wfade" id="wfade"></div>
 <div class="card holo" id="card" role="dialog" aria-live="polite"><span class="kind" id="cKind"></span><h2 id="cName"></h2><p id="cDesc"></p>
   <div class="btns"><button class="holo" id="cBack">BACK</button><button class="holo play" id="cPlay">PLAY</button></div></div>
 <div class="game" id="game" hidden><iframe id="frame" title="Game" allow="autoplay"></iframe><button class="back" id="gBack" aria-label="Back to the casino"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button></div>
@@ -1281,7 +1304,10 @@ const EXTRAS = (() => {
       const y = f.c[1] + Math.sin(t * 1.7 + f.ph) * .08; const h = f.a.holder; h.position.set(x, y, z); h.rotation.y = Math.atan2(-Math.sin(ang) * Math.sign(f.w), Math.cos(ang) * Math.sign(f.w) * (f.rz || 1)); }));
   }
 
-  return { build(TX) { stage(); danceFloor(); booths(); jackpot(); screens(TX); planters(); frontEdge(); return life(); }, aliens };
+  // footprints the first-person walker can't pass through: [x0, z0, x1, z1]
+  const obstacles = [[-7, 5.7, -4.8, 9.3], [4.55, 5.15, 7, 7.55], [4.55, 7.45, 7, 9.85], [1.75, 7.25, 2.65, 8.15]];
+  POTS.forEach(o => obstacles.push([o.p[0] - o.r, o.p[2] - o.r, o.p[0] + o.r, o.p[2] + o.r]));
+  return { build(TX) { stage(); danceFloor(); booths(); jackpot(); screens(TX); planters(); frontEdge(); return life(); }, aliens, obstacles };
 })();
 
 // Lounge music for the casino floor, played live in the browser (no audio files): a slow, swung space-lounge groove.
@@ -1409,7 +1435,8 @@ const PLAN = [
   { game:"slot",    kind:"bot",   pos:[-6.3,0,-1.9], rot:Math.PI/2, va:Math.PI/2 },
   { game:"slot",    kind:"bot",   pos:[6.55,0,1.4],  rot:-Math.PI/2, va:-1.2 },                       // tending the bar
   { game:"slot",    kind:"bot",   walk:[[-6.5,1.3],[-2.35,1.3],[-2.35,5.4],[-6.5,5.4]], speed:.45, va:0 },     // wandering round the Pyramid bank
-  { game:"slot",    kind:"bot",   walk:[[-1.6,2.8],[2.9,2.8],[2.9,5.55],[-1.6,5.55]], speed:.4, va:0 } ];   // and round the Asteroid bank
+  { game:"slot",    kind:"bot",   walk:[[-1.6,2.8],[2.6,2.8],[2.6,5.55],[-1.6,5.55]], speed:.4, va:0 },   // and round the Asteroid bank
+  { game:"slot",    kind:"bot",   pos:[4.1,0,3.9],   rot:-.55, va:-.55, mood:"giddy", usual:.85 } ];   // the giddy one: usually giddy, in open floor with 1.5 m clear all round for its waving arms
 // ---- renderer, scene, camera ----
 const cv=$("c"), renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true});
 const PHONE=Math.min(innerWidth,innerHeight)<700; renderer.setPixelRatio(Math.min(PHONE?1.5:2,devicePixelRatio)); renderer.outputEncoding=THREE.sRGBEncoding; renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.05;
@@ -1506,6 +1533,9 @@ function bake(root){ root.updateMatrixWorld(true); const inv=new THREE.Matrix4()
   const out=new THREE.Group(); for(const {m,gs} of groups.values()){ const merged=THREE.BufferGeometryUtils.mergeBufferGeometries(gs,false); if(!merged) continue;
     const mesh=new THREE.Mesh(merged,m); mesh.castShadow=mesh.receiveShadow=true; out.add(mesh); } return out; }
 const walkers=[];
+// a Living Slot's mood: most are happy, with a small chance of any other (not giddy: its arms swing wide, and these stand close to other machines);
+// a spot can name a usual mood and how often it has it (the giddy one has its own open space)
+function pickMood(p){ if(p.mood && Math.random()<(p.usual??1)) return p.mood; if(Math.random()<.75) return "happy"; return ["grumpy","sleepy","mischievous"][Math.floor(Math.random()*3)]; }
 async function buildFloor(){ const TX=await loadAll(TEX_SRC);
   // the shared models: one of each, cloned where the floor needs several
   const proto={}, protoClips={};
@@ -1522,10 +1552,11 @@ async function buildFloor(){ const TX=await loadAll(TEX_SRC);
         const {obj,size}=proto[p.game], gap=.06;
         for(const row of [1,-1]) for(let i=0;i<p.per;i++){ const c=obj.clone(); c.position.set((i-(p.per-1)/2)*(size.x+gap), 0, row*size.z/2); c.rotation.y=row>0?0:Math.PI; holder.add(c); }   // back to back
         holder.position.set(...p.pos); holder.rotation.y=p.rot; }
-      else if(p.kind==="bot"){ if(!proto.slot){ const m=make.slot(); if(m.setMood) m.setMood("happy"); proto.slot=m.root; protoClips.slot=m.clips; }
-        const r=proto.slot.clone(true); holder.add(r); const mx=new THREE.AnimationMixer(r), cl=protoClips.slot;
-        if(p.walk){ mx.clipAction(cl.find(c=>c.name==="Walk_Happy")||cl[0]).play(); const w={ holder, path:p.walk, seg:0, k:Math.random(), speed:p.speed, paused:false }; walkers.push(w); holder.userData.walker=w; placeWalker(w,0); }
-        else { mx.clipAction(cl.find(c=>c.name==="Idle_Happy")||cl[0]).play(); holder.position.set(...p.pos); holder.rotation.y=p.rot; }
+      else if(p.kind==="bot"){ const mood=pickMood(p), Mood=mood[0].toUpperCase()+mood.slice(1); p.moodNow=mood;   // remembered so its game opens in the same mood
+        if(!proto["slot_"+mood]){ const m=buildSlotBot(THREE,{mood,tex:TX.slot}); proto["slot_"+mood]=m.root; protoClips.slot=m.clips; }   // one robot per mood: copies share their face
+        const r=proto["slot_"+mood].clone(true); holder.add(r); const mx=new THREE.AnimationMixer(r), cl=protoClips.slot;
+        if(p.walk){ mx.clipAction(cl.find(c=>c.name==="Walk_"+Mood)||cl[0]).play(); const w={ holder, path:p.walk, seg:0, k:Math.random(), speed:p.speed, paused:false }; walkers.push(w); holder.userData.walker=w; placeWalker(w,0); }
+        else { mx.clipAction(cl.find(c=>c.name==="Idle_"+Mood)||cl[0]).play(); holder.position.set(...p.pos); holder.rotation.y=p.rot; }
         mx.update(Math.random()*2); mixers.push(mx); }
     }catch(e){ console.error(p.game,e); continue; }
     holder.traverse(o=>{ if(o.isMesh){ o.userData.game=g; o.userData.spot=p; pickables.push(o); } });
@@ -1535,8 +1566,8 @@ async function buildFloor(){ const TX=await loadAll(TEX_SRC);
     const ring=new THREE.Mesh(new THREE.RingGeometry(1,1.06,64),new THREE.MeshBasicMaterial({color:new THREE.Color(g.col),transparent:true,opacity:0,depthWrite:false})); ring.rotation.x=-Math.PI/2;
     const sz=box.getSize(new THREE.Vector3()), c=box.getCenter(new THREE.Vector3()); ring.scale.setScalar(Math.max(sz.x,sz.z)*.62+.25); ring.position.set(c.x,.02,c.z); scene.add(ring);
     placed.push({ g, p, holder, box, ring, lab }); try{ renderer.compile(scene,cam); }catch(e){} }
-  $("hint").innerHTML="TAP A GAME &middot; DRAG TO LOOK AROUND"; buildNav();
-  try{ await EXTRAS.build(TX); }catch(e){ console.error("extras",e); } }
+  $("hint").innerHTML=WALK.on?"":"TAP A GAME &middot; DRAG TO LOOK AROUND"; buildNav();
+  WALK.ready(); try{ await EXTRAS.build(TX); }catch(e){ console.error("extras",e); } WALK.ready(); window.__lobbyReady=true; }
 // a wandering robot: walks its loop at its own pace, turning to face where it's going
 function placeWalker(w,dt){ if(!w.paused) w.k+=dt*w.speed/segLen(w); while(w.k>=1){ w.k-=1; w.seg=(w.seg+1)%w.path.length; }
   const a=w.path[w.seg], b=w.path[(w.seg+1)%w.path.length]; w.holder.position.set(a[0]+(b[0]-a[0])*w.k,0,a[1]+(b[1]-a[1])*w.k);
@@ -1553,15 +1584,16 @@ function focus(id,spot){ const p=placed.find(q=>spot?q.p===spot:(q.g.id===id&&(q
   walkers.forEach(w=>w.paused=false); if(p.holder.userData.walker) p.holder.userData.walker.paused=true; focused=p; const v=viewFor(p); glide(v.pos,v.t);
   const g=p.g; $("card").style.setProperty("--gc",g.col); $("cName").textContent=g.name; $("cKind").textContent=g.kind; $("cDesc").textContent=g.desc; $("card").classList.add("show"); $("hint").style.opacity=0;
   document.querySelectorAll("nav button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.id===id))); }
+function unfocusQuiet(){ focused=null; walkers.forEach(w=>w.paused=false); $("card").classList.remove("show"); document.querySelectorAll("nav button").forEach(b=>b.setAttribute("aria-pressed","false")); }
 function unfocus(){ focused=null; walkers.forEach(w=>w.paused=false); const H=home(); glide(new THREE.Vector3(...H.cam),new THREE.Vector3(...H.t)); $("card").classList.remove("show"); $("hint").style.opacity=1; document.querySelectorAll("nav button").forEach(b=>b.setAttribute("aria-pressed","false")); }
-function buildNav(){ GAMES.forEach(g=>{ const b=document.createElement("button"); b.className="holo"; b.dataset.id=g.id; b.textContent=g.name; b.style.setProperty("--hc",g.col); b.onclick=()=>focused&&focused.g.id===g.id?openGame(g):focus(g.id); $("nav").appendChild(b); }); }
+function buildNav(){ GAMES.forEach(g=>{ const b=document.createElement("button"); b.className="holo"; b.dataset.id=g.id; b.textContent=g.name; b.style.setProperty("--hc",g.col); b.onclick=()=>WALK.on?WALK.goTo(g.id):(focused&&focused.g.id===g.id?openGame(g,focused.p):focus(g.id)); $("nav").appendChild(b); }); }
 const ray=new THREE.Raycaster(), ndc=new THREE.Vector2(); let down=null;
 cv.addEventListener("pointerdown",e=>{ down=[e.clientX,e.clientY,performance.now()]; });
-cv.addEventListener("pointerup",e=>{ if(!down) return; const moved=Math.hypot(e.clientX-down[0],e.clientY-down[1]); down=null; if(moved>8) return;
+cv.addEventListener("pointerup",e=>{ if(WALK.on){ down=null; return; } if(!down) return; const moved=Math.hypot(e.clientX-down[0],e.clientY-down[1]); down=null; if(moved>8) return;
   ndc.set(e.clientX/innerWidth*2-1,-(e.clientY/innerHeight)*2+1); ray.setFromCamera(ndc,cam); const hit=ray.intersectObjects(pickables,false).find(h=>h.object.userData.game||h.object.userData.alien);
   if(hit&&hit.object.userData.alien){ hit.object.userData.alien.react(); return; }   // tap an alien: it waves
-  if(hit){ const g=hit.object.userData.game, sp=hit.object.userData.spot; if(focused&&focused.p===sp) openGame(g); else focus(g.id,sp); } else if(focused) unfocus(); });
-$("cBack").onclick=unfocus; $("cPlay").onclick=()=>focused&&openGame(focused.g);
+  if(hit){ const g=hit.object.userData.game, sp=hit.object.userData.spot; if(focused&&focused.p===sp) openGame(g,sp); else focus(g.id,sp); } else if(focused) unfocus(); });
+$("cBack").onclick=unfocus; $("cPlay").onclick=()=>focused&&openGame(focused.g,focused.p);
 
 // ---- playing: the game opens over the casino; the casino pauses until you come back ----
 // ---- the wallet: one balance of gold bars for the whole casino. Games read and save it through window.__alienWallet ----
@@ -1577,21 +1609,110 @@ musicBtn.onclick=e=>{ e.stopPropagation(); Music.setWanted(!Music.on); showMusic
 addEventListener("pointerdown",function first(e){ if(e.target===musicBtn) return; removeEventListener("pointerdown",first,true); if(Music.wanted&&!playing){ Music.start(); showMusic(); } },true);
 const cache={}; let playing=false;
 const PREFIX='<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"></head><body>';
-async function openGame(g){ $("game").style.setProperty("--gc",g.col); $("game").hidden=false; playing=true; Music.stop(.15); showMusic();
+async function openGame(g,spot){ window.__alienLaunch={ mood:(spot&&spot.moodNow)||null };   // the game reads this as it starts (a Living Slot opens in its robot's mood)
+  $("game").style.setProperty("--gc",g.col); $("game").hidden=false; playing=true; Music.stop(.15); showMusic();
   try{ if(!cache[g.id]){ const r=await fetch(g.src); cache[g.id]=await r.text(); } $("frame").srcdoc=PREFIX+cache[g.id]+"</body></html>"; }
   catch(e){ $("frame").srcdoc=PREFIX+`<p style="font:16px sans-serif;color:#ccc;padding:24px">Couldn't load ${g.name}.</p>`; } }
 $("gBack").onclick=()=>{ $("frame").srcdoc=""; $("game").hidden=true; playing=false; clock.getDelta(); if(Music.wanted){ Music.start(); showMusic(); } };
 
+// First-person walking: the camera at a person's eye height, moved with one finger.
+// Put a finger down and slide it up to walk forward (further up = faster, back down toward where you started = slower),
+// slide it left or right to turn, lift it to stop. Walk up to a machine and tap it to play. The game names along the bottom walk you over to that game.
+// Desktop: drag with the mouse the same way, or use the arrow keys / WASD.
+// May use: the lobby's cam, ctl, scene, placed, pickables, openGame, EXTRAS, walkers. Must not: change the games or the wallet.
+const WALK = (() => {
+  const EYE = 1.62, R = .32, MAXV = 1.8, MAXTURN = 1.8, REACH = 2.0, PITCH = -.12, DEAD = 12;
+  const me = { x: .9, z: 10.6, yaw: 0, v: 0, turn: 0 };          // yaw 0 = facing the back wall (−z)
+  let on = false, touch = null, rects = [], auto = null, lastAim = 0, bob = 0, walked = false, toastT = 0;
+  const keys = {};
+  const el = id => document.getElementById(id);
+  const fwd = yaw => [-Math.sin(yaw), -Math.cos(yaw)];
+  const restPad = () => { const p = el("wpad"); p.style.left = innerWidth / 2 + "px"; p.style.top = (innerHeight - 150) + "px"; el("wdot").style.transform = ""; p.classList.remove("active"); };
+
+  // what you can't walk through: every machine that stays put, plus the bar, stage, booths, statue and pots
+  function obstacles() { rects = [];
+    placed.forEach(p => { if (p.holder.userData.walker) return; const b = new THREE.Box3().setFromObject(p.holder); rects.push([b.min.x, b.min.z, b.max.x, b.max.z]); });
+    rects.push([5.85, -1.5, 7.2, 4.5]);                              // the bar counter
+    (EXTRAS.obstacles || []).forEach(r => rects.push(r)); }
+  const blocked = (x, z) => x < -6.7 || x > 6.7 || z < -5.7 || z > 11.8 || rects.some(r => x > r[0] - R && x < r[2] + R && z > r[1] - R && z < r[3] + R);
+  function step(dx, dz) { if (!blocked(me.x + dx, me.z)) me.x += dx; if (!blocked(me.x, me.z + dz)) me.z += dz; }   // slide along walls instead of sticking
+
+  function toast(msg) { const t = el("wtoast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), 1600); }
+  // what's under a point on the screen: a game (and how far away it is) or an alien
+  function pick(cx, cy) { const ndc = new THREE.Vector2(cx / innerWidth * 2 - 1, -(cy / innerHeight) * 2 + 1), ray = new THREE.Raycaster(); ray.setFromCamera(ndc, cam); ray.far = 14;
+    const h = ray.intersectObjects(pickables, false).find(h => h.object.userData.game || h.object.userData.alien); if (!h) return null;
+    const spot = h.object.userData.spot, pl = spot && placed.find(q => q.p === spot);
+    // how far you are from the machine: from its footprint's nearest edge (a long table counts as close when you're beside it)
+    let dist = Math.hypot(h.point.x - me.x, h.point.z - me.z);
+    if (pl) { const b = new THREE.Box3().setFromObject(pl.holder), cx = Math.max(b.min.x, Math.min(me.x, b.max.x)), cz = Math.max(b.min.z, Math.min(me.z, b.max.z)); dist = Math.hypot(cx - me.x, cz - me.z); }
+    return { game: h.object.userData.game, spot, alien: h.object.userData.alien, dist }; }
+  function tap(cx, cy) { const h = pick(cx, cy); if (!h) return;
+    if (h.alien) { h.alien.react(); return; }
+    if (h.dist <= REACH) openGame(h.game, h.spot); else toast(`Walk closer to play ${h.game.name}`); }
+
+  // the game names along the bottom: walk over and face that game (a second tap once you're there plays it)
+  function goTo(id) { const p = placed.find(q => q.g.id === id && (q.lab || q.p.kind !== "bot")) || placed.find(q => q.g.id === id); if (!p) return;
+    const b = new THREE.Box3().setFromObject(p.holder), c = b.getCenter(new THREE.Vector3()), s = b.getSize(new THREE.Vector3()), va = p.holder.userData.walker ? p.holder.rotation.y : p.p.va;
+    let d = Math.max(s.x, s.z) / 2 + 1.1, tx, tz;  for (let i = 0; i < 12; i++, d += .3) { tx = c.x + Math.sin(va) * d; tz = c.z + Math.cos(va) * d; if (!blocked(tx, tz)) break; }
+    if (Math.hypot(tx - me.x, tz - me.z) < .6) { openGame(p.g, p.p); return; }
+    const yaw = Math.atan2(-(c.x - tx), -(c.z - tz));
+    auto = { x1: tx, z1: tz, y1: yaw, t0: performance.now(), moved: false }; }   // a quick fade to black, arrive, fade back in (so it never passes through machines)
+
+  // ---- the finger ----
+  const cv = document.getElementById("c");
+  cv.addEventListener("pointerdown", e => { if (!on) return; if (auto && !auto.moved) { el("wfade").style.opacity = 0; auto = null; } touch = { id: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, t: performance.now(), moved: false };
+    const p = el("wpad"); p.style.left = e.clientX + "px"; p.style.top = e.clientY + "px"; p.classList.add("active"); try { cv.setPointerCapture(e.pointerId); } catch (_) {} });
+  cv.addEventListener("pointermove", e => { if (!on || !touch || e.pointerId !== touch.id) return; touch.x = e.clientX; touch.y = e.clientY;
+    const dx = touch.x - touch.x0, dy = touch.y - touch.y0, d = Math.hypot(dx, dy); if (d > DEAD) touch.moved = true;
+    const k = Math.min(1, 62 / (d || 1)); el("wdot").style.transform = `translate(${dx * k}px,${dy * k}px)`; });
+  const end = e => { if (!on || !touch || e.pointerId !== touch.id) return; const quick = performance.now() - touch.t < 450;
+    if (!touch.moved && quick) tap(touch.x, touch.y); touch = null; restPad(); };
+  cv.addEventListener("pointerup", end); cv.addEventListener("pointercancel", end);
+  addEventListener("keydown", e => { keys[e.key.toLowerCase()] = true; }); addEventListener("keyup", e => { keys[e.key.toLowerCase()] = false; });
+
+  function update(dt) {
+    let vt = 0, tt = 0;
+    if (touch) { const up = touch.y0 - touch.y, side = touch.x - touch.x0;
+      vt = Math.max(0, Math.min(1, (up - DEAD) / 120)) * MAXV;                                  // how far up the finger is = how fast you walk
+      tt = -Math.sign(side) * Math.max(0, Math.min(1, (Math.abs(side) - DEAD) / 130)) * MAXTURN; }   // how far to the side = how fast you turn
+    if (keys.arrowup || keys.w) vt = MAXV * .8; if (keys.arrowdown || keys.s) vt = -MAXV * .5;
+    if (keys.arrowleft || keys.a) tt = MAXTURN * .8; if (keys.arrowright || keys.d) tt = -MAXTURN * .8;
+    me.v += (vt - me.v) * Math.min(1, dt * (vt ? 5 : 9)); me.turn += (tt - me.turn) * Math.min(1, dt * 8);
+    if (auto) { const k = (performance.now() - auto.t0) / 260, f = el("wfade");   // timed by the clock, so it takes the same time however fast the phone draws
+      if (!auto.moved) { f.style.opacity = Math.min(1, k); if (k >= 1) { me.x = auto.x1; me.z = auto.z1; me.yaw = auto.y1; me.v = 0; auto.moved = true; auto.t0 = performance.now(); } }
+      else { f.style.opacity = Math.max(0, 1 - k); if (k >= 1) { f.style.opacity = 0; auto = null; } } }
+    else { me.yaw += me.turn * dt; const [fx, fz] = fwd(me.yaw); step(fx * me.v * dt, fz * me.v * dt); bob += Math.abs(me.v) * dt * 5.5; }
+    if (Math.abs(me.v) > .3 && !walked) { walked = true; el("whint").style.opacity = 0; }
+    const sway = Math.min(1, Math.abs(me.v) / MAXV);
+    cam.position.set(me.x, EYE + Math.sin(bob * 2) * .022 * sway, me.z); cam.rotation.set(PITCH, me.yaw, Math.sin(bob) * .004 * sway, "YXZ");
+    // a prompt when a game is right in front of you and close enough to play
+    const now = performance.now(); if (now - lastAim > 180) { lastAim = now; const h = pick(innerWidth / 2, innerHeight * .55), pr = el("wprompt");
+      if (h && h.game && h.dist <= REACH) { pr.textContent = `TAP TO PLAY  \u00b7  ${h.game.name.toUpperCase()}`; pr.style.setProperty("--gc", h.game.col); pr.hidden = false; } else pr.hidden = true; }
+  }
+
+  function enter() { on = true; ctl.enabled = false; tween = null; document.body.classList.add("walk"); el("wpad").hidden = false; el("whint").hidden = false; el("hint").style.opacity = 0;
+    if (typeof unfocusQuiet === "function") unfocusQuiet(); restPad(); size(); }
+  function exit() { on = false; touch = null; auto = null; document.body.classList.remove("walk"); el("wpad").hidden = true; el("whint").hidden = true; el("wprompt").hidden = true; el("hint").style.opacity = 1;
+    ctl.enabled = true; size(); const H = home(); cam.rotation.set(0, 0, 0); ctl.target.set(...H.t); glide(new THREE.Vector3(...H.cam), new THREE.Vector3(...H.t)); }
+  addEventListener("resize", () => { if (on) restPad(); });
+  return { get on() { return on; }, enter, exit, update, goTo, ready: obstacles, me };
+})();
+
 // ---- loop ----
-function size(){ const w=innerWidth,h=innerHeight; renderer.setSize(w,h,false); cam.aspect=w/h; cam.fov=w<h?58:42; cam.updateProjectionMatrix(); }
+function size(){ const w=innerWidth,h=innerHeight; renderer.setSize(w,h,false); cam.aspect=w/h; cam.fov=(typeof WALK!=="undefined"&&WALK.on)?(w<h?76:62):(w<h?58:42); cam.updateProjectionMatrix(); }
 addEventListener("resize",size); size();
 const clock=new THREE.Clock();
 renderer.setAnimationLoop(()=>{ if(playing) return; const dt=Math.min(.05,clock.getDelta()), t=clock.elapsedTime;
-  if(tween){ const k=Math.min(1,(performance.now()-tween.s)/tween.ms), e=k<.5?4*k*k*k:1-Math.pow(-2*k+2,3)/2; cam.position.lerpVectors(tween.p0,tween.pos,e); ctl.target.lerpVectors(tween.t0,tween.t,e); if(k>=1) tween=null; }
+  if(WALK.on) WALK.update(dt); else if(tween){ const k=Math.min(1,(performance.now()-tween.s)/tween.ms), e=k<.5?4*k*k*k:1-Math.pow(-2*k+2,3)/2; cam.position.lerpVectors(tween.p0,tween.pos,e); ctl.target.lerpVectors(tween.t0,tween.t,e); if(k>=1) tween=null; }
   walkers.forEach(w=>{ placeWalker(w,dt); }); mixers.forEach(m=>m.update(dt)); updates.forEach(u=>u(t));
   placed.forEach(p=>{ const on=focused===p; p.ring.material.opacity+=((on?.9:0)-p.ring.material.opacity)*.12; if(p.holder.userData.walker){ p.ring.position.x=p.holder.position.x; p.ring.position.z=p.holder.position.z; }
     if(p.lab){ p.lab.position.y+=Math.sin(t*1.6+p.box.min.x)*.0015; const lo=focused&&focused.g!==p.g?0:1; p.lab.material.opacity+=(lo-p.lab.material.opacity)*.15; p.lab.visible=p.lab.material.opacity>.02; } });
-  ctl.update(); renderer.render(scene,cam); });
+  if(!WALK.on) ctl.update(); renderer.render(scene,cam); });
+// ---- walking (the default) or the bird's-eye view ----
+const ICON_MAP='<path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/>', ICON_WALK='<circle cx="13" cy="4" r="2"/><path d="M10 21l2-6 3 3v3M9 11l3-3 3 2 3 1M12 8l-1 5"/>';
+function showView(){ $("viewIcon").innerHTML=WALK.on?ICON_MAP:ICON_WALK; $("view").setAttribute("aria-label",WALK.on?"Bird's-eye view":"Walk around"); $("hint").innerHTML=WALK.on?"":"TAP A GAME &middot; DRAG TO LOOK AROUND"; }
+$("view").onclick=e=>{ e.stopPropagation(); if(WALK.on) WALK.exit(); else { unfocusQuiet(); WALK.enter(); } showView(); };
+WALK.enter(); showView();
 addEventListener("error",e=>{ $("lmsg").textContent="SOMETHING WENT WRONG: "+(e.message||""); });
 (async()=>{ try{ await Promise.race([document.fonts.load('400 40px Bungee'),new Promise(r=>setTimeout(r,600))]); }catch(e){}
   $("lmsg").textContent="UNPACKING THE CASINO"; await new Promise(r=>requestAnimationFrame(()=>setTimeout(r,0)));

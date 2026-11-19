@@ -175,5 +175,8 @@ const EXTRAS = (() => {
       const y = f.c[1] + Math.sin(t * 1.7 + f.ph) * .08; const h = f.a.holder; h.position.set(x, y, z); h.rotation.y = Math.atan2(-Math.sin(ang) * Math.sign(f.w), Math.cos(ang) * Math.sign(f.w) * (f.rz || 1)); }));
   }
 
-  return { build(TX) { stage(); danceFloor(); booths(); jackpot(); screens(TX); planters(); frontEdge(); return life(); }, aliens };
+  // footprints the first-person walker can't pass through: [x0, z0, x1, z1]
+  const obstacles = [[-7, 5.7, -4.8, 9.3], [4.55, 5.15, 7, 7.55], [4.55, 7.45, 7, 9.85], [1.75, 7.25, 2.65, 8.15]];
+  POTS.forEach(o => obstacles.push([o.p[0] - o.r, o.p[2] - o.r, o.p[0] + o.r, o.p[2] + o.r]));
+  return { build(TX) { stage(); danceFloor(); booths(); jackpot(); screens(TX); planters(); frontEdge(); return life(); }, aliens, obstacles };
 })();

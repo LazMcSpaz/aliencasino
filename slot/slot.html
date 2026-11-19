@@ -2241,6 +2241,8 @@ let startMachine="food"; try{ startMachine=localStorage.getItem("slot-machine")|
 applyMachine(startMachine);
 buildRails(); buildPicker(); buildPaytable(); fit(); sizeFx(); sizeBub(); Promise.all([iconsReady, document.fonts ? document.fonts.ready : 0]).then(()=>{ sprCell=0; sizeReelCanvas(); fitTitle(); setTimeout(layoutGoop, 1200); });   // goop flipbook is prepared early, while nothing's happening
 render(); update(); showIdleLines(); paintSound(); paintFast();
+// opened from a robot in the casino: start in that robot's mood (the lobby leaves it in window.__alienLaunch)
+try{ const L=window.parent!==window && window.parent.__alienLaunch; if(L && L.mood && MOOD_LIST.includes(L.mood)) setMood(L.mood); }catch(e){}
 MOOD_LIST.forEach(m=>{ const b=document.createElement("button"); b.className="mbtn"; b.dataset.m=m; b.textContent="Mood: "+m; b.onclick=()=>{ if(spinning||bonusMode) return; setMood(m); applyMoodUI(true); }; $("dbgmoods").appendChild(b); });
 applyMoodUI(false);
 setFace(restingFace(),{line:sayRand("hello")}); blinkLoop(); lookLoop(); poke();
