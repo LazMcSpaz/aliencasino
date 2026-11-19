@@ -119,8 +119,8 @@ const PLAN = [
   { game:"gravity", kind:"model", pos:[-7.6,0,-6.6], rot:.35,  scale:.95, va:.35 },
   { game:"gravity", kind:"model", pos:[7.6,0,-6.6],  rot:-.35, scale:.95, va:-.35 },
   // a Star Dozer coin pusher in each gap beside the Warp stage, against the back wall
-  { game:"pusher",  kind:"model", pos:[-4.15,0,-9.3], rot:0,    scale:1,   va:0 },
-  { game:"pusher",  kind:"model", pos:[4.15,0,-9.3],  rot:0,    scale:1,   va:0 },
+  { game:"pusher",  kind:"model", pos:[-4.15,0,-8.98], rot:0,   scale:.8,  va:0 },
+  { game:"pusher",  kind:"model", pos:[4.15,0,-8.98],  rot:0,   scale:.8,  va:0 },
   // a Twin Moons table either side of the centre aisle
   { game:"moons",   kind:"model", pos:[-4.6,0,-1.2], rot:0,    scale:.85, va:0 },
   { game:"moons",   kind:"model", pos:[4.6,0,-1.2],  rot:0,    scale:.85, va:0 },
@@ -245,7 +245,7 @@ async function buildFloor(){ const TX=await loadAll(TEX_SRC);
   // the shared models: one of each, cloned where the floor needs several
   const proto={}, protoClips={};
   const make={ slot:()=>buildSlotBot(THREE,{mood:"happy",tex:TX.slot}), pyramid:()=>buildPyramidBot(THREE,{tex:TX.pyramid}), asteroid:()=>buildPyramidBot(THREE,{tex:TX.asteroid}),
-    gravity:()=>buildGravityTable(THREE,{tex:TX.gravity}), moons:()=>buildMoonsTable(THREE,{tex:TX.moons}), warp:()=>buildWarpStage(THREE,{tex:TX.warp}), pusher:()=>buildPusher(THREE,{tex:{bar:TEX_SRC.pusher.bar,zib:TEX_SRC.pusher.zib}}) };
+    gravity:()=>buildGravityTable(THREE,{tex:TX.gravity}), moons:()=>buildMoonsTable(THREE,{tex:TX.moons}), warp:()=>buildWarpStage(THREE,{tex:TX.warp}), pusher:()=>buildPusher(THREE,{tex:TEX_SRC.pusher}) };
   $("loading").classList.add("done"); let n=0;
   for(const p of PLAN){ n++; $("hint").textContent=`SETTING UP THE FLOOR ${n}/${PLAN.length}`; await new Promise(r=>requestAnimationFrame(()=>setTimeout(r,0)));
     const g=G[p.game], holder=new THREE.Group(); holder.userData.game=g; scene.add(holder);

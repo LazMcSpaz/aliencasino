@@ -140,6 +140,7 @@ body{margin:0;background:radial-gradient(100% 60% at 50% 30%,#1a1240 0%,var(--vo
 const ART = /*{{ART}}*/;
 /*{{ENGINE}}*/
 /*{{SOUND}}*/
+/*{{MODEL}}*/
 document.documentElement.style.setProperty("--bar", `url(${ART.bar})`);
 const $ = id => document.getElementById(id);
 const SAVE = "alien-casino-pusher3d", RAPIER_URL = "https://cdn.jsdelivr.net/npm/@dimforge/rapier3d-compat@0.14.0/rapier.es.js";
@@ -161,79 +162,10 @@ const canvas = (w, h) => { const c = document.createElement("canvas"); c.width =
 const M = (o) => new THREE.MeshStandardMaterial({ envMapIntensity: ENV, ...o }), Bm = c => new THREE.MeshBasicMaterial({ color: c });
 const add = (geo, m, p = [0, 0, 0], r = [0, 0, 0], shadow = true) => { const o = new THREE.Mesh(geo, m); o.position.set(...p); o.rotation.set(...r); o.castShadow = o.receiveShadow = shadow; scene.add(o); return o; };
 
-// ---- the machine ----
-{ // tray floor: a dark violet plate with a faint grid
-  const [c, g] = canvas(256, 256); g.fillStyle = "#140c30"; g.fillRect(0, 0, 256, 256); g.strokeStyle = "#5fe8ff22"; g.lineWidth = 2; for (let i = 0; i <= 256; i += 64) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i, 256); g.moveTo(0, i); g.lineTo(256, i); g.stroke(); }
-  add(new THREE.BoxGeometry(W + .2, .04, L + .7), M({ map: ctex(c, [5, 9]), roughness: .7, metalness: .2, envMapIntensity: .15 }), [0, -.02, (L - .7) / 2]).castShadow = false;
-  // the front: a green lip where your winnings go over, red gutters at the corners, the chute below
-  add(new THREE.BoxGeometry(W - 2 * GUTTER, .006, .012), Bm(0x7dff9a), [0, .003, L - .006], [0, 0, 0], false);
-  for (const s of [-1, 1]) { add(new THREE.BoxGeometry(GUTTER, .006, .012), Bm(0xff4d6d), [s * (W / 2 - GUTTER / 2), .003, L - .006], [0, 0, 0], false);
-    add(new THREE.BoxGeometry(GUTTER, .2, .2), M({ color: 0x050308, roughness: .9 }), [s * (W / 2 - GUTTER / 2), -.13, L + .1], [0, 0, 0], false); }
-  add(new THREE.BoxGeometry(W - 2 * GUTTER, .05, .3), M({ color: 0x07050f, roughness: .8, metalness: .2, envMapIntensity: .1 }), [0, -.22, L + .14], [-.25, 0, 0]);
-  add(new THREE.BoxGeometry(W + .3, .3, .06), M({ color: 0x0b0918, metalness: .3, roughness: .7, envMapIntensity: .1 }), [0, -.2, L + .32]);
-  add(new THREE.BoxGeometry(W + .3, .01, .012), Bm(0x8dff6a), [0, -.05, L + .35], [0, 0, 0], false);
-  // side walls: chrome posts and glass, with a lit strip along the bottom
-  const glass = new THREE.MeshStandardMaterial({ color: 0xbfefff, roughness: .05, transparent: true, opacity: .1, depthWrite: false });
-  for (const s of [-1, 1]) { add(new THREE.PlaneGeometry(L + .2, .5), glass, [s * (W / 2 + .001), .25, L / 2 - .1], [0, -s * Math.PI / 2, 0], false);
-    add(new THREE.BoxGeometry(.03, .55, .03), M({ color: 0x8d8aa0, metalness: .9, roughness: .25 }), [s * (W / 2 + .015), .27, L - .015]);
-    add(new THREE.BoxGeometry(.01, .012, L + .2), Bm(s < 0 ? 0xff5fae : 0x5fe8ff), [s * (W / 2 - .002), .01, L / 2 - .1], [0, 0, 0], false); }
-  // the back: a panel above the pusher (the wall that scrapes bars off it), the marquee, the drop rail
-  add(new THREE.BoxGeometry(W + .1, .62, .06), M({ color: 0x0e0a22, metalness: .3, roughness: .7, envMapIntensity: .15 }), [0, PH + .004 + .31, -.03]);
-  add(new THREE.BoxGeometry(W, .008, .02), Bm(0x5fe8ff), [0, PH + .012, .001], [0, 0, 0], false);
-  add(new THREE.BoxGeometry(W - .1, .025, .05), M({ color: 0x0c0820, roughness: .4 }), [0, PH + .3, .03]); add(new THREE.BoxGeometry(W - .1, .005, .052), Bm(0xff5fae), [0, PH + .29, .03], [0, 0, 0], false);
-  // ---- dressing: a starfield back panel, a chrome frame round the marquee, pillars with neon tubes, a diamond-plate pusher ----
-  { const [c, g] = canvas(1024, 300), gr = g.createLinearGradient(0, 0, 0, 300); gr.addColorStop(0, "#1a0f3a"); gr.addColorStop(1, "#07051a"); g.fillStyle = gr; g.fillRect(0, 0, 1024, 300);
-    for (let i = 0; i < 220; i++) { g.fillStyle = `rgba(255,255,255,${Math.random() * .7 + .1})`; const r = Math.random() < .08 ? 2.2 : 1; g.beginPath(); g.arc(Math.random() * 1024, Math.random() * 300, r, 0, 7); g.fill(); }
-    const pl = g.createRadialGradient(150, 110, 8, 170, 130, 80); pl.addColorStop(0, "#ffb070"); pl.addColorStop(.6, "#c8486a"); pl.addColorStop(1, "#2a0f3a"); g.fillStyle = pl; g.beginPath(); g.arc(170, 130, 70, 0, 7); g.fill();
-    g.strokeStyle = "#ffc84588"; g.lineWidth = 5; g.beginPath(); g.ellipse(170, 130, 120, 22, -.25, 0, 7); g.stroke();
-    const p2 = g.createRadialGradient(880, 80, 4, 890, 90, 40); p2.addColorStop(0, "#c8fbff"); p2.addColorStop(1, "#1e5aa8"); g.fillStyle = p2; g.beginPath(); g.arc(890, 90, 36, 0, 7); g.fill();
-    g.lineWidth = 9; g.lineJoin = "round"; for (let i = 0; i < 5; i++) { g.strokeStyle = `rgba(125,255,154,${.25 + i * .17})`; g.shadowColor = "#7dff9a"; g.shadowBlur = 14; const x = 512, y = 60 + i * 40; g.beginPath(); g.moveTo(x - 60, y); g.lineTo(x, y + 26); g.lineTo(x + 60, y); g.stroke(); } g.shadowBlur = 0;
-    g.font = '400 30px "Bungee",Impact,sans-serif'; g.textAlign = "center"; g.fillStyle = "#7dff9a"; g.shadowColor = "#7dff9a"; g.shadowBlur = 12; g.fillText("DROP ZONE", 512, 286); g.shadowBlur = 0;
-    add(new THREE.PlaneGeometry(W - .02, .29), new THREE.MeshBasicMaterial({ map: ctex(c), toneMapped: false, color: 0xbbbbbb }), [0, PH + .155, .0015], [0, 0, 0], false); }
-  const chrome = M({ color: 0x6a6880, metalness: .95, roughness: .28, envMapIntensity: .45 });
-  const mqH = (W - .06) * 300 / 1024, mqY = PH + .48;
-  for (const y of [mqY + mqH / 2 + .018, mqY - mqH / 2 - .018]) add(new THREE.BoxGeometry(W + .02, .03, .04), chrome, [0, y, .01]);
-  for (const s of [-1, 1]) add(new THREE.BoxGeometry(.035, mqH + .066, .04), chrome, [s * (W / 2 - .01), mqY, .01]);
-  for (const s of [-1, 1]) { const x = s * (W / 2 + .045);   // back pillars up the sides, each with a glowing tube
-    add(new THREE.BoxGeometry(.07, .78, .1), M({ color: 0x15102e, metalness: .5, roughness: .45 }), [x, .39, .01]);
-    add(new THREE.CylinderGeometry(.009, .009, .74, 10), new THREE.MeshBasicMaterial({ color: s < 0 ? 0xff5fae : 0x5fe8ff, toneMapped: false }), [x - s * .03, .39, .065], [0, 0, 0], false);
-    add(new THREE.BoxGeometry(.012, .012, L + .15), new THREE.MeshBasicMaterial({ color: s < 0 ? 0xff5fae : 0x5fe8ff, toneMapped: false }), [s * (W / 2 + .015), .55, L / 2 - .02], [0, 0, 0], false);   // neon along the top of the glass
-    add(new THREE.BoxGeometry(.03, .03, L + .15), chrome, [s * (W / 2 + .015), .57, L / 2 - .02]); }
-}
-const [mqc, mqg] = canvas(1024, 300), mqTex = ctex(mqc);
-add(new THREE.PlaneGeometry(W - .06, (W - .06) * 300 / 1024), new THREE.MeshBasicMaterial({ map: mqTex }), [0, PH + .48, .002], [0, 0, 0], false);
-// the marquee: the name on the left, and on the right the lookout's little screen: Zib watching the casino floor for the guard
-const ZIBIMG = {}; for (const [k, src] of Object.entries(ART.zib)) { const im = new Image(); im.src = src; ZIBIMG[k] = im; }
-const LOOKCOL = { watch: "#ff4d6d", soon: "#ffc845", clear: "#7dff9a", busted: "#ff4d6d" };
-function drawMarquee(t) { const g = mqg, now = t * 1000; g.fillStyle = "#120b26"; g.fillRect(0, 0, 1024, 300); g.textAlign = "center"; g.textBaseline = "middle";
-  g.font = '400 118px "Monoton","Bungee",Impact,sans-serif'; g.shadowColor = "#ff7a3a"; g.shadowBlur = 30; g.fillStyle = "#fff1dc"; g.fillText("STAR", 330, 118);
-  g.font = '400 96px "Yellowtail",cursive'; g.shadowColor = "#5fe8ff"; g.fillStyle = "#e6fbff"; g.fillText("Dozer", 470, 220); g.shadowBlur = 0;
-  for (let i = 0; i < 26; i++) { const on = (i + Math.floor(t * 8)) % 3 === 0; g.fillStyle = on ? ["#ff5fae", "#ffc845", "#8dff6a"][i % 3] : "#3a2a5a"; for (const y of [14, 286]) { g.beginPath(); g.arc(20 + i * 38.5, y, on ? 9 : 6, 0, 7); g.fill(); } }
-  // the lookout screen
-  const L = lookout(), bust = now < busted, st = bust ? "busted" : L.state, col = LOOKCOL[st], x0 = 690, y0 = 36, w = 300, h = 228, flick = st === "clear" && Math.floor(t * 6) % 2;
-  g.fillStyle = "#05060f"; g.fillRect(x0 - 8, y0 - 8, w + 16, h + 16); g.strokeStyle = "#8d8aa0"; g.lineWidth = 4; g.strokeRect(x0 - 8, y0 - 8, w + 16, h + 16);
-  const gr = g.createLinearGradient(0, y0, 0, y0 + h); gr.addColorStop(0, col + "40"); gr.addColorStop(1, col + "10"); g.fillStyle = gr; g.fillRect(x0, y0, w, h);
-  g.fillStyle = col + "18"; for (let y = y0; y < y0 + h; y += 6) g.fillRect(x0, y, w, 2);   // scan lines
-  const face = ZIBIMG[bust ? (now < busted - 2500 ? "surprised" : "angry") : { watch: "neutral", soon: "wink", clear: "excited" }[L.state]];
-  if (face.complete && face.naturalWidth) { const fh = 138, fw = fh * face.naturalWidth / face.naturalHeight, bob = st === "clear" ? Math.sin(t * 14) * 5 : st === "watch" ? Math.sin(t * 1.3) * 3 : 0;
-    g.save(); g.shadowColor = col; g.shadowBlur = 18; if (st === "watch") { g.translate(x0 + w / 2, 0); g.scale(Math.sin(t * .7) > 0 ? 1 : -1, 1); g.translate(-(x0 + w / 2), 0); }   // looks one way, then the other
-    g.drawImage(face, x0 + w / 2 - fw / 2 + bob, y0 + 6, fw, fh); g.restore(); }
-  g.font = '400 44px "Bungee",Impact,sans-serif'; g.fillStyle = flick ? "#ffffff" : col; g.shadowColor = col; g.shadowBlur = 16;
-  g.fillText(bust ? "SECURITY!" : L.state === "clear" ? "CLEAR!" : L.state === "soon" ? "GET READY" : "WATCHING", x0 + w / 2, y0 + 168); g.shadowBlur = 0;
-  const full = L.state === "clear" ? LOOK.clear : L.state === "soon" ? LOOK.soon : 0;
-  if (full && !bust) { g.fillStyle = "#ffffff18"; g.fillRect(x0 + 20, y0 + 198, w - 40, 12); g.fillStyle = col; g.fillRect(x0 + 20, y0 + 198, (w - 40) * Math.min(1, L.t / full), 12); }
-  if (L.state === "clear") for (let i = 0; i < LOOK.slaps; i++) { g.globalAlpha = i < L.left ? 1 : .25; g.fillStyle = col; g.beginPath(); g.arc(x0 + w - 34 - i * 30, y0 + 24, 10, 0, 7); g.fill(); } g.globalAlpha = 1;
-  if (st === "watch" || bust) { g.fillStyle = Math.floor(t * 2) % 2 ? col : col + "44"; g.beginPath(); g.arc(x0 + 22, y0 + 22, 9, 0, 7); g.fill(); }   // the red "on air" light
-  mqTex.needsUpdate = true; }
-// the pusher block: chrome, with a lit strip along its front edge
-const pusherMesh = new THREE.Group(); scene.add(pusherMesh);
-{ const [c, g] = canvas(256, 256); g.fillStyle = "#6a6880"; g.fillRect(0, 0, 256, 256); g.fillStyle = "#9896ae"; g.strokeStyle = "#3a384c"; g.lineWidth = 2;
-    for (let y = 0; y < 256; y += 32) for (let x = (y / 32 % 2) * 16; x < 256; x += 32) { g.save(); g.translate(x + 8, y + 8); g.rotate(y / 32 % 2 ? .7 : -.7); g.beginPath(); g.ellipse(0, 0, 11, 3.5, 0, 0, 7); g.fill(); g.stroke(); g.restore(); }
-    const top = M({ map: ctex(c, [8, 5]), color: 0xffffff, metalness: .85, roughness: .36, envMapIntensity: .35 });
-    const [hc, hg] = canvas(512, 32); hg.fillStyle = "#14101e"; hg.fillRect(0, 0, 512, 32); hg.fillStyle = "#ffc845"; for (let x = -32; x < 512; x += 32) { hg.beginPath(); hg.moveTo(x, 32); hg.lineTo(x + 16, 0); hg.lineTo(x + 32, 0); hg.lineTo(x + 16, 32); hg.fill(); }
-    const side = M({ color: 0x4a4860, metalness: .85, roughness: .38, envMapIntensity: .3 }), front = M({ map: ctex(hc, [3, 1]), metalness: .3, roughness: .5, envMapIntensity: .2 });
-    const b = new THREE.Mesh(new THREE.BoxGeometry(W - .006, PH, PD), [side, side, top, side, front, side]); b.castShadow = b.receiveShadow = true; pusherMesh.add(b);
-  const s = new THREE.Mesh(new THREE.BoxGeometry(W - .006, .008, .006), Bm(0x5fe8ff)); s.position.set(0, PH / 2 - .006, PD / 2 + .002); pusherMesh.add(s); }
+// ---- the machine: the same model the casino floor uses, placed so its play area lines up with the physics (tray floor y = 0, back wall z = 0) ----
+const machine = buildPusher(THREE, { play: true, tex: { zib: ART.zib }, dims: { W, L, PH, PD, GUTTER } });
+machine.root.position.copy(machine.play.position).multiplyScalar(-1); scene.add(machine.root);
+const MQY = PH + .48, MQH = (W - .06) * 300 / 1024;          // where the lookout screen sits (matches the model)
 
 // ---- the pieces: gold bars (your currency: a rounded plaque with the alien emblem), crystals ----
 function emblem(g, cx, cy, sc, ink, hi) { g.save(); g.translate(cx, cy); g.scale(sc, sc); g.lineCap = "round"; g.lineJoin = "round";
@@ -250,13 +182,7 @@ function barFaceTexture(d) { const [c, g] = canvas(500, 300), t = ctex(c), badge
     t.needsUpdate = true; };
   faceTex.push(paint); if (faceImg.complete && faceImg.naturalWidth) paint(); return t; }
 faceImg.onload = () => faceTex.forEach(f => f()); faceImg.src = ART.barFace;
-function barGeometry() { const [bw, bh, bd] = BAR, r = .009, e = .0022, sh = new THREE.Shape(), x = -bw / 2 + e, y = -bd / 2 + e, w = bw - 2 * e, h = bd - 2 * e;
-  sh.moveTo(x + r, y); sh.lineTo(x + w - r, y); sh.lineTo(x + w, y + r); sh.lineTo(x + w, y + h - r); sh.lineTo(x + w - r, y + h); sh.lineTo(x + r, y + h); sh.lineTo(x, y + h - r); sh.lineTo(x, y + r); sh.lineTo(x + r, y);   // cut corners, like the picture
-  const g = new THREE.ExtrudeGeometry(sh, { depth: bh - 2 * e, bevelEnabled: true, bevelThickness: e, bevelSize: e, bevelSegments: 2, curveSegments: 4 });
-  g.rotateX(-Math.PI / 2); g.translate(0, -(bh - 2 * e) / 2, 0);
-  const pos = g.attributes.position, uv = g.attributes.uv; for (let i = 0; i < pos.count; i++) uv.setXY(i, (pos.getX(i) + bw / 2) / bw, 1 - (pos.getZ(i) + bd / 2) / bd);   // the face picture runs across the top
-  g.computeVertexNormals(); return g; }
-const barGeo = barGeometry(), sideMat = M({ color: 0xb8700c, metalness: .95, roughness: .32, envMapIntensity: .7 }), MAXN = 420;   // the edges: a deep gold
+const barGeo = buildPusher.barGeometry(THREE, BAR), sideMat = M({ color: 0xb8700c, metalness: .95, roughness: .32, envMapIntensity: .7 }), MAXN = 420;   // the edges: a deep gold
 const barMesh = {}; for (const d of DENOMS) { const im = new THREE.InstancedMesh(barGeo, [M({ map: barFaceTexture(d), color: 0xf0e2c8, metalness: .5, roughness: .42, envMapIntensity: .45 }), sideMat], MAXN); im.count = 0; im.castShadow = im.receiveShadow = true; im.frustumCulled = false; scene.add(im); barMesh[d] = im; }
 const GEM_COL = { blue: [0x1478e8, 0x0636a8], violet: [0x8a3df0, 0x4a12b0], pink: [0xf02080, 0xa00848], gold: [0xffa800, 0xc06a00], rainbow: [0xffffff, 0x8a3ab0] };
 function gemGeometry(size) { const v = gemPoints(size), P = i => [v[i * 3], v[i * 3 + 1], v[i * 3 + 2]], tri = []; for (let i = 0; i < 6; i++) { const j = (i + 1) % 6; tri.push(...P(j), ...P(i), ...P(6), ...P(i), ...P(j), ...P(7)); }
@@ -269,13 +195,23 @@ const ghost = new THREE.Mesh(barGeo, new THREE.MeshBasicMaterial({ color: 0xffc8
 
 // ---- framing: the whole tray in view, tall phones see it from higher up ----
 const fx = $("fx"), fg = fx.getContext("2d"); let VW = 1, VH = 1, baseCamY = 1;
+// fit the camera so everything that matters is on screen whatever the phone's shape: the lookout screen at the top, the front lip and both gutters at the bottom
+const FIT = [[-W / 2, MQY + MQH / 2 + .05, 0], [W / 2, MQY + MQH / 2 + .05, 0], [-W / 2 - .02, 0, L], [W / 2 + .02, 0, L], [-W / 2, 0, .3], [W / 2, 0, .3]];
+const camDir = new THREE.Vector3(0, .66, .75).normalize(), camTgt = new THREE.Vector3(0, .32, .45), tmpV = new THREE.Vector3();
+function frameCam() { const fits = () => FIT.every(p => { tmpV.set(...p).project(cam); return Math.abs(tmpV.x) < .97 && tmpV.y > -.94 && tmpV.y < .93; });
+  for (let pass = 0; pass < 3; pass++) { let lo = 1, hi = 8;
+    for (let i = 0; i < 24; i++) { const d = (lo + hi) / 2; cam.position.copy(camTgt).addScaledVector(camDir, d); cam.lookAt(camTgt); cam.updateMatrixWorld(); if (fits()) hi = d; else lo = d; }
+    cam.position.copy(camTgt).addScaledVector(camDir, hi); cam.lookAt(camTgt); cam.updateMatrixWorld();
+    let ymin = 9, ymax = -9; for (const p of FIT) { tmpV.set(...p).project(cam); ymin = Math.min(ymin, tmpV.y); ymax = Math.max(ymax, tmpV.y); }
+    camTgt.y += ((ymax + ymin) / 2 + .005) * .35; }   // re-centre the content vertically, then fit again
+  baseCamY = cam.position.y; }
 function size() { const r = $("fieldbox").getBoundingClientRect(); VW = r.width; VH = r.height; renderer.setSize(VW, VH, false); const dpr = Math.min(2, devicePixelRatio || 1); fx.width = VW * dpr; fx.height = VH * dpr; fg.setTransform(dpr, 0, 0, dpr, 0, 0);
-  const a = VW / VH; cam.aspect = a; cam.fov = a < .62 ? 50 : 40; const d = Math.max(1.5, 1.46 * .72 / Math.max(.45, a));   // further back on narrow screens so the full width fits
-  cam.position.set(0, d * .8, L * .5 + d * .66); baseCamY = d * .8; cam.lookAt(0, .07, L * .38); cam.updateProjectionMatrix(); }
+  const a = VW / VH; cam.aspect = a; cam.fov = a < .62 ? 46 : 40; cam.updateProjectionMatrix(); camTgt.set(0, .32, .45); frameCam();
+  tmpV.set(0, MQY - MQH / 2 - .04, 0).project(cam); $("dealer").style.top = Math.max(8, (1 - tmpV.y) / 2 * VH + 4) + "px"; }   // Zib's speech bubble sits just under the screen
 
 // ---- each frame: copy the physics into the meshes ----
 const tmpM = new THREE.Matrix4(), tmpQ = new THREE.Quaternion(), tmpP = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1);
-function sync(t) { pusherMesh.position.set(0, PH / 2, face - PD / 2); const n = {}; for (const d of DENOMS) n[d] = 0; const seen = new Set();
+function sync(t) { machine.setFace(face); const n = {}; for (const d of DENOMS) n[d] = 0; const seen = new Set();
   for (const p of pieces) { const tr = p.body.translation(), q = p.body.rotation(); tmpP.set(tr.x, tr.y, tr.z); tmpQ.set(q.x, q.y, q.z, q.w);
     if (p.kind === "bar") { const im = barMesh[p.denom] || barMesh[1], i = n[p.denom] = (n[p.denom] || 0); if (i >= MAXN) continue; tmpM.compose(tmpP, tmpQ, one); im.setMatrixAt(i, tmpM); n[p.denom] = i + 1; }
     else { let m = gemMeshes.get(p.id); if (!m) { m = new THREE.Mesh(gemGeo[p.kind], p.kind === "rainbow" ? gemMat.rainbow.clone() : gemMat[p.kind]); m.castShadow = true; scene.add(m); gemMeshes.set(p.id, m); }
@@ -350,7 +286,9 @@ function frame(now) { const dt = Math.min(.1, (now - last) / 1000); last = now; 
     if (auto && !holding && gap > 450) { sweep += .9; dropAt(Math.sin(sweep) * (W / 2 - .1)); }
     sync(now / 1000); const ls = lookout().state + (now < busted); if (ls !== lastLook) { lastLook = ls; frame.mq = -1; $("fieldbox").classList.toggle("ready", lookout().state === "clear"); } }
   ghost.visible = !!holding; if (holding) ghost.position.set(holding.x, PH + .22, .08);
-  if (Math.floor(now / 125) !== frame.mq) { frame.mq = Math.floor(now / 125); drawMarquee(now / 1000); }
+  machine.update(now / 1000);
+  if (Math.floor(now / 125) !== frame.mq) { frame.mq = Math.floor(now / 125); const Lk = lookout(), bz = now < busted ? (now < busted - 2500 ? 1 : 2) : 0;
+    machine.drawScreen(now / 1000, { ...Lk, slaps: LOOK.slaps, clear: LOOK.clear, soon: LOOK.soon, bust: bz }); }
   const sk = Math.max(0, 1 - (now - shakeT) / 350); if (sk > 0) { cam.position.x = shakeSide * -.025 * sk * Math.cos((now - shakeT) / 18); cam.position.y = baseCamY + .01 * sk * Math.sin((now - shakeT) / 14); } else if (cam.position.x) { cam.position.x = 0; cam.position.y = baseCamY; }
   renderer.render(scene, cam); drawFx(dt); requestAnimationFrame(frame); }
 
@@ -394,7 +332,7 @@ $("fclear").addEventListener("click", () => { if (ready) forceClear(); $("sheet"
 $("freset").addEventListener("click", () => { if (ready) { seed(1); save(); } $("sheet").hidden = true; });
 document.addEventListener("pointerdown", () => Sound.unlock(), { once: true });
 addEventListener("resize", size);
-size(); paint(); drawMarquee(0);  requestAnimationFrame(t => { last = t; frame(t); });
+size(); paint();  requestAnimationFrame(t => { last = t; frame(t); });
 // start the physics engine (a WebAssembly module from the CDN), then the pile you left last time or a fresh one
 (async () => { try { const mod = await import(RAPIER_URL), RAPIER = mod.default || mod; await RAPIER.init(); init(RAPIER);
     let ok = false; try { ok = restore(JSON.parse(localStorage.getItem(SAVE) || "null")); } catch (e) {} if (!ok) seed(1);
