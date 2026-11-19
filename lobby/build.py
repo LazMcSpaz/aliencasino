@@ -10,6 +10,7 @@ tex = {
   "pyramid": {"screen": d(C/"pyr_screen.webp"), "rects": json.load(open(C/"pyr_rects.json"))},
   "asteroid": {"screen": d(C/"ast_screen.webp"), "rects": json.load(open(C/"ast_rects.json"))},
   "gravity": {"bowl": d(C/"gw_bowl.webp"), "face": d(C/"tex_face_happy.webp"), "launcher": d(here/"../gravity/art/launcher.webp")},
+  "pusher": {"bar": d(here/"../pusher/art/bar_face.webp"), "zib": d(here/"../pyramid/art/mascot/head_excited.webp")},
   "moons": {"face": d(C/"tex_face_happy.webp")},
   "warp": {k: d(C/f"warp_{k}.webp") for k in ["pad", "clouds", "orbit", "nebula", "boom"]},
 }

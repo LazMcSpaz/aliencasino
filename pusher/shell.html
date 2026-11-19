@@ -49,10 +49,12 @@ body{margin:0;background:radial-gradient(100% 60% at 50% 30%,#1a1240 0%,var(--vo
 @keyframes ban{0%{opacity:0;transform:scale(.4)}12%{opacity:1;transform:scale(1.15)}22%{transform:scale(1)}80%{opacity:1}100%{opacity:0;transform:scale(1.05)}}
 .controls{display:grid;gap:7px}
 .row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px}
-.denoms{padding:7px 8px;display:grid;gap:5px}
-.seg{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
-.seg button{border:0;cursor:pointer;padding:8px 0;border-radius:50px;font:700 .9rem var(--f-mono);color:#fff;background:radial-gradient(circle at 35% 30%,color-mix(in srgb,var(--c) 70%,#fff),var(--c) 45%,color-mix(in srgb,var(--c) 45%,#000));opacity:.45;box-shadow:inset 0 -2px 0 #0006}
-.seg button[aria-pressed="true"]{opacity:1;box-shadow:0 0 0 2px #fff,0 0 14px var(--c);text-shadow:0 1px 2px #000a}
+.prizes{padding:7px 8px;display:grid;gap:6px}
+.gems{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;align-items:end}
+.gems span{display:grid;justify-items:center;gap:3px;font:700 .82rem/1 var(--f-mono);color:#fff;text-shadow:0 0 6px var(--c)}
+.gems i{width:16px;height:20px;clip-path:polygon(50% 0,100% 38%,80% 100%,20% 100%,0 38%);background:linear-gradient(160deg,#fff 0%,var(--c) 35%,color-mix(in srgb,var(--c) 50%,#000) 100%);filter:drop-shadow(0 0 4px var(--c))}
+.gems .rb i{background:conic-gradient(#ff5fae,#ffc845,#8dff6a,#5fe8ff,#b48cff,#ff5fae)}
+.gems small{font:400 .44rem var(--f-mono);letter-spacing:.06em;color:var(--dim);text-shadow:none}
 .winbox{--hc:var(--win);min-width:104px;padding:7px 10px;display:grid;align-content:center;gap:4px;text-align:right}
 .winbox b{font:700 1.4rem/1 var(--f-mono);color:#fff;text-shadow:0 0 10px var(--win)}
 .winbox.pop{animation:pop .5s}
@@ -71,6 +73,20 @@ body{margin:0;background:radial-gradient(100% 60% at 50% 30%,#1a1240 0%,var(--vo
 .card .dbg{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
 .card .dbg button{--k:6px;font:600 .72rem var(--f-mono);padding:7px 10px;cursor:pointer;color:var(--holo)}
 .say{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+/* slap the side: a hand at each edge of the machine */
+.slap{--k:8px;--hc:#c8d0e8;background:#080a1ccc;position:absolute;z-index:5;bottom:20%;width:50px;height:62px;padding:0;cursor:pointer;display:grid;place-items:center;gap:0;opacity:.6;touch-action:manipulation}
+.slap svg{width:30px;height:30px;fill:none;stroke:var(--hc);stroke-width:1.7;stroke-linejoin:round;stroke-linecap:round;filter:drop-shadow(0 0 4px var(--hc))}
+.slap small{font:400 .48rem/1 var(--f-mono);letter-spacing:.14em;color:var(--hc);margin-top:-6px}
+.slap.l{left:6px}.slap.r{right:6px}.slap.r svg{transform:scaleX(-1)}
+.ready .slap{--hc:var(--win);opacity:1;animation:slapc .45s ease-in-out infinite alternate}
+@keyframes slapc{to{transform:scale(1.08);box-shadow:inset 0 0 0 1px var(--win),inset 0 0 22px #7dff9a55,0 0 14px #7dff9a77}}
+.slap:active{transform:scale(.9)!important}
+.flash{position:absolute;inset:0;z-index:4;pointer-events:none;opacity:0;background:radial-gradient(closest-side,transparent 40%,#ff1e3c88)}
+.flash.go{animation:flash 1.4s ease-out}
+@keyframes flash{0%,30%,60%{opacity:1}15%,45%{opacity:.2}100%{opacity:0}}
+.guard{position:absolute;z-index:6;bottom:0;width:120px;height:190px;pointer-events:none;opacity:0;transition:transform .35s cubic-bezier(.2,1.3,.5,1),opacity .2s}
+.guard.l{left:-10px;transform:translateX(-110%)}.guard.r{right:-10px;transform:translateX(110%) scaleX(-1)}
+.guard.show{opacity:1}.guard.l.show{transform:none}.guard.r.show{transform:scaleX(-1)}
 </style>
 
 <div class="app" id="app">
@@ -87,14 +103,19 @@ body{margin:0;background:radial-gradient(100% 60% at 50% 30%,#1a1240 0%,var(--vo
     <canvas id="fx" aria-hidden="true"></canvas>
     <div class="boot" id="boot">Starting the 3D physics…</div>
     <div class="banner" id="banner"></div>
+    <div class="flash" id="flash"></div>
+    <button class="slap holo l" id="slapl" aria-label="Slap the left side of the machine"><svg viewBox="0 0 32 32"><path d="M9 29c-3-2-6-7-6-11l2-6c.6-1.6 3-1.3 3 .5V16V5.5c0-2 3-2 3 0V14V3.5c0-2 3-2 3 0V14V4.5c0-2 3-2 3 0V15V8.5c0-2 3-2 3 0V20c0 4-2 7-5 9z"/><path d="M27 9l3-2M27 14h4M27 19l3 2"/></svg><small>SLAP</small></button>
+    <button class="slap holo r" id="slapr" aria-label="Slap the right side of the machine"><svg viewBox="0 0 32 32"><path d="M9 29c-3-2-6-7-6-11l2-6c.6-1.6 3-1.3 3 .5V16V5.5c0-2 3-2 3 0V14V3.5c0-2 3-2 3 0V14V4.5c0-2 3-2 3 0V15V8.5c0-2 3-2 3 0V20c0 4-2 7-5 9z"/><path d="M27 9l3-2M27 14h4M27 19l3 2"/></svg><small>SLAP</small></button>
+    <svg class="guard" id="guard" viewBox="0 0 120 190" aria-hidden="true"><defs><linearGradient id="gg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#2a3a6a"/><stop offset="1" stop-color="#0c1230"/></linearGradient></defs>
+      <path d="M20 190c0-50 8-86 40-92 32 6 40 42 40 92z" fill="url(#gg)" stroke="#5fe8ff" stroke-width="1.5"/><rect x="50" y="118" width="20" height="13" rx="2" fill="#ffc845"/><text x="60" y="128" font-size="8" text-anchor="middle" font-family="monospace" font-weight="700" fill="#1a1240">SEC</text>
+      <ellipse cx="60" cy="70" rx="24" ry="27" fill="#7be08a" stroke="#0c1230" stroke-width="2"/><ellipse cx="51" cy="70" rx="7" ry="9" fill="#0c1230"/><ellipse cx="69" cy="70" rx="7" ry="9" fill="#0c1230"/><path d="M50 86q10-5 20 0" stroke="#0c1230" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+      <path d="M30 52q30-22 60 0l-4 6H34z" fill="#1a2550" stroke="#5fe8ff" stroke-width="1.5"/><rect x="54" y="38" width="12" height="7" rx="2" fill="#ff4d6d"/><path d="M96 130l18-10 4 6-18 10z" fill="#c8d0e0"/></svg>
     <div class="bub" id="dealer"><b>ZIB</b><span></span></div>
     <p class="say" id="say" aria-live="polite"></p>
   </section>
   <section class="controls">
     <div class="row">
-      <div class="denoms holo"><span class="lbl">Bar value</span><div class="seg" id="seg">
-        <button data-v="1" style="--c:#c8d0e0" aria-label="Bars worth 1">1</button><button data-v="5" style="--c:#ffc845" aria-label="Bars worth 5">5</button>
-        <button data-v="10" style="--c:#b48cff" aria-label="Bars worth 10">10</button><button data-v="25" style="--c:#5fe8ff" aria-label="Bars worth 25">25</button></div></div>
+      <div class="prizes holo" id="prizes" aria-label="Crystal prizes"><span class="lbl">Crystals pay</span><div class="gems" id="gems"></div></div>
       <div class="winbox holo" id="winbox"><span class="lbl">Won</span><b id="won">0</b></div>
     </div>
     <div class="deck">
@@ -105,13 +126,14 @@ body{margin:0;background:radial-gradient(100% 60% at 50% 30%,#1a1240 0%,var(--vo
 </div>
 <div class="sheet" id="sheet" hidden><div class="card holo" role="dialog" aria-label="How to play">
   <h2>How to play</h2>
-  <p>Tap over the machine to drop a gold bar onto the sliding pusher, left or right where you tap (hold to keep dropping). Pick the bar's value first.</p>
+  <p>Tap over the machine to drop a gold bar (1 bar each) onto the sliding pusher, left or right where you tap (hold to keep dropping).</p>
   <p>When the pusher pulls back, the wall behind it scrapes the bars off onto the tray. When it comes forward, it shoves the whole pile. Bars stack, slide and tip over like real ones.</p>
   <p>Everything that falls over the <b>front edge</b> is yours. The two <b>corner gutters</b> keep what falls in them.</p>
-  <p>Crystals turn up now and then instead of a bar. They pay a multiple of the bar value you were playing when they appeared:</p>
+  <p>Crystals turn up now and then instead of a bar. Push one over the edge to win it:</p>
   <table id="paytable"></table>
+  <p><b>Slapping:</b> Zib keeps watch up top. When the guard looks away the screen goes green: <b>CLEAR!</b> You get two slaps on the side of the machine to shake bars loose. Slap while the guard is watching and security fines you 15 bars.</p>
   <p>Your pile is kept between visits. Over a long time the machine pays back about 95% of what goes in.</p>
-  <div class="dbg"><button class="holo" id="fufo">Debug: next is a rainbow crystal</button><button class="holo" id="fstar">Debug: next is the gold crystal</button><button class="holo" id="freset">Debug: fresh tray</button><button class="holo" id="close">Close</button></div>
+  <div class="dbg"><button class="holo" id="fufo">Debug: next is a rainbow crystal</button><button class="holo" id="fstar">Debug: next is the gold crystal</button><button class="holo" id="fclear">Debug: coast is clear</button><button class="holo" id="freset">Debug: fresh tray</button><button class="holo" id="close">Close</button></div>
 </div></div>
 
 <script>
@@ -121,8 +143,7 @@ const ART = /*{{ART}}*/;
 document.documentElement.style.setProperty("--bar", `url(${ART.bar})`);
 const $ = id => document.getElementById(id);
 const SAVE = "alien-casino-pusher3d", RAPIER_URL = "https://cdn.jsdelivr.net/npm/@dimforge/rapier3d-compat@0.14.0/rapier.es.js";
-let denom = 1, won = 0, auto = false, holding = null, lastDrop = 0, ready = false;
-try { const d = +localStorage.getItem(SAVE + "-denom"); if (DENOMS.includes(d)) denom = d; } catch (e) {}
+const denom = 1; let won = 0, auto = false, holding = null, lastDrop = 0, ready = false;
 
 // ---- the 3D view ----
 const cv = $("cv"), renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true });
@@ -160,17 +181,58 @@ const add = (geo, m, p = [0, 0, 0], r = [0, 0, 0], shadow = true) => { const o =
   add(new THREE.BoxGeometry(W + .1, .62, .06), M({ color: 0x0e0a22, metalness: .3, roughness: .7, envMapIntensity: .15 }), [0, PH + .004 + .31, -.03]);
   add(new THREE.BoxGeometry(W, .008, .02), Bm(0x5fe8ff), [0, PH + .012, .001], [0, 0, 0], false);
   add(new THREE.BoxGeometry(W - .1, .025, .05), M({ color: 0x0c0820, roughness: .4 }), [0, PH + .3, .03]); add(new THREE.BoxGeometry(W - .1, .005, .052), Bm(0xff5fae), [0, PH + .29, .03], [0, 0, 0], false);
+  // ---- dressing: a starfield back panel, a chrome frame round the marquee, pillars with neon tubes, a diamond-plate pusher ----
+  { const [c, g] = canvas(1024, 300), gr = g.createLinearGradient(0, 0, 0, 300); gr.addColorStop(0, "#1a0f3a"); gr.addColorStop(1, "#07051a"); g.fillStyle = gr; g.fillRect(0, 0, 1024, 300);
+    for (let i = 0; i < 220; i++) { g.fillStyle = `rgba(255,255,255,${Math.random() * .7 + .1})`; const r = Math.random() < .08 ? 2.2 : 1; g.beginPath(); g.arc(Math.random() * 1024, Math.random() * 300, r, 0, 7); g.fill(); }
+    const pl = g.createRadialGradient(150, 110, 8, 170, 130, 80); pl.addColorStop(0, "#ffb070"); pl.addColorStop(.6, "#c8486a"); pl.addColorStop(1, "#2a0f3a"); g.fillStyle = pl; g.beginPath(); g.arc(170, 130, 70, 0, 7); g.fill();
+    g.strokeStyle = "#ffc84588"; g.lineWidth = 5; g.beginPath(); g.ellipse(170, 130, 120, 22, -.25, 0, 7); g.stroke();
+    const p2 = g.createRadialGradient(880, 80, 4, 890, 90, 40); p2.addColorStop(0, "#c8fbff"); p2.addColorStop(1, "#1e5aa8"); g.fillStyle = p2; g.beginPath(); g.arc(890, 90, 36, 0, 7); g.fill();
+    g.lineWidth = 9; g.lineJoin = "round"; for (let i = 0; i < 5; i++) { g.strokeStyle = `rgba(125,255,154,${.25 + i * .17})`; g.shadowColor = "#7dff9a"; g.shadowBlur = 14; const x = 512, y = 60 + i * 40; g.beginPath(); g.moveTo(x - 60, y); g.lineTo(x, y + 26); g.lineTo(x + 60, y); g.stroke(); } g.shadowBlur = 0;
+    g.font = '400 30px "Bungee",Impact,sans-serif'; g.textAlign = "center"; g.fillStyle = "#7dff9a"; g.shadowColor = "#7dff9a"; g.shadowBlur = 12; g.fillText("DROP ZONE", 512, 286); g.shadowBlur = 0;
+    add(new THREE.PlaneGeometry(W - .02, .29), new THREE.MeshBasicMaterial({ map: ctex(c), toneMapped: false, color: 0xbbbbbb }), [0, PH + .155, .0015], [0, 0, 0], false); }
+  const chrome = M({ color: 0x6a6880, metalness: .95, roughness: .28, envMapIntensity: .45 });
+  const mqH = (W - .06) * 300 / 1024, mqY = PH + .48;
+  for (const y of [mqY + mqH / 2 + .018, mqY - mqH / 2 - .018]) add(new THREE.BoxGeometry(W + .02, .03, .04), chrome, [0, y, .01]);
+  for (const s of [-1, 1]) add(new THREE.BoxGeometry(.035, mqH + .066, .04), chrome, [s * (W / 2 - .01), mqY, .01]);
+  for (const s of [-1, 1]) { const x = s * (W / 2 + .045);   // back pillars up the sides, each with a glowing tube
+    add(new THREE.BoxGeometry(.07, .78, .1), M({ color: 0x15102e, metalness: .5, roughness: .45 }), [x, .39, .01]);
+    add(new THREE.CylinderGeometry(.009, .009, .74, 10), new THREE.MeshBasicMaterial({ color: s < 0 ? 0xff5fae : 0x5fe8ff, toneMapped: false }), [x - s * .03, .39, .065], [0, 0, 0], false);
+    add(new THREE.BoxGeometry(.012, .012, L + .15), new THREE.MeshBasicMaterial({ color: s < 0 ? 0xff5fae : 0x5fe8ff, toneMapped: false }), [s * (W / 2 + .015), .55, L / 2 - .02], [0, 0, 0], false);   // neon along the top of the glass
+    add(new THREE.BoxGeometry(.03, .03, L + .15), chrome, [s * (W / 2 + .015), .57, L / 2 - .02]); }
 }
 const [mqc, mqg] = canvas(1024, 300), mqTex = ctex(mqc);
 add(new THREE.PlaneGeometry(W - .06, (W - .06) * 300 / 1024), new THREE.MeshBasicMaterial({ map: mqTex }), [0, PH + .48, .002], [0, 0, 0], false);
-function drawMarquee(t) { const g = mqg; g.fillStyle = "#120b26"; g.fillRect(0, 0, 1024, 300); g.textAlign = "center"; g.textBaseline = "middle";
-  g.font = '400 132px "Monoton","Bungee",Impact,sans-serif'; g.shadowColor = "#ff7a3a"; g.shadowBlur = 30; g.fillStyle = "#fff1dc"; g.fillText("STAR", 470, 120);
-  g.font = '400 104px "Yellowtail",cursive'; g.shadowColor = "#5fe8ff"; g.fillStyle = "#e6fbff"; g.fillText("Dozer", 640, 225); g.shadowBlur = 0;
+// the marquee: the name on the left, and on the right the lookout's little screen: Zib watching the casino floor for the guard
+const ZIBIMG = {}; for (const [k, src] of Object.entries(ART.zib)) { const im = new Image(); im.src = src; ZIBIMG[k] = im; }
+const LOOKCOL = { watch: "#ff4d6d", soon: "#ffc845", clear: "#7dff9a", busted: "#ff4d6d" };
+function drawMarquee(t) { const g = mqg, now = t * 1000; g.fillStyle = "#120b26"; g.fillRect(0, 0, 1024, 300); g.textAlign = "center"; g.textBaseline = "middle";
+  g.font = '400 118px "Monoton","Bungee",Impact,sans-serif'; g.shadowColor = "#ff7a3a"; g.shadowBlur = 30; g.fillStyle = "#fff1dc"; g.fillText("STAR", 330, 118);
+  g.font = '400 96px "Yellowtail",cursive'; g.shadowColor = "#5fe8ff"; g.fillStyle = "#e6fbff"; g.fillText("Dozer", 470, 220); g.shadowBlur = 0;
   for (let i = 0; i < 26; i++) { const on = (i + Math.floor(t * 8)) % 3 === 0; g.fillStyle = on ? ["#ff5fae", "#ffc845", "#8dff6a"][i % 3] : "#3a2a5a"; for (const y of [14, 286]) { g.beginPath(); g.arc(20 + i * 38.5, y, on ? 9 : 6, 0, 7); g.fill(); } }
+  // the lookout screen
+  const L = lookout(), bust = now < busted, st = bust ? "busted" : L.state, col = LOOKCOL[st], x0 = 690, y0 = 36, w = 300, h = 228, flick = st === "clear" && Math.floor(t * 6) % 2;
+  g.fillStyle = "#05060f"; g.fillRect(x0 - 8, y0 - 8, w + 16, h + 16); g.strokeStyle = "#8d8aa0"; g.lineWidth = 4; g.strokeRect(x0 - 8, y0 - 8, w + 16, h + 16);
+  const gr = g.createLinearGradient(0, y0, 0, y0 + h); gr.addColorStop(0, col + "40"); gr.addColorStop(1, col + "10"); g.fillStyle = gr; g.fillRect(x0, y0, w, h);
+  g.fillStyle = col + "18"; for (let y = y0; y < y0 + h; y += 6) g.fillRect(x0, y, w, 2);   // scan lines
+  const face = ZIBIMG[bust ? (now < busted - 2500 ? "surprised" : "angry") : { watch: "neutral", soon: "wink", clear: "excited" }[L.state]];
+  if (face.complete && face.naturalWidth) { const fh = 138, fw = fh * face.naturalWidth / face.naturalHeight, bob = st === "clear" ? Math.sin(t * 14) * 5 : st === "watch" ? Math.sin(t * 1.3) * 3 : 0;
+    g.save(); g.shadowColor = col; g.shadowBlur = 18; if (st === "watch") { g.translate(x0 + w / 2, 0); g.scale(Math.sin(t * .7) > 0 ? 1 : -1, 1); g.translate(-(x0 + w / 2), 0); }   // looks one way, then the other
+    g.drawImage(face, x0 + w / 2 - fw / 2 + bob, y0 + 6, fw, fh); g.restore(); }
+  g.font = '400 44px "Bungee",Impact,sans-serif'; g.fillStyle = flick ? "#ffffff" : col; g.shadowColor = col; g.shadowBlur = 16;
+  g.fillText(bust ? "SECURITY!" : L.state === "clear" ? "CLEAR!" : L.state === "soon" ? "GET READY" : "WATCHING", x0 + w / 2, y0 + 168); g.shadowBlur = 0;
+  const full = L.state === "clear" ? LOOK.clear : L.state === "soon" ? LOOK.soon : 0;
+  if (full && !bust) { g.fillStyle = "#ffffff18"; g.fillRect(x0 + 20, y0 + 198, w - 40, 12); g.fillStyle = col; g.fillRect(x0 + 20, y0 + 198, (w - 40) * Math.min(1, L.t / full), 12); }
+  if (L.state === "clear") for (let i = 0; i < LOOK.slaps; i++) { g.globalAlpha = i < L.left ? 1 : .25; g.fillStyle = col; g.beginPath(); g.arc(x0 + w - 34 - i * 30, y0 + 24, 10, 0, 7); g.fill(); } g.globalAlpha = 1;
+  if (st === "watch" || bust) { g.fillStyle = Math.floor(t * 2) % 2 ? col : col + "44"; g.beginPath(); g.arc(x0 + 22, y0 + 22, 9, 0, 7); g.fill(); }   // the red "on air" light
   mqTex.needsUpdate = true; }
 // the pusher block: chrome, with a lit strip along its front edge
 const pusherMesh = new THREE.Group(); scene.add(pusherMesh);
-{ const b = new THREE.Mesh(new THREE.BoxGeometry(W - .006, PH, PD), M({ color: 0x5a5870, metalness: .85, roughness: .38, envMapIntensity: .3 })); b.castShadow = b.receiveShadow = true; pusherMesh.add(b);
+{ const [c, g] = canvas(256, 256); g.fillStyle = "#6a6880"; g.fillRect(0, 0, 256, 256); g.fillStyle = "#9896ae"; g.strokeStyle = "#3a384c"; g.lineWidth = 2;
+    for (let y = 0; y < 256; y += 32) for (let x = (y / 32 % 2) * 16; x < 256; x += 32) { g.save(); g.translate(x + 8, y + 8); g.rotate(y / 32 % 2 ? .7 : -.7); g.beginPath(); g.ellipse(0, 0, 11, 3.5, 0, 0, 7); g.fill(); g.stroke(); g.restore(); }
+    const top = M({ map: ctex(c, [8, 5]), color: 0xffffff, metalness: .85, roughness: .36, envMapIntensity: .35 });
+    const [hc, hg] = canvas(512, 32); hg.fillStyle = "#14101e"; hg.fillRect(0, 0, 512, 32); hg.fillStyle = "#ffc845"; for (let x = -32; x < 512; x += 32) { hg.beginPath(); hg.moveTo(x, 32); hg.lineTo(x + 16, 0); hg.lineTo(x + 32, 0); hg.lineTo(x + 16, 32); hg.fill(); }
+    const side = M({ color: 0x4a4860, metalness: .85, roughness: .38, envMapIntensity: .3 }), front = M({ map: ctex(hc, [3, 1]), metalness: .3, roughness: .5, envMapIntensity: .2 });
+    const b = new THREE.Mesh(new THREE.BoxGeometry(W - .006, PH, PD), [side, side, top, side, front, side]); b.castShadow = b.receiveShadow = true; pusherMesh.add(b);
   const s = new THREE.Mesh(new THREE.BoxGeometry(W - .006, .008, .006), Bm(0x5fe8ff)); s.position.set(0, PH / 2 - .006, PD / 2 + .002); pusherMesh.add(s); }
 
 // ---- the pieces: gold bars (your currency: a rounded plaque with the alien emblem), crystals ----
@@ -196,20 +258,20 @@ function barGeometry() { const [bw, bh, bd] = BAR, r = .009, e = .0022, sh = new
   g.computeVertexNormals(); return g; }
 const barGeo = barGeometry(), sideMat = M({ color: 0xb8700c, metalness: .95, roughness: .32, envMapIntensity: .7 }), MAXN = 420;   // the edges: a deep gold
 const barMesh = {}; for (const d of DENOMS) { const im = new THREE.InstancedMesh(barGeo, [M({ map: barFaceTexture(d), color: 0xf0e2c8, metalness: .5, roughness: .42, envMapIntensity: .45 }), sideMat], MAXN); im.count = 0; im.castShadow = im.receiveShadow = true; im.frustumCulled = false; scene.add(im); barMesh[d] = im; }
-const GEM_COL = { blue: [0x1e8cff, 0x0a4ad0], violet: [0x9a4dff, 0x5a1ad0], pink: [0xff2d8a, 0xc0105a], gold: [0xffb000, 0xd08000], rainbow: [0xffffff, 0x8a3ab0] };
+const GEM_COL = { blue: [0x1478e8, 0x0636a8], violet: [0x8a3df0, 0x4a12b0], pink: [0xf02080, 0xa00848], gold: [0xffa800, 0xc06a00], rainbow: [0xffffff, 0x8a3ab0] };
 function gemGeometry(size) { const v = gemPoints(size), P = i => [v[i * 3], v[i * 3 + 1], v[i * 3 + 2]], tri = []; for (let i = 0; i < 6; i++) { const j = (i + 1) % 6; tri.push(...P(j), ...P(i), ...P(6), ...P(i), ...P(j), ...P(7)); }
   const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(tri, 3)); g.computeVertexNormals(); return g; }
 const gemGeo = {}, gemMat = {}; for (const [k, it] of Object.entries(ITEMS)) { gemGeo[k] = gemGeometry(it.size); const [c, e] = GEM_COL[k];
-  gemMat[k] = new THREE.MeshPhysicalMaterial({ color: c, emissive: e, emissiveIntensity: .75, metalness: .2, roughness: .12, flatShading: true, envMapIntensity: .5, transparent: true, opacity: .9 }); }
+  gemMat[k] = new THREE.MeshPhysicalMaterial({ color: c, emissive: e, emissiveIntensity: .32, metalness: 0, roughness: .06, clearcoat: 1, flatShading: true, envMapIntensity: .3, toneMapped: false }); }   // not tone-mapped: keeps the colours rich
 const rainbowCols = [0xff5fae, 0xffc845, 0x7dff9a, 0x5fe8ff, 0xb48cff];
 const gemMeshes = new Map();   // piece id → its mesh
 const ghost = new THREE.Mesh(barGeo, new THREE.MeshBasicMaterial({ color: 0xffc845, transparent: true, opacity: .35, depthWrite: false })); ghost.visible = false; scene.add(ghost);
 
 // ---- framing: the whole tray in view, tall phones see it from higher up ----
-const fx = $("fx"), fg = fx.getContext("2d"); let VW = 1, VH = 1;
+const fx = $("fx"), fg = fx.getContext("2d"); let VW = 1, VH = 1, baseCamY = 1;
 function size() { const r = $("fieldbox").getBoundingClientRect(); VW = r.width; VH = r.height; renderer.setSize(VW, VH, false); const dpr = Math.min(2, devicePixelRatio || 1); fx.width = VW * dpr; fx.height = VH * dpr; fg.setTransform(dpr, 0, 0, dpr, 0, 0);
   const a = VW / VH; cam.aspect = a; cam.fov = a < .62 ? 50 : 40; const d = Math.max(1.5, 1.46 * .72 / Math.max(.45, a));   // further back on narrow screens so the full width fits
-  cam.position.set(0, d * .8, L * .5 + d * .66); cam.lookAt(0, .07, L * .38); cam.updateProjectionMatrix(); }
+  cam.position.set(0, d * .8, L * .5 + d * .66); baseCamY = d * .8; cam.lookAt(0, .07, L * .38); cam.updateProjectionMatrix(); }
 
 // ---- each frame: copy the physics into the meshes ----
 const tmpM = new THREE.Matrix4(), tmpQ = new THREE.Quaternion(), tmpP = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1);
@@ -240,13 +302,20 @@ function handle(evs) { for (const e of evs) {
       if (gem) { banner(NAMES[e.kind] + "!", e.val ? `+${e.val}` : "bar shower coming", GEMHEX[e.kind]); say(LINES[e.kind]); } }
     if (e.type === "gutter") { const [sx, sy] = toScreen(e.x, 0, L); burst(sx, sy, "#ff4d6d", 4); SFX.gutter(); }
     if (e.type === "shower") { banner("BAR SHOWER!", `${e.n} free bars`, "#7dff9a"); SFX.shower(); }
-    if (e.type === "prize") { SFX.prize(); say(`A ${NAMES[e.kind].toLowerCase()} on the pusher!`); } }
+    if (e.type === "prize") { SFX.prize(); say(`A ${NAMES[e.kind].toLowerCase()} on the pusher!`); }
+    if (e.type === "soon") { say(pick(LOOKLINES.soon)); SFX.psst(); }
+    if (e.type === "clear") { say(pick(LOOKLINES.clear)); SFX.clear(); }
+    if (e.type === "watch" && !e.used) say(pick(LOOKLINES.back)); }
   paint(); }
 function popWin() { const b = $("winbox"); b.classList.remove("pop"); void b.offsetWidth; b.classList.add("pop"); }
-function paint() { $("credits").textContent = credits; $("won").textContent = won; document.querySelectorAll("#seg button").forEach(b => b.setAttribute("aria-pressed", String(+b.dataset.v === denom)));
+function paint() { $("credits").textContent = credits; $("won").textContent = won;
   $("hint").firstChild.textContent = credits < denom ? "OUT OF BARS" : "TAP TO DROP"; }
 function say(t) { if (!t) return; $("say").textContent = t; const d = $("dealer"); d.querySelector("span").textContent = t; d.classList.remove("show"); void d.offsetWidth; d.classList.add("show"); clearTimeout(say.t); say.t = setTimeout(() => d.classList.remove("show"), 1600 + t.length * 40); }
 function banner(big, small, col) { const b = $("banner"); b.innerHTML = `${big}<small>${small || ""}</small>`; b.style.setProperty("--bc", col); b.classList.remove("show"); void b.offsetWidth; b.classList.add("show"); }
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const LOOKLINES = { soon: ["Psst… the guard's turning around…", "Hold on… he's looking at his phone…", "Wait for it…"],
+  clear: ["NOW! Slap it!", "Coast is clear! Give it a whack!", "Go go go! Slap the side!"], back: ["He's back. Act natural.", "Guard's watching again.", "Hands off! He's looking."],
+  caught: ["Busted! I TOLD you he was looking.", "Security! Ugh, act casual.", "That's a fine. Wait for my signal!"] };
 const LINES = { blue: "A blue crystal! Nice push.", violet: "Violet crystal! Shiny.", pink: "Pink crystal! That's a good one.", gold: "THE GOLD CRYSTAL! Jackpot!", rainbow: "Rainbow crystal! Bars incoming!" };
 
 // ---- dropping: where you tap, across the machine ----
@@ -254,13 +323,24 @@ const ray = new THREE.Raycaster(), dropPlane = new THREE.Plane(new THREE.Vector3
 function aimX(cx, cy) { const r = cv.getBoundingClientRect(); ray.setFromCamera({ x: (cx - r.left) / r.width * 2 - 1, y: -((cy - r.top) / r.height) * 2 + 1 }, cam);
   // project the tap onto the tray, then read off how far across it is (the further back the tap, the more the perspective narrows it)
   if (!ray.ray.intersectPlane(dropPlane, hit)) return 0; return Math.max(-W / 2 + .06, Math.min(W / 2 - .06, hit.x)); }
-function dropAt(x) { if (!ready) return; const p = drop(x, denom); if (!p) { say("Out of bars at that value."); if (auto) setAuto(false); paint(); return; } SFX.drop(); lastDrop = performance.now(); setTimeout(() => SFX.land(), 230); paint(); }
+function dropAt(x) { if (!ready) return; const p = drop(x, denom); if (!p) { say("Out of bars."); if (auto) setAuto(false); paint(); return; } SFX.drop(); lastDrop = performance.now(); setTimeout(() => SFX.land(), 230); paint(); }
 cv.addEventListener("pointerdown", e => { Sound.unlock(); Music.start(); holding = { id: e.pointerId, x: aimX(e.clientX, e.clientY) }; dropAt(holding.x); try { cv.setPointerCapture(e.pointerId); } catch (_) {} });
 cv.addEventListener("pointermove", e => { if (holding && e.pointerId === holding.id) holding.x = aimX(e.clientX, e.clientY); });
 const letGo = e => { if (holding && e.pointerId === holding.id) holding = null; }; cv.addEventListener("pointerup", letGo); cv.addEventListener("pointercancel", letGo);
 function setAuto(v) { auto = v; $("auto").setAttribute("aria-pressed", String(v)); }
 $("auto").onclick = () => { Sound.unlock(); Music.start(); setAuto(!auto); };
-document.querySelectorAll("#seg button").forEach(b => b.onclick = () => { denom = +b.dataset.v; try { localStorage.setItem(SAVE + "-denom", denom); } catch (e) {} SFX.chip(); paint(); });
+$("gems").innerHTML = [["blue", "#5fe8ff"], ["violet", "#b48cff"], ["pink", "#ff5fae"], ["gold", "#ffc845"]].map(([k, c]) => `<span style="--c:${c}"><i></i>${ITEMS[k].val}</span>`).join("") + `<span class="rb" style="--c:#fff"><i></i><small>SHOWER</small></span>`;
+
+// ---- the lookout screen and slapping the side ----
+let busted = 0, shakeT = 0, shakeSide = 1, lastLook = "";
+function doSlap(side) { if (!ready) return; Sound.unlock(); Music.start(); const r = slap(side, denom); shakeT = performance.now(); shakeSide = side;
+  SFX.slap(); if (navigator.vibrate) try { navigator.vibrate(r.ok ? 40 : [60, 40, 60]); } catch (e) {}
+  if (r.caught) { busted = performance.now() + 4500; banner("CAUGHT!", `security fine −${r.fine}`, "#ff4d6d"); say(pick(LOOKLINES.caught)); SFX.siren();
+    const f = $("flash"); f.classList.remove("go"); void f.offsetWidth; f.classList.add("go");
+    const g = $("guard"); g.classList.remove("l", "r"); g.classList.add(side < 0 ? "l" : "r", "show"); clearTimeout(doSlap.g); doSlap.g = setTimeout(() => g.classList.remove("show"), 2600); }
+  else if (r.left === 0) say("That's two! Now look innocent."); paint(); }
+$("slapl").addEventListener("click", () => doSlap(-1)); $("slapr").addEventListener("click", () => doSlap(1));
+for (const id of ["slapl", "slapr"]) $(id).addEventListener("pointerdown", e => e.stopPropagation());
 
 // ---- the loop: physics in fixed 1/60 s steps (at most a few per frame), then draw ----
 let last = performance.now(), acc = 0, sweep = 0;
@@ -268,9 +348,10 @@ function frame(now) { const dt = Math.min(.1, (now - last) / 1000); last = now; 
   if (ready) { while (acc >= 1 / 60) { evs.push(...step(1 / 60, denom)); acc -= 1 / 60; } if (evs.length) handle(evs);
     const gap = now - lastDrop; if (holding && gap > 250) dropAt(holding.x);
     if (auto && !holding && gap > 450) { sweep += .9; dropAt(Math.sin(sweep) * (W / 2 - .1)); }
-    sync(now / 1000); }
+    sync(now / 1000); const ls = lookout().state + (now < busted); if (ls !== lastLook) { lastLook = ls; frame.mq = -1; $("fieldbox").classList.toggle("ready", lookout().state === "clear"); } }
   ghost.visible = !!holding; if (holding) ghost.position.set(holding.x, PH + .22, .08);
   if (Math.floor(now / 125) !== frame.mq) { frame.mq = Math.floor(now / 125); drawMarquee(now / 1000); }
+  const sk = Math.max(0, 1 - (now - shakeT) / 350); if (sk > 0) { cam.position.x = shakeSide * -.025 * sk * Math.cos((now - shakeT) / 18); cam.position.y = baseCamY + .01 * sk * Math.sin((now - shakeT) / 14); } else if (cam.position.x) { cam.position.x = 0; cam.position.y = baseCamY; }
   renderer.render(scene, cam); drawFx(dt); requestAnimationFrame(frame); }
 
 // ---- sound ----
@@ -284,6 +365,10 @@ const SFX = {
     else Sound.arp(kind === "gold" ? [12, 16, 19, 24, 28, 31, 36] : [12, 16, 19, 24], .06, { type: "triangle", vol: .1, dur: .22 }); },
   gutter() { Sound.tone(240, .14, { type: "triangle", vol: .04, slide: .6 }); },
   prize() { Sound.arp([19, 24, 31], .05, { type: "sine", vol: .06, dur: .2 }); },
+  slap() { Sound.thud(.5, 140); Sound.noise(.09, { vol: .25, type: "bandpass", freq: 1800, q: 1.2 }); for (let i = 0; i < 7; i++) Sound.tone(1900 + Math.random() * 1400, .04, { type: "triangle", vol: .035, at: .06 + i * .045 + Math.random() * .03 }); },
+  psst() { Sound.noise(.25, { vol: .05, type: "highpass", freq: 4000 }); },
+  clear() { Sound.arp([12, 19, 24], .07, { type: "square", vol: .05, dur: .12 }); },
+  siren() { for (let i = 0; i < 3; i++) { Sound.tone(700, .28, { type: "square", vol: .05, at: i * .56, slide: 1.6, lp: 2200 }); Sound.tone(1120, .28, { type: "square", vol: .05, at: i * .56 + .28, slide: .62, lp: 2200 }); } },
   shower() { Sound.arp([12, 16, 19, 24, 19, 24, 28, 31], .07, { type: "square", vol: .04, dur: .16 }); Sound.noise(.8, { vol: .05, type: "highpass", freq: 3000, sweep: .5 }); } };
 const Music = (() => { let timer = null, stp = 0, nextT = 0; const CH = [[0, 4, 7, 11], [-3, 0, 4, 7], [-7, -3, 0, 4], [-5, -1, 2, 5]];
   function tick() { if (!Sound.ready()) return; const now = Sound.now(), sd = 60 / 96 / 2; if (nextT < now - .25) nextT = now + .05;
@@ -300,15 +385,16 @@ const save = () => { if (!ready) return; try { localStorage.setItem(SAVE, JSON.s
 setInterval(save, 3000); addEventListener("pagehide", save); document.addEventListener("visibilitychange", save);
 $("snd").addEventListener("click", () => { Sound.on = !Sound.on; $("snd").setAttribute("aria-pressed", String(Sound.on)); });
 $("info").addEventListener("click", () => { $("paytable").innerHTML = `<tr><td>Crystal</td><td>Pays</td></tr>` +
-  [["Blue", ITEMS.blue.val + " × bar value"], ["Violet", ITEMS.violet.val + " × bar value"], ["Pink", ITEMS.pink.val + " × bar value"], ["Gold (jackpot)", ITEMS.gold.val + " × bar value"], ["Rainbow", `a shower of ${SHOWER} free bars`]].map(([a, b]) => `<tr><td>${a}</td><td>${b}</td></tr>`).join(""); $("sheet").hidden = false; });
+  [["Blue", ITEMS.blue.val + " bars"], ["Violet", ITEMS.violet.val + " bars"], ["Pink", ITEMS.pink.val + " bars"], ["Gold (jackpot)", ITEMS.gold.val + " bars"], ["Rainbow", `a shower of ${SHOWER} free bars`]].map(([a, b]) => `<tr><td>${a}</td><td>${b}</td></tr>`).join(""); $("sheet").hidden = false; });
 $("close").addEventListener("click", () => $("sheet").hidden = true);
 $("sheet").addEventListener("click", e => { if (e.target.id === "sheet") $("sheet").hidden = true; });
 $("fufo").addEventListener("click", () => { FORCE.item = "rainbow"; $("sheet").hidden = true; });
 $("fstar").addEventListener("click", () => { FORCE.item = "gold"; $("sheet").hidden = true; });
+$("fclear").addEventListener("click", () => { if (ready) forceClear(); $("sheet").hidden = true; });
 $("freset").addEventListener("click", () => { if (ready) { seed(1); save(); } $("sheet").hidden = true; });
 document.addEventListener("pointerdown", () => Sound.unlock(), { once: true });
 addEventListener("resize", size);
-size(); paint(); drawMarquee(0); requestAnimationFrame(t => { last = t; frame(t); });
+size(); paint(); drawMarquee(0);  requestAnimationFrame(t => { last = t; frame(t); });
 // start the physics engine (a WebAssembly module from the CDN), then the pile you left last time or a fresh one
 (async () => { try { const mod = await import(RAPIER_URL), RAPIER = mod.default || mod; await RAPIER.init(); init(RAPIER);
     let ok = false; try { ok = restore(JSON.parse(localStorage.getItem(SAVE) || "null")); } catch (e) {} if (!ok) seed(1);

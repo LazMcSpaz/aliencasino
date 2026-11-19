@@ -108,7 +108,7 @@ const GAMES = [
   { id:"gravity", name:"Gravity Well",    kind:"Spiral roulette",         col:"#b48cff", src:"games/gravity.html",  desc:"A comet spirals down three tiers into a black hole. Bet on where it lands." },
   { id:"moons",   name:"Twin Moons",      kind:"Alien craps",             col:"#bfefff", src:"games/moons.html",    desc:"Roll two 8-sided moons. The gap between them counts. Matching moons collide." },
   { id:"warp",    name:"Warp Drive",      kind:"Crash game",              col:"#ff5fae", src:"games/warp.html",     desc:"A drone launches and the multiplier climbs. Bail before it explodes." },
-  { id:"pusher",  name:"Star Dozer",      kind:"Coin pusher",             col:"#8dff6a", src:"games/pusher.html",   desc:"Drop coins onto the sliding pusher and shove the pile over the edge. Prizes ride along." } ];
+  { id:"pusher",  name:"Star Dozer",      kind:"Coin pusher",             col:"#8dff6a", src:"games/pusher.html",   desc:"Drop gold bars onto the sliding pusher and shove the pile over the edge. Crystals are the big prizes, and a slap on the side helps (if security isn't looking)." } ];
 const G = Object.fromEntries(GAMES.map(g=>[g.id,g]));
 // The floor plan (metres; the room runs x −12…12, z −10 at the back wall … 21 at the front wall with the airlock).
 // Walkways: a 5 m centre aisle (x −2.5…2.5), 4 m along each side, 3 m between rows. The front lounge (z 14…21) is in part_extras.js.
@@ -245,7 +245,7 @@ async function buildFloor(){ const TX=await loadAll(TEX_SRC);
   // the shared models: one of each, cloned where the floor needs several
   const proto={}, protoClips={};
   const make={ slot:()=>buildSlotBot(THREE,{mood:"happy",tex:TX.slot}), pyramid:()=>buildPyramidBot(THREE,{tex:TX.pyramid}), asteroid:()=>buildPyramidBot(THREE,{tex:TX.asteroid}),
-    gravity:()=>buildGravityTable(THREE,{tex:TX.gravity}), moons:()=>buildMoonsTable(THREE,{tex:TX.moons}), warp:()=>buildWarpStage(THREE,{tex:TX.warp}), pusher:()=>buildPusher(THREE,{}) };
+    gravity:()=>buildGravityTable(THREE,{tex:TX.gravity}), moons:()=>buildMoonsTable(THREE,{tex:TX.moons}), warp:()=>buildWarpStage(THREE,{tex:TX.warp}), pusher:()=>buildPusher(THREE,{tex:{bar:TEX_SRC.pusher.bar,zib:TEX_SRC.pusher.zib}}) };
   $("loading").classList.add("done"); let n=0;
   for(const p of PLAN){ n++; $("hint").textContent=`SETTING UP THE FLOOR ${n}/${PLAN.length}`; await new Promise(r=>requestAnimationFrame(()=>setTimeout(r,0)));
     const g=G[p.game], holder=new THREE.Group(); holder.userData.game=g; scene.add(holder);
