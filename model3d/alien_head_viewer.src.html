@@ -1,0 +1,68 @@
+<title>Alien Head Study</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Monoton&family=Chakra+Petch:wght@500;700&display=swap">
+<style>
+:root{--bg:#0b0718;--bg2:#1e1240;--ink:#efe8ff;--dim:#9a8fc0;--rule:#ffffff1f;--gold:#ffc845;--pink:#ff5fae;color-scheme:dark}
+body{background:radial-gradient(120% 80% at 50% 30%,var(--bg2),var(--bg) 70%);color:var(--ink);font:500 14px "Chakra Petch",system-ui,sans-serif;height:100dvh;overflow:hidden}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.ui{position:fixed;left:0;right:0;bottom:0;padding:12px max(16px,env(safe-area-inset-right,0px)) calc(14px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));display:grid;gap:10px;justify-items:center;pointer-events:none;background:linear-gradient(transparent,#0b0718e6 40%)}
+.row{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;pointer-events:auto}
+.lab{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);width:100%;text-align:center}
+button{font:inherit;color:var(--ink);background:#ffffff0d;border:1px solid var(--rule);padding:7px 12px;border-radius:8px;cursor:pointer;clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px)}
+button[aria-pressed=true]{background:color-mix(in srgb,var(--gold) 22%,transparent);border-color:var(--gold);color:#fff}
+.mood button[aria-pressed=true]{background:color-mix(in srgb,var(--pink) 22%,transparent);border-color:var(--pink)}
+header{position:fixed;top:env(safe-area-inset-top,0px);left:0;right:0;padding:14px max(16px,env(safe-area-inset-left,0px));display:flex;justify-content:space-between;align-items:baseline;pointer-events:none}
+h1{margin:0;font-size:18px;font-weight:700;letter-spacing:.06em}h1 b{color:var(--gold)}
+.note{margin:0;color:var(--dim);font-size:12px;text-align:center;min-height:1.2em;pointer-events:none}
+header small{color:var(--dim);font-size:12px}
+</style>
+<canvas id="c"></canvas>
+<header><h1>ALIEN <b>HEAD</b></h1><small>drag to orbit · pinch to zoom</small></header>
+<div class="ui">
+  <div class="row mood"><span class="lab">Colour</span><button data-p="purple" aria-pressed="true">Purple</button><button data-p="blue">Blue</button><button data-p="orange">Orange</button><button data-p="pale">Pale</button></div>
+  <div class="row anim"><span class="lab">Animation</span><button data-a="Idle" aria-pressed="true">Idle</button><button data-a="Shake">Shake</button><button data-a="Stop">Hold still</button></div>
+  <p class="note" id="note"></p>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+/* {{MODEL}} */
+const TEX_SRC = /* {{TEX}} */;
+const cv=document.getElementById("c");
+const renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true});
+renderer.setPixelRatio(Math.min(2,devicePixelRatio)); renderer.outputEncoding=THREE.sRGBEncoding; renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.0;
+renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+const scene=new THREE.Scene(), cam=new THREE.PerspectiveCamera(35,1,.05,50);
+cam.position.set(.55,.3,1.25);
+const ctl=new THREE.OrbitControls(cam,cv); ctl.target.set(0,.2,0); ctl.enableDamping=true; ctl.minDistance=.45; ctl.maxDistance=3; ctl.maxPolarAngle=Math.PI*.75; ctl.autoRotate=true; ctl.autoRotateSpeed=.8;
+cv.addEventListener("pointerdown",()=>ctl.autoRotate=false);
+scene.add(new THREE.HemisphereLight(0xbfb4ff,0x1a1030,.75));
+const key=new THREE.DirectionalLight(0xffffff,1.6); key.position.set(2,4,3); key.castShadow=true; key.shadow.bias=-.0006; key.shadow.normalBias=.02; key.shadow.mapSize.set(1024,1024); Object.assign(key.shadow.camera,{left:-3,right:3,top:3,bottom:-2.5}); key.shadow.mapSize.set(2048,2048); scene.add(key);
+const rim=new THREE.DirectionalLight(0xff5fae,1.1); rim.position.set(-2.5,2,-2.5); scene.add(rim);
+const fill=new THREE.PointLight(0x7dffb0,.5,3); fill.position.set(0,1.5,1.2); scene.add(fill);
+// floor: a soft glowing disc under the robot
+const fc=document.createElement("canvas"); fc.width=fc.height=256; const fg=fc.getContext("2d"), rg=fg.createRadialGradient(128,128,0,128,128,128);
+rg.addColorStop(0,"#3b2a7a"); rg.addColorStop(.55,"#1e1440"); rg.addColorStop(1,"rgba(11,7,24,0)"); fg.fillStyle=rg; fg.fillRect(0,0,256,256);
+const ft=new THREE.CanvasTexture(fc); ft.encoding=THREE.sRGBEncoding;
+const floor=new THREE.Mesh(new THREE.CircleGeometry(3.2,48),new THREE.MeshStandardMaterial({map:ft,transparent:true,roughness:.9})); floor.rotation.x=-Math.PI/2; floor.receiveShadow=true; 
+const ring=new THREE.Mesh(new THREE.RingGeometry(2.45,2.47,64),new THREE.MeshBasicMaterial({color:0xffc845,transparent:true,opacity:.35})); ring.rotation.x=-Math.PI/2; ring.position.y=.002; 
+
+const loadImg=s=>new Promise(r=>{const i=new Image(); i.onload=()=>r(i); i.onerror=()=>r(null); i.src=s;});
+let bot, mixer, acts={}, cur=null, beacon=null, mode="Idle";
+function build(pal){ if(bot){ scene.remove(bot.root); } acts={}; cur=null;
+  bot=buildAlienHead(THREE,{palette:pal}); scene.add(bot.root);
+  mixer=new THREE.AnimationMixer(bot.root); bot.clips.forEach(c=>acts[c.name]=mixer.clipAction(c)); play(); }
+setTimeout(()=>build("purple"),0);   // after the rest of the page script has run
+document.querySelectorAll(".mood button").forEach(b=>b.onclick=()=>{ document.querySelectorAll(".mood button").forEach(x=>x.setAttribute("aria-pressed",String(x===b))); build(b.dataset.p); });
+const NOTES={Idle:"The crest drifts and the head looks around",Shake:"A quick no: the crest swings after the head and settles",Stop:""};
+function play(){ document.getElementById("note").textContent=NOTES[mode];
+  if(mode==="Stop"){ if(cur) cur.fadeOut(.3); cur=null; return; }
+  const a=acts[mode]; if(a===cur) return; a.reset().setEffectiveWeight(1).play(); if(cur) cur.crossFadeTo(a,.35,false); cur=a; }
+function setAnim(n){ document.querySelectorAll(".anim button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.a===n))); mode=n; play(); }
+document.querySelectorAll(".anim button").forEach(b=>b.onclick=()=>setAnim(b.dataset.a));
+function size(){ const w=innerWidth,h=innerHeight; renderer.setSize(w,h,false); cam.aspect=w/h; cam.fov=w<h?50:34; cam.updateProjectionMatrix(); }
+addEventListener("resize",size); size();
+const clock=new THREE.Clock();
+renderer.setAnimationLoop(()=>{ const dt=Math.min(.05,clock.getDelta()); if(mixer) mixer.update(dt); ctl.update();
+  if(bot && bot.update) bot.update(clock.elapsedTime); if(beacon) beacon.material.emissiveIntensity=1.1+.6*Math.sin(clock.elapsedTime*5); renderer.render(scene,cam); });
+</script>
