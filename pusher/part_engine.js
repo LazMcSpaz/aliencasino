@@ -8,7 +8,7 @@
 const W = 1.0, L = 1.2, PH = .075, PD = .6;           // tray width, length, pusher height and depth
 const FACE = [.13, .37], PERIOD = 3.4;                 // the pusher's front face slides between these z positions, once every PERIOD seconds
 const GUTTER = .085;                                    // the front corners: this much of the width at each side drops into the gutters (lost)
-const BAR = [.11, .028, .066];                           // a gold bar: width, height, depth
+const BAR = [.11, .014, .066];                           // a gold bar: width, height, depth
 const DENOMS = [1, 5, 10, 25], START = 500;
 // crystal prizes that turn up now and then instead of a bar: pays val × the bar value you were playing; the rainbow one sets off a bar shower.
 // Tuned with tools/sim.js: bars alone return about 76%, crystals about 19%, so the machine pays back about 95% over a long run.
@@ -19,7 +19,7 @@ const ITEMS = {
   gold:    { val: 35, size: .12,  odds: .0009 },        // the jackpot crystal
   rainbow: { val: 0,  size: .1,   odds: .004 } };      // off the front: a BAR SHOWER (free bars onto the pusher)
 const SHOWER = 8;
-const TRAYF = .3, BARF = .32;                           // friction: the tray floor, and bar on bar (lower = the pile slides forward instead of heaping up)
+const TRAYF = .22, BARF = .2;                            // friction: the tray floor, and bar on bar (lower = the pile slides forward instead of heaping up)
 let credits = typeof Wallet !== "undefined" ? Wallet.load() : START;
 let RP = null, world = null, pusher = null, pieces = [], clock = 0, face = FACE[0], nextId = 1, events = [];
 const FORCE = { item: null };                           // debug / tests: the next drop is this prize

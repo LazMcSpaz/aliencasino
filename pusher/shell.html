@@ -180,21 +180,22 @@ function emblem(g, cx, cy, sc, ink, hi) { g.save(); g.translate(cx, cy); g.scale
     g.beginPath(); g.moveTo(0, -16); g.bezierCurveTo(19, -16, 21, 4, 0, 24); g.bezierCurveTo(-21, 4, -19, -16, 0, -16); g.fill();   // the head
     g.translate(-ox, -ox); }
   g.restore(); }
-function barFaceTexture(d) { const [c, g] = canvas(256, 160), inlay = { 1: null, 5: "#7dff9a", 10: "#b48cff", 25: "#5fe8ff" }[d];
-  const gr = g.createLinearGradient(0, 0, 256, 160); gr.addColorStop(0, "#ffe27a"); gr.addColorStop(.45, "#f2b12a"); gr.addColorStop(1, "#b0700a"); g.fillStyle = gr; g.fillRect(0, 0, 256, 160);
-  g.strokeStyle = "#a86a08"; g.lineWidth = 6; g.strokeRect(14, 14, 228, 132); g.strokeStyle = "#fff6c8"; g.lineWidth = 2; g.strokeRect(20, 20, 216, 120);
-  emblem(g, 128, 92, 1.25, "#b0740c", "#fff3b8");
-  g.fillStyle = inlay || "#2a1600"; for (const x of [117, 139]) { g.beginPath(); g.ellipse(x, 88, 5, 7, x < 128 ? .5 : -.5, 0, 7); g.fill(); }   // eyes: enamel on the bigger bars
-  if (d > 1) { g.font = "700 26px 'Share Tech Mono',monospace"; g.fillStyle = "#8a5406"; g.textAlign = "right"; g.fillText(String(d), 232, 40); g.fillStyle = inlay; g.fillRect(24, 26, 8, 8); }
-  return ctex(c); }
-function barGeometry() { const [bw, bh, bd] = BAR, r = .012, e = .003, sh = new THREE.Shape(), x = -bw / 2 + e, y = -bd / 2 + e, w = bw - 2 * e, h = bd - 2 * e;
-  sh.moveTo(x + r, y); sh.lineTo(x + w - r, y); sh.quadraticCurveTo(x + w, y, x + w, y + r); sh.lineTo(x + w, y + h - r); sh.quadraticCurveTo(x + w, y + h, x + w - r, y + h); sh.lineTo(x + r, y + h); sh.quadraticCurveTo(x, y + h, x, y + h - r); sh.lineTo(x, y + r); sh.quadraticCurveTo(x, y, x + r, y);
+// the top of every bar is the casino's own gold bar picture, straightened flat (art/bar_face.webp); bigger bars get a small coloured value badge in a corner
+const faceImg = new Image(), faceTex = [];
+function barFaceTexture(d) { const [c, g] = canvas(500, 300), t = ctex(c), badge = { 1: null, 5: "#2fd060", 10: "#8a3dff", 25: "#17b8e0" }[d];
+  const paint = () => { g.drawImage(faceImg, 0, 0, 500, 300);
+    if (badge) { g.fillStyle = badge; g.strokeStyle = "#5a3204"; g.lineWidth = 4; g.beginPath(); g.arc(452, 48, 30, 0, 7); g.fill(); g.stroke(); g.font = "700 30px 'Share Tech Mono',monospace"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillStyle = "#fff"; g.fillText(String(d), 452, 50); }
+    t.needsUpdate = true; };
+  faceTex.push(paint); if (faceImg.complete && faceImg.naturalWidth) paint(); return t; }
+faceImg.onload = () => faceTex.forEach(f => f()); faceImg.src = ART.barFace;
+function barGeometry() { const [bw, bh, bd] = BAR, r = .009, e = .0022, sh = new THREE.Shape(), x = -bw / 2 + e, y = -bd / 2 + e, w = bw - 2 * e, h = bd - 2 * e;
+  sh.moveTo(x + r, y); sh.lineTo(x + w - r, y); sh.lineTo(x + w, y + r); sh.lineTo(x + w, y + h - r); sh.lineTo(x + w - r, y + h); sh.lineTo(x + r, y + h); sh.lineTo(x, y + h - r); sh.lineTo(x, y + r); sh.lineTo(x + r, y);   // cut corners, like the picture
   const g = new THREE.ExtrudeGeometry(sh, { depth: bh - 2 * e, bevelEnabled: true, bevelThickness: e, bevelSize: e, bevelSegments: 2, curveSegments: 4 });
   g.rotateX(-Math.PI / 2); g.translate(0, -(bh - 2 * e) / 2, 0);
   const pos = g.attributes.position, uv = g.attributes.uv; for (let i = 0; i < pos.count; i++) uv.setXY(i, (pos.getX(i) + bw / 2) / bw, 1 - (pos.getZ(i) + bd / 2) / bd);   // the face picture runs across the top
   g.computeVertexNormals(); return g; }
-const barGeo = barGeometry(), sideMat = M({ color: 0xe8a420, metalness: .95, roughness: .3, envMapIntensity: .8 }), MAXN = 420;
-const barMesh = {}; for (const d of DENOMS) { const im = new THREE.InstancedMesh(barGeo, [M({ map: barFaceTexture(d), metalness: .8, roughness: .34, envMapIntensity: .8 }), sideMat], MAXN); im.count = 0; im.castShadow = im.receiveShadow = true; im.frustumCulled = false; scene.add(im); barMesh[d] = im; }
+const barGeo = barGeometry(), sideMat = M({ color: 0xb8700c, metalness: .95, roughness: .32, envMapIntensity: .7 }), MAXN = 420;   // the edges: a deep gold
+const barMesh = {}; for (const d of DENOMS) { const im = new THREE.InstancedMesh(barGeo, [M({ map: barFaceTexture(d), color: 0xf0e2c8, metalness: .5, roughness: .42, envMapIntensity: .45 }), sideMat], MAXN); im.count = 0; im.castShadow = im.receiveShadow = true; im.frustumCulled = false; scene.add(im); barMesh[d] = im; }
 const GEM_COL = { blue: [0x1e8cff, 0x0a4ad0], violet: [0x9a4dff, 0x5a1ad0], pink: [0xff2d8a, 0xc0105a], gold: [0xffb000, 0xd08000], rainbow: [0xffffff, 0x8a3ab0] };
 function gemGeometry(size) { const v = gemPoints(size), P = i => [v[i * 3], v[i * 3 + 1], v[i * 3 + 2]], tri = []; for (let i = 0; i < 6; i++) { const j = (i + 1) % 6; tri.push(...P(j), ...P(i), ...P(6), ...P(i), ...P(j), ...P(7)); }
   const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(tri, 3)); g.computeVertexNormals(); return g; }
