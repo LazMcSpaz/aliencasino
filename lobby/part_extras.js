@@ -14,7 +14,7 @@ const EXTRAS = (() => {
 
   // ---- the DJ stage, against the left wall at the front: platform, booth with spinning decks, speakers that thump, an LED wall ----
   function stage() {
-    const g = grp([-5.9, 0, 7.5]);   // centre of the platform
+    const g = grp([-RX + 1.1, 0, 17.5]);   // centre of the platform
     add(g, new THREE.BoxGeometry(2.2, .35, 3.6), mat.dark, [0, .175, 0]);
     add(g, new THREE.BoxGeometry(.02, .05, 3.6), mat.cyan, [1.105, .3, 0], [0, 0, 0], false); add(g, new THREE.BoxGeometry(2.2, .05, .02), mat.pink, [0, .3, 1.805], [0, 0, 0], false); add(g, new THREE.BoxGeometry(2.2, .05, .02), mat.pink, [0, .3, -1.805], [0, 0, 0], false);
     // the booth: front panel lit with a gradient, two decks on top
@@ -32,9 +32,9 @@ const EXTRAS = (() => {
     for (const z of [-1.5, 1.5]) { const s = new THREE.Group(); s.position.set(.65, .35, z); g.add(s); add(s, new THREE.BoxGeometry(.5, 1.5, .55), mat.black, [0, .75, 0]);
       for (const [y, r] of [[1.15, .14], [.55, .2]]) { add(s, new THREE.TorusGeometry(r + .02, .015, 6, 24), mat.violet, [.26, y, 0], [0, Math.PI / 2, 0], false); const c = add(s, new THREE.ConeGeometry(r, .08, 24, 1, true), mat.shell, [.24, y, 0], [0, 0, -Math.PI / 2]); cones.push(c); } }
     // the LED wall behind: an equaliser and rings, redrawn to the beat
-    const [lc, lg] = canvas(512, 300), led = live(lc), panel = add(scene, new THREE.PlaneGeometry(3.4, 2.0), new THREE.MeshBasicMaterial({ map: led }), [-6.96, 2.6, 7.5], [0, Math.PI / 2, 0], false);
-    add(scene, new THREE.BoxGeometry(.06, 2.12, 3.52), mat.dark, [-6.99, 2.6, 7.5]); add(scene, new THREE.BoxGeometry(.02, 2.14, .03), mat.cyan, [-6.95, 2.6, 5.74], [0, 0, 0], false); add(scene, new THREE.BoxGeometry(.02, 2.14, .03), mat.cyan, [-6.95, 2.6, 9.26], [0, 0, 0], false);
-    const light = new THREE.PointLight(0xb48cff, 1.2, 7, 2); light.position.set(-4.8, 3.2, 7.5); scene.add(light);
+    const [lc, lg] = canvas(512, 300), led = live(lc), panel = add(scene, new THREE.PlaneGeometry(4.6, 2.7), new THREE.MeshBasicMaterial({ map: led }), [-RX + .04, 3.0, 17.5], [0, Math.PI / 2, 0], false);
+    add(scene, new THREE.BoxGeometry(.06, 2.84, 4.74), mat.dark, [-RX + .01, 3.0, 17.5]); add(scene, new THREE.BoxGeometry(.02, 2.86, .03), mat.cyan, [-RX + .05, 3.0, 15.14], [0, 0, 0], false); add(scene, new THREE.BoxGeometry(.02, 2.86, .03), mat.cyan, [-RX + .05, 3.0, 19.86], [0, 0, 0], false);
+    const light = new THREE.PointLight(0xb48cff, 1.2, 7, 2); light.position.set(-RX + 2.4, 3.6, 17.5); scene.add(light);
     const hues = [300, 190, 270, 330, 170]; let lastDraw = 0, heights = new Array(24).fill(0);
     updates.push(t => { const p = Music.pulse(), bar = Music.bar(); decks.forEach(d => d.rotation.y -= .06); cones.forEach(c => c.scale.set(1, 1 + p * .5, 1));
       light.intensity = .8 + p * 1.4; light.color.setHSL(hues[bar % hues.length] / 360, .8, .6);
@@ -49,7 +49,7 @@ const EXTRAS = (() => {
 
   // ---- a dance floor of light-up tiles in front of the stage ----
   function danceFloor() {
-    const C = 6, R = 5, S = .58, x0 = -4.35, z0 = 6.2, geo = new THREE.BoxGeometry(S - .05, .03, S - .05), im = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial({ color: 0xffffff }), C * R), m4 = new THREE.Matrix4();
+    const C = 9, R = 7, S = .62, x0 = -8.75, z0 = 15.55, geo = new THREE.BoxGeometry(S - .05, .03, S - .05), im = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial({ color: 0xffffff }), C * R), m4 = new THREE.Matrix4();
     for (let r = 0; r < R; r++) for (let c = 0; c < C; c++) { m4.makeTranslation(x0 + c * S, .016, z0 + r * S); im.setMatrixAt(r * C + c, m4); }
     add(scene, new THREE.BoxGeometry(C * S + .1, .02, R * S + .1), mat.black, [x0 + (C - 1) * S / 2, .01, z0 + (R - 1) * S / 2], [0, 0, 0], false);
     scene.add(im); const col = new THREE.Color(), PAL = [0xff5fae, 0x5fe8ff, 0xb48cff, 0xffc845, 0x8dff6a]; let base = [];
@@ -62,26 +62,30 @@ const EXTRAS = (() => {
   }
 
   // ---- lounge booths along the right wall at the front: curved seats round a lit table ----
+  const BOOTHS = [14.2, 16.5, 18.8], TABLES = [[5.2, 15.0], [6.8, 17.4], [4.8, 19.2]];
   function booths() {
     // a curved bench (seat cushion + taller backrest) wrapped round the wall side of a round table, open toward the room
     const sector = (r0, r1, a0, a1) => { const sh = new THREE.Shape(); sh.absarc(0, 0, r1, a0, a1, false); sh.absarc(0, 0, r0, a1, a0, true); sh.closePath(); return sh; };
     const curved = (r0, r1, h, a0, a1, bev) => { const g = new THREE.ExtrudeGeometry(sector(r0, r1, a0, a1), { depth: h, bevelEnabled: true, bevelThickness: bev, bevelSize: bev, bevelSegments: 3, curveSegments: 32 }); g.rotateX(-Math.PI / 2); return g; };
     const A = Math.PI * .58;   // the bench wraps ±104° round the back (toward the wall, +x)
-    for (const z of [6.35, 8.65]) { const g = grp([5.62, 0, z]);
+    for (const z of BOOTHS) { const g = grp([RX - 1.38, 0, z]);
       add(g, curved(.66, 1.02, .36, -A, A, .05), mat.plush, [0, .05, 0]);                         // seat cushion
       add(g, curved(.98, 1.13, .95, -A, A, .04), mat.plush2, [0, .05, 0]);                        // backrest
       add(g, new THREE.TorusGeometry(1.055, .025, 6, 48, 2 * A), mat.gold, [0, 1.06, 0], [Math.PI / 2, 0, -A], false);   // gold piping along the top
       add(g, new THREE.CylinderGeometry(.42, .42, .04, 28), mat.black, [0, .7, 0]); add(g, new THREE.TorusGeometry(.42, .012, 6, 32), mat.cyan, [0, .71, 0], [Math.PI / 2, 0, 0], false);
       add(g, new THREE.CylinderGeometry(.05, .14, .68, 12), mat.chrome, [0, .34, 0]);
       for (const [x, zz, c] of [[-.12, .1, 0xff5fae], [.1, -.14, 0x8dff6a]]) add(g, new THREE.CylinderGeometry(.04, .03, .12, 10), B(c, { transparent: true, opacity: .85 }), [x, .78, zz], [0, 0, 0], false);   // drinks
-      const l = new THREE.PointLight(0xff5fae, .6, 3, 2); l.position.set(0, 1.5, 0); g.add(l); }
+    }
+    // cocktail tables to stand at in the lounge: a chrome post, a lit round top
+    for (const [x, z] of TABLES) { const g = grp([x, 0, z]); add(g, new THREE.CylinderGeometry(.05, .2, 1.05, 12), mat.chrome, [0, .525, 0]); add(g, new THREE.CylinderGeometry(.38, .38, .04, 24), mat.black, [0, 1.07, 0]);
+      add(g, new THREE.TorusGeometry(.38, .012, 6, 32), mat.pink, [0, 1.08, 0], [Math.PI / 2, 0, 0], false); add(g, new THREE.CylinderGeometry(.04, .03, .12, 10), B(0x5fe8ff, { transparent: true, opacity: .85 }), [.1, 1.15, .05], [0, 0, 0], false); }
   }
 
   // ---- the jackpot board on the back wall: a big number that keeps climbing ----
   function jackpot() {
     const [c, g] = canvas(1024, 256), tex = live(c);
-    add(scene, new THREE.PlaneGeometry(3.2, .8), new THREE.MeshBasicMaterial({ map: tex }), [-4.6, 3.55, -5.95], [0, 0, 0], false);
-    add(scene, new THREE.BoxGeometry(3.36, .96, .06), mat.dark, [-4.6, 3.55, -5.99]); add(scene, new THREE.BoxGeometry(3.38, .02, .02), mat.gold, [-4.6, 4.03, -5.95], [0, 0, 0], false); add(scene, new THREE.BoxGeometry(3.38, .02, .02), mat.gold, [-4.6, 3.07, -5.95], [0, 0, 0], false);
+    for (const x of [-7.6, 7.6]) { add(scene, new THREE.PlaneGeometry(3.6, .9), new THREE.MeshBasicMaterial({ map: tex }), [x, 4.2, -9.95], [0, 0, 0], false);
+      add(scene, new THREE.BoxGeometry(3.76, 1.06, .06), mat.dark, [x, 4.2, -9.99]); add(scene, new THREE.BoxGeometry(3.78, .02, .02), mat.gold, [x, 4.73, -9.95], [0, 0, 0], false); add(scene, new THREE.BoxGeometry(3.78, .02, .02), mat.gold, [x, 3.67, -9.95], [0, 0, 0], false); }
     let last = 0; const startAt = 1284500 + Math.floor(Math.random() * 40000);
     updates.push(t => { if (t - last < .2) return; last = t; const v = Math.floor(startAt + t * 23.7);
       g.fillStyle = "#07040f"; g.fillRect(0, 0, 1024, 256); g.textAlign = "center"; g.textBaseline = "middle";
@@ -96,15 +100,19 @@ const EXTRAS = (() => {
     const screen = (img, p, ry, w, h, col) => { if (!img) return; const t = new THREE.Texture(img); t.encoding = THREE.sRGBEncoding; t.needsUpdate = true;
       const g = grp(p, ry); add(g, new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: t }), [0, 0, .035], [0, 0, 0], false);
       add(g, new THREE.BoxGeometry(w + .14, h + .14, .05), mat.dark, [0, 0, 0]); const e = B(col); for (const [x, y, ww, hh] of [[0, h / 2 + .07, w + .16, .02], [0, -h / 2 - .07, w + .16, .02], [w / 2 + .07, 0, .02, h + .16], [-w / 2 - .07, 0, .02, h + .16]]) add(g, new THREE.BoxGeometry(ww, hh, .02), e, [x, y, .03], [0, 0, 0], false); };
-    screen(TX.pyramid && TX.pyramid.screen, [-6.96, 2.75, 3.0], Math.PI / 2, 1.5, 1.5 * (TX.pyramid.screen.height / TX.pyramid.screen.width), 0xffc845);
-    screen(TX.asteroid && TX.asteroid.screen, [6.96, 2.6, -4.4], -Math.PI / 2, 1.3, 1.3 * (TX.asteroid.screen.height / TX.asteroid.screen.width), 0x5fe8ff);
-    screen(TX.warp && TX.warp.orbit, [6.96, 2.75, 7.5], -Math.PI / 2, 2.4, 2.4 * (TX.warp.orbit.height / TX.warp.orbit.width), 0xff5fae);
+    const PY = TX.pyramid && TX.pyramid.screen, AS = TX.asteroid && TX.asteroid.screen, WO = TX.warp && TX.warp.orbit, hw = (im, w) => w * im.height / im.width;
+    if (PY) { screen(PY, [-RX + .04, 3.4, 1.0], Math.PI / 2, 1.8, hw(PY, 1.8), 0xffc845); screen(PY, [RX - .04, 3.7, 1.9], -Math.PI / 2, 1.5, hw(PY, 1.5), 0xffc845); }
+    if (AS) { screen(AS, [-RX + .04, 3.4, 8.2], Math.PI / 2, 1.6, hw(AS, 1.6), 0x5fe8ff); screen(AS, [RX - .04, 3.4, -4.4], -Math.PI / 2, 1.6, hw(AS, 1.6), 0x5fe8ff); screen(AS, [RX - .04, 3.7, 9.1], -Math.PI / 2, 1.3, hw(AS, 1.3), 0x5fe8ff); }
+    if (WO) { screen(WO, [RX - .04, 3.2, 16.5], -Math.PI / 2, 3.0, hw(WO, 3.0), 0xff5fae); screen(WO, [-RX + .04, 3.4, -5.2], Math.PI / 2, 2.4, hw(WO, 2.4), 0xff5fae); }
   }
 
   // ---- planters: a dark pot with a gold rim, a plant goes in later ----
-  const POTS = [ { p: [-6.35, 0, -5.45], r: .38, plant: "plant_3", s: .38 }, { p: [6.3, 0, -5.35], r: .5, plant: "tree_blob_1", s: .34 }, { p: [6.35, 0, 4.95], r: .35, plant: "tree_light_1", s: .42 },
-    { p: [-6.2, 0, 10.2], r: .5, plant: "tree_floating_1", s: .5 }, { p: [6.2, 0, 10.2], r: .5, plant: "tree_floating_1", s: .5, ry: 2 }, { p: [-.9, 0, 10.3], r: .35, plant: "bush_1", s: .22 }, { p: [3.3, 0, 10.3], r: .35, plant: "tree_spiral_1", s: .3 },
-    { p: [-6.4, 0, -.6], r: .32, plant: "plant_1", s: .4 } ];
+  const POTS = [ { p: [-11.35, 0, -9.35], r: .45, plant: "tree_blob_1", s: .34 }, { p: [11.35, 0, -9.35], r: .45, plant: "tree_blob_1", s: .3, ry: 2 },
+    { p: [-11.4, 0, -5.4], r: .35, plant: "plant_3", s: .4 }, { p: [11.4, 0, -.4], r: .35, plant: "tree_light_1", s: .42 }, { p: [11.35, 0, 11.8], r: .4, plant: "tree_light_1", s: .45, ry: 1 },
+    { p: [-11.4, 0, 10.2], r: .35, plant: "plant_1", s: .42 }, { p: [-11.3, 0, 13.4], r: .45, plant: "tree_spiral_1", s: .34 },
+    { p: [-2.9, 0, 7.75], r: .32, plant: "bush_1", s: .2 }, { p: [2.9, 0, 7.75], r: .32, plant: "bush_1", s: .2, ry: 1.5 },
+    { p: [-2.4, 0, 20.3], r: .5, plant: "tree_floating_1", s: .55 }, { p: [2.4, 0, 20.3], r: .5, plant: "tree_floating_1", s: .55, ry: 2 },
+    { p: [-11.3, 0, 20.4], r: .45, plant: "plant_3", s: .45 }, { p: [11.3, 0, 20.4], r: .45, plant: "tree_spiral_1", s: .32 } ];
   function planters() { for (const o of POTS) { const g = grp(o.p); add(g, new THREE.CylinderGeometry(o.r, o.r * .78, .55, 20), mat.dark, [0, .275, 0]); add(g, new THREE.TorusGeometry(o.r, .025, 6, 24), mat.gold, [0, .55, 0], [Math.PI / 2, 0, 0], false); o.g = g; } }
 
   // ---- a ceiling for walking around: dark panels with little lights. It only faces down, so from the bird's-eye view above it isn't drawn ----
@@ -112,8 +120,8 @@ const EXTRAS = (() => {
     g.strokeStyle = "#1c1440"; g.lineWidth = 4; for (let i = 0; i <= 512; i += 128) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i, 512); g.moveTo(0, i); g.lineTo(512, i); g.stroke(); }
     for (let i = 0; i < 90; i++) { const x = Math.random() * 512, y = Math.random() * 512, r = Math.random() < .15 ? 3 : 1.5; g.fillStyle = ["#ffffff", "#bfefff", "#ffd8f0", "#e8dcff"][i % 4]; g.globalAlpha = .5 + Math.random() * .5; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); } g.globalAlpha = 1;
     for (const [x, y] of [[64, 64], [320, 320]]) { g.strokeStyle = "#5fe8ff99"; g.lineWidth = 2; g.beginPath(); g.arc(x, y, 40, 0, 7); g.stroke(); g.strokeStyle = "#b48cff88"; g.beginPath(); g.arc(x, y, 50, 0, 7); g.stroke(); }
-    const t = ctex(c, [3.5, 4.5]), back = -6, front = 12, len = front - back;
-    add(scene, new THREE.PlaneGeometry(14, len), new THREE.MeshStandardMaterial({ map: t, emissive: 0xffffff, emissiveMap: t, emissiveIntensity: .28, roughness: .9 }), [0, WH, (back + front) / 2], [Math.PI / 2, 0, 0], false); }
+    const t = ctex(c, [6, 8]), back = ZC - RD / 2, front = ZF, len = front - back;
+    add(scene, new THREE.PlaneGeometry(RW, len), new THREE.MeshStandardMaterial({ map: t, emissive: 0xffffff, emissiveMap: t, emissiveIntensity: .28, roughness: .9 }), [0, WH, (back + front) / 2], [Math.PI / 2, 0, 0], false); }
 
   // ---- the edge of the room at the front: a neon line on the floor ----
   // the front wall, with the airlock you came in through. Everything here faces into the room only, so from the bird's-eye view outside it isn't drawn
@@ -125,10 +133,10 @@ const EXTRAS = (() => {
     g.font = '600 20px "Share Tech Mono",monospace'; g.fillStyle = "#bfefff"; g.fillText("NO EXIT FOR EARTHLINGS", 256, 250);
     const one = (geo, m, p, r = [0, Math.PI, 0]) => { m.side = THREE.FrontSide; return add(scene, geo, m, p, r, false); };
     const wm = new THREE.MeshStandardMaterial({ color: 0x241c3c, roughness: .7, metalness: .2 });
-    one(new THREE.PlaneGeometry(14, WH), wm, [0, WH / 2, 12]);
-    one(new THREE.PlaneGeometry(2.4, 3.0), new THREE.MeshBasicMaterial({ map: ctex(c) }), [0, 1.5, 11.98]);
-    for (const [w, h, x, y, col] of [[2.6, .05, 0, 3.05, 0x5fe8ff], [.05, 3.05, -1.25, 1.52, 0x5fe8ff], [.05, 3.05, 1.25, 1.52, 0x5fe8ff], [14, .06, 0, .25, 0xb48cff], [14, .06, 0, WH - .4, 0xb48cff]]) one(new THREE.PlaneGeometry(w, h), B(col), [x, y, 11.97]);
-    const l = new THREE.PointLight(0x5fe8ff, .8, 5, 2); l.position.set(0, 3.2, 11.2); scene.add(l); }
+    one(new THREE.PlaneGeometry(RW, WH), wm, [0, WH / 2, ZF]);
+    one(new THREE.PlaneGeometry(2.4, 3.0), new THREE.MeshBasicMaterial({ map: ctex(c) }), [0, 1.5, ZF - .02]);
+    for (const [w, h, x, y, col] of [[2.6, .05, 0, 3.05, 0x5fe8ff], [.05, 3.05, -1.25, 1.52, 0x5fe8ff], [.05, 3.05, 1.25, 1.52, 0x5fe8ff], [RW, .06, 0, .25, 0xb48cff], [RW, .06, 0, WH - .4, 0xb48cff]]) one(new THREE.PlaneGeometry(w, h), B(col), [x, y, ZF - .03]);
+    const l = new THREE.PointLight(0x5fe8ff, .8, 5, 2); l.position.set(0, 3.2, ZF - .8); scene.add(l); }
 
   // ---- loading the CC0 models ----
   // each model is published as base64 text (the artifact host doesn't serve .glb files); build.py writes assets/<name>.b64.txt
@@ -170,42 +178,55 @@ const EXTRAS = (() => {
     // plants into their pots
     POTS.forEach(o => place(o.plant, [o.p[0], .5, o.p[2]], o.s, o.ry || 0));
     // planets hanging high along the walls, slowly turning
-    const planets = [["planet_2", [-5.7, 3.95, -4.9], .17], ["planet_9", [.6, 4.05, -5.4], .12], ["planet_1", [6.2, 3.95, -2.7], .15], ["planet_5", [-6.2, 4.0, 1.4], .12], ["planet_2", [6.3, 4.05, 9.0], .13]]
+    const planets = [["planet_2", [-10.6, 4.9, -8.6], .2], ["planet_9", [-3.8, 5.0, -9.3], .14], ["planet_1", [3.8, 4.9, -9.3], .17], ["planet_5", [10.6, 4.8, -8.4], .17], ["planet_9", [-10.9, 4.9, 2.4], .14],
+      ["planet_1", [10.9, 5.0, -2.6], .15], ["planet_5", [-10.9, 4.8, 12.6], .15], ["planet_2", [10.9, 4.9, 12.4], .14], ["planet_9", [0, 5.0, 19.8], .18]]
       .map(([n, p, s]) => { const o = place(n, p, s); if (o) { const cord = new THREE.Mesh(new THREE.CylinderGeometry(.006, .006, WH - p[1]), mat.chrome); cord.position.set(p[0], (WH + p[1]) / 2 + .2, p[2]); scene.add(cord); } return o; }).filter(Boolean);
     updates.push(t => planets.forEach((o, i) => { o.rotation.y = t * (.15 + i * .04); o.position.y += Math.sin(t * .8 + i) * .0008; }));
     // the statue in the lounge, with a gold bar turning over it
-    if (place("props_statue", [2.2, 0, 7.7], .55)) { const bar = new THREE.Group(); bar.position.set(2.2, 2.05, 7.7); scene.add(bar);
+    if (place("props_statue", [0, 0, 16], .55)) { const bar = new THREE.Group(); bar.position.set(0, 2.05, 16); scene.add(bar);
       add(bar, new THREE.BoxGeometry(.42, .16, .2), mat.gold, [0, 0, 0]); add(bar, new THREE.TorusGeometry(.4, .012, 6, 40), mat.cyan, [0, 0, 0], [Math.PI / 2, 0, 0], false);
-      const l = new THREE.PointLight(0xffc845, .9, 4, 2); l.position.set(2.2, 2.4, 7.7); scene.add(l); updates.push(t => { bar.rotation.y = t * 1.2; bar.position.y = 2.05 + Math.sin(t * 2) * .06; }); }
+      const l = new THREE.PointLight(0xffc845, .9, 4, 2); l.position.set(0, 2.6, 16); scene.add(l); updates.push(t => { bar.rotation.y = t * 1.2; bar.position.y = 2.05 + Math.sin(t * 2) * .06; }); }
     // walking, dancing, drinking aliens (the green "big alien", tinted to different colours)
     const L = got.enemy_large, SC = .41;
     if (L) {
       const walk = (path, speed, hue) => { const a = alien(L, { scale: SC, hue, anim: "Walk" }); const w = { holder: a.holder, path, seg: 0, k: Math.random(), speed, paused: false }; walkers.push(w); a.walker = w; placeWalker(w, 0); a.mx.timeScale = speed / .5; return a; };
-      walk([[.4, -1.15], [4.95, -1.15], [4.95, 2.35], [.4, 2.35]], .5, 0);                 // round the Twin Moons table
-      walk([[-.3, 9.25], [3.9, 9.25], [3.9, 5.75], [-.3, 5.75]], .42, 285);                  // round the lounge
-      walk([[-1.0, -1.6], [-1.0, 1.4], [-5.2, 1.4], [-5.2, -1.6]], .38, 45);                 // past the slot alley and the warp stage
-      alien(L, { scale: SC, hue: 200, pos: [-6.35, .67, 7.5], ry: Math.PI / 2, anim: "Yes" });          // the DJ on its riser, nodding along
-      const dancers = [[-3.75, 6.75, 35], [-2.0, 7.85, 160], [-3.3, 8.65, 300], [-1.7, 6.55, 110]].map(([x, z, hue], i) => alien(L, { scale: SC, hue, pos: [x, 0, z], ry: -Math.PI / 2 + (i - 1.5) * .35, anim: ["Yes", "Jump_Idle", "Wave", "Yes"][i] }));
+      walk([[-1.7, 19.4], [-1.7, -2.9], [1.7, -2.9], [1.7, 19.4]], .5, 0);                    // up and down the centre aisle
+      walk([[2.3, -2.9], [6.8, -2.9], [6.8, .5], [2.3, .5]], .45, 285);                          // round the right Twin Moons table
+      walk([[-2.3, -2.9], [-2.3, .5], [-6.8, .5], [-6.8, -2.9]], .4, 45);                        // round the left one
+      walk([[-9, 7.75], [9, 7.75]], .45, 140);                                                   // across the room between the banks
+      walk([[3.2, 13.9], [8.4, 13.9], [8.4, 20.2], [3.2, 20.2]], .42, 210);                      // round the lounge
+      alien(L, { scale: SC, hue: 200, pos: [-RX + .65, .67, 17.5], ry: Math.PI / 2, anim: "Yes" });          // the DJ on its riser, nodding along
+      const dancers = [[-7.9, 16.2, 35], [-5.8, 17.2, 160], [-7.2, 18.9, 300], [-4.6, 16.0, 110], [-4.3, 18.6, 250], [-6.3, 19.6, 75]]
+        .map(([x, z, hue], i) => alien(L, { scale: SC, hue, pos: [x, 0, z], ry: -Math.PI / 2 + (i % 3 - 1) * .4, anim: ["Yes", "Jump_Idle", "Wave", "Yes", "Jump_Idle", "Yes"][i] }));
       const MOVES = ["Yes", "Jump_Idle", "Yes", "Wave", "Jump_Idle"]; let lastBar = -1;
       updates.push(() => { const b = Music.bar(); if (b === lastBar || b % 2) return; lastBar = b; dancers.forEach((d, i) => { if (!d.busy) { d.base = MOVES[(b / 2 + i * 2) % MOVES.length]; d.play(d.base, .4); } }); });
-      alien(L, { scale: SC, hue: 100, pos: [5.12, 0, 2.15], ry: Math.PI / 2, anim: "Idle" });          // at the bar
-      alien(L, { scale: SC, hue: 330, pos: [5.12, 0, -.35], ry: Math.PI / 2 + .3, anim: "Idle" });
-      alien(L, { scale: SC, hue: 250, pos: [-1.7, 0, -1.95], ry: Math.PI + .5, anim: "Idle" });         // watching the drone launch
+      for (const [z, hue] of [[2.0, 100], [5.9, 330], [9.0, 20]]) alien(L, { scale: SC, hue, pos: [RX - 1.95, 0, z], ry: Math.PI / 2 + (z % 2 - .5) * .4, anim: "Idle" });   // at the bar
+      alien(L, { scale: SC, hue: 250, pos: [2.9, 0, -3.5], ry: Math.PI - .4, anim: "Idle" });          // watching the drone launch
+      alien(L, { scale: SC, hue: 60, pos: [-5.3, 0, -4.4], ry: -2.4, anim: "Idle" });                  // at the Gravity Wells
+      alien(L, { scale: SC, hue: 170, pos: [5.3, 0, -4.4], ry: 2.4, anim: "Idle" });
+      alien(L, { scale: SC, hue: 300, pos: [-4.6, 0, .35], ry: Math.PI, anim: "Idle" });               // at the Twin Moons tables
+      alien(L, { scale: SC, hue: 15, pos: [6.55, 0, -1.2], ry: -Math.PI / 2, anim: "Idle" });
+      for (const [x, z, hue, ry] of [[5.2, 15.65, 120, Math.PI], [7.45, 17.4, 270, -Math.PI / 2], [4.8, 18.55, 40, 0]]) alien(L, { scale: SC, hue, pos: [x, 0, z], ry, anim: "Idle" });   // at the cocktail tables
     }
     // floating blob aliens: bobbing over the dance floor, by a booth, and one drifting round the whole room up high
     const floaters = [];
     const float = (src, o) => { if (!src) return; const a = alien(src, { scale: o.s, hue: o.hue, pos: [0, 0, 0], anim: "Flying_Idle" }); floaters.push({ a, ...o }); };
-    float(got.enemy_small, { s: .3, hue: 0, c: [-2.7, 1.85, 7.5], r: .9, w: .55, ph: 0 });
-    float(got.enemy_extrasmall, { s: .34, hue: 230, c: [-2.7, 2.25, 7.5], r: .7, w: -.7, ph: 2 });
-    float(got.enemy_flying, { s: .26, hue: 25, c: [5.62, 1.2, 6.35], r: .12, w: .4, ph: 1 });
-    float(got.enemy_small, { s: .3, hue: 175, c: [.6, 2.7, 1.4], r: 3.3, w: .13, ph: 3, rz: .8 });
-    float(got.enemy_extrasmall, { s: .3, hue: 300, c: [5.6, 1.6, 1.0], r: .25, w: .5, ph: 4 });   // hovering behind the bar
+    float(got.enemy_small, { s: .3, hue: 0, c: [-6.1, 1.9, 17.6], r: 1.4, w: .5, ph: 0 });                 // over the dance floor
+    float(got.enemy_extrasmall, { s: .34, hue: 230, c: [-6.1, 2.4, 17.6], r: 1.0, w: -.6, ph: 2 });
+    float(got.enemy_flying, { s: .26, hue: 120, c: [-6.1, 2.15, 17.6], r: 2.0, w: .35, ph: 4 });
+    float(got.enemy_flying, { s: .26, hue: 25, c: [RX - 1.38, 1.2, 14.2], r: .12, w: .4, ph: 1 });           // over the booth tables
+    float(got.enemy_small, { s: .28, hue: 320, c: [RX - 1.38, 1.25, 18.8], r: .12, w: -.4, ph: 3 });
+    float(got.enemy_extrasmall, { s: .3, hue: 300, c: [RX - .45, 1.7, 3.0], r: .3, w: .5, ph: 4 });          // behind the bar
+    float(got.enemy_small, { s: .3, hue: 175, c: [0, 3.6, 6], r: 6.5, w: .1, ph: 3, rz: 1.4 });              // drifting round the room up high
+    float(got.enemy_flying, { s: .24, hue: 200, c: [0, 3.3, -3.4], r: 3.6, w: -.14, ph: 1 });
     updates.push(t => floaters.forEach(f => { if (f.a.busy) return; const ang = f.ph + t * f.w, x = f.c[0] + Math.cos(ang) * f.r, z = f.c[2] + Math.sin(ang) * f.r * (f.rz || 1);
       const y = f.c[1] + Math.sin(t * 1.7 + f.ph) * .08; const h = f.a.holder; h.position.set(x, y, z); h.rotation.y = Math.atan2(-Math.sin(ang) * Math.sign(f.w), Math.cos(ang) * Math.sign(f.w) * (f.rz || 1)); }));
   }
 
   // footprints the first-person walker can't pass through: [x0, z0, x1, z1]
-  const obstacles = [[-7, 5.7, -4.8, 9.3], [4.45, 5.2, 7, 7.5], [4.45, 7.5, 7, 9.8], [1.75, 7.25, 2.65, 8.15]];
-  POTS.forEach(o => obstacles.push([o.p[0] - o.r, o.p[2] - o.r, o.p[0] + o.r, o.p[2] + o.r]));
-  return { build(TX) { stage(); danceFloor(); booths(); jackpot(); screens(TX); planters(); frontEdge(); ceiling(); return life(); }, aliens, obstacles };
+  // (worked out when asked: this file runs before the room's size is known)
+  function obstacles() { const o = [[-RX, 15.7, -RX + 2.2, 19.3], [-.45, 15.55, .45, 16.45]];
+    BOOTHS.forEach(z => o.push([RX - 2.55, z - 1.15, RX, z + 1.15])); TABLES.forEach(([x, z]) => o.push([x - .4, z - .4, x + .4, z + .4]));
+    POTS.forEach(q => o.push([q.p[0] - q.r, q.p[2] - q.r, q.p[0] + q.r, q.p[2] + q.r])); return o; }
+  return { build(TX) { stage(); danceFloor(); booths(); jackpot(); screens(TX); planters(); frontEdge(); ceiling(); return life(); }, aliens, get obstacles() { return obstacles(); } };
 })();

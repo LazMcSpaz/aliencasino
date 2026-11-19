@@ -5,7 +5,7 @@
 // May use: the lobby's cam, ctl, scene, placed, pickables, openGame, EXTRAS, walkers. Must not: change the games or the wallet.
 const WALK = (() => {
   const EYE = 1.62, R = .32, MAXV = 1.8, BACKV = .55, MAXTURN = 1.8, REACH = 2.0, PITCH = -.12, DEAD = 12;
-  const me = { x: .9, z: 10.6, yaw: 0, v: 0, turn: 0 };          // yaw 0 = facing the back wall (−z)
+  const me = { x: 0, z: 19.6, yaw: 0, v: 0, turn: 0 };          // just inside the airlock          // yaw 0 = facing the back wall (−z)
   let on = false, touch = null, rects = [], auto = null, lastAim = 0, bob = 0, walked = false, toastT = 0;
   const keys = {};
   const el = id => document.getElementById(id);
@@ -15,9 +15,10 @@ const WALK = (() => {
   // what you can't walk through: every machine that stays put, plus the bar, stage, booths, statue and pots
   function obstacles() { rects = [];
     placed.forEach(p => { if (p.holder.userData.walker) return; const b = new THREE.Box3().setFromObject(p.holder); rects.push([b.min.x, b.min.z, b.max.x, b.max.z]); });
-    rects.push([5.85, -1.5, 7.2, 4.5]);                              // the bar counter
+    if (window.BAR_RECT) rects.push(BAR_RECT);                       // the bar counter
+    STOOLS.forEach(([x, z]) => rects.push([x - .22, z - .22, x + .22, z + .22]));
     (EXTRAS.obstacles || []).forEach(r => rects.push(r)); }
-  const blocked = (x, z) => x < -6.7 || x > 6.7 || z < -5.7 || z > 11.6 || rects.some(r => x > r[0] - R && x < r[2] + R && z > r[1] - R && z < r[3] + R);
+  const blocked = (x, z) => x < -RX + .3 || x > RX - .3 || z < ZC - RD / 2 + .3 || z > ZF - .4 || rects.some(r => x > r[0] - R && x < r[2] + R && z > r[1] - R && z < r[3] + R);
   function step(dx, dz) { if (!blocked(me.x + dx, me.z)) me.x += dx; if (!blocked(me.x, me.z + dz)) me.z += dz; }   // slide along walls instead of sticking
 
   function toast(msg) { const t = el("wtoast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), 1600); }
