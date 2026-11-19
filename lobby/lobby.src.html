@@ -1,5 +1,6 @@
 <!-- Alien Casino lobby: the 3D casino floor with every game's model in it. Tap a game to walk the camera over, then PLAY to open it.
-     build.py fills in the models (../model3d/*_model.js), their textures, and copies the built games into games/ next to this page. -->
+     build.py fills in the models (../model3d/*_model.js), their textures, part_music.js and part_extras.js, and copies the built games into games/ next to this page.
+     The CC0 models in assets/ (aliens, plants, planets, statue) are published next to the page and fetched when it loads. -->
 <title>Alien Casino</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -19,6 +20,11 @@ header{position:fixed;z-index:5;top:0;left:0;right:0;padding:calc(10px + env(saf
 .logo i{position:absolute;right:-30px;bottom:-14px;font:400 1.15rem "Yellowtail",cursive;font-style:normal;color:#fff0d0;transform:rotate(-8deg);text-shadow:0 0 8px #ffb070,0 0 18px #ff7a3a}
 .coins{--k:7px;display:flex;align-items:center;gap:6px;padding:6px 12px;font:700 1rem var(--f-mono);pointer-events:auto}
 .coins .refill{font:700 .75rem var(--f-mono);margin-left:6px;padding:3px 8px;border:0;border-radius:6px;background:#ffc845;color:#1a1030;cursor:pointer}
+.right{display:flex;gap:8px;align-items:center}
+.music{--k:7px;--hc:var(--holo2);width:38px;height:34px;padding:0;display:grid;place-items:center;cursor:pointer;pointer-events:auto;color:var(--dim)}
+.music svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.music[aria-pressed="true"]{color:#fff;--hc:var(--holo)}
+.music[aria-pressed="false"] svg{opacity:.55}
 .coins i{width:22px;height:16px;background:var(--bar) center/contain no-repeat}
 .hint{position:fixed;z-index:4;left:0;right:0;top:calc(62px + env(safe-area-inset-top,0px));text-align:center;font:400 .66rem var(--f-mono);letter-spacing:.2em;color:var(--dim);pointer-events:none;transition:opacity .4s}
 /* the game list along the bottom */
@@ -50,7 +56,7 @@ nav button[aria-pressed="true"]{--hc:var(--gold);color:#fff;text-shadow:0 0 8px 
 .loading.done{opacity:0;pointer-events:none}
 </style>
 <canvas id="c" aria-label="The Alien Casino floor"></canvas>
-<header><div class="logo">ALIEN<i>Casino</i></div><div class="coins holo"><i></i><span id="bars">500</span><button class="refill" id="refill" hidden>Refill</button></div></header>
+<header><div class="logo">ALIEN<i>Casino</i></div><div class="right"><button class="music holo" id="music" aria-label="Music" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></svg></button><div class="coins holo"><i></i><span id="bars">500</span><button class="refill" id="refill" hidden>Refill</button></div></div></header>
 <p class="hint" id="hint">TAP A GAME &middot; DRAG TO LOOK AROUND</p>
 <nav id="nav" aria-label="Games"></nav>
 <div class="card holo" id="card" role="dialog" aria-live="polite"><span class="kind" id="cKind"></span><h2 id="cName"></h2><p id="cDesc"></p>
@@ -60,9 +66,12 @@ nav button[aria-pressed="true"]{--hc:var(--gold);color:#fff;text-shadow:0 0 8px 
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/utils/BufferGeometryUtils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/utils/SkeletonUtils.js"></script>
 <script>
 const ART = /*{{ART}}*/;
 /*{{MODELS}}*/
+/*{{MUSIC}}*/
 const TEX_SRC = /*{{TEX}}*/;
 document.documentElement.style.setProperty("--bar", `url(${ART.bar})`);
 const $=id=>document.getElementById(id);
@@ -76,24 +85,26 @@ const GAMES = [
   { id:"moons",   name:"Twin Moons",      kind:"Alien craps",             col:"#bfefff", src:"games/moons.html",    desc:"Roll two 8-sided moons. The gap between them counts. Matching moons collide." },
   { id:"warp",    name:"Warp Drive",      kind:"Crash game",              col:"#ff5fae", src:"games/warp.html",     desc:"A drone launches and the multiplier climbs. Bail before it explodes." } ];
 const G = Object.fromEntries(GAMES.map(g=>[g.id,g]));
-// The floor plan (metres; the room runs x −7…7, z −6 at the back wall … 6 at the front). va = the side we look at it from when picked.
+// The floor plan (metres; the room runs x −7…7, z −6 at the back wall … 9.5 at the front, where the lounge is: see part_extras.js). va = the side we look at it from when picked.
 const PLAN = [
   { game:"warp",    kind:"model", pos:[-2.7,0,-3.3], rot:0,    scale:.6, va:.15 },
   { game:"gravity", kind:"model", pos:[3.3,0,-4.1],  rot:-.3,  scale:.9, va:-.25 },
   { game:"moons",   kind:"model", pos:[2.7,0,.6],    rot:0,    scale:.85, va:.25 },
   { game:"pyramid", kind:"bank",  pos:[-4.3,0,3.0],  rot:0,    per:3, va:.12 },    // two rows of three, back to back
   { game:"asteroid",kind:"bank",  pos:[.6,0,4.2],    rot:0,    per:3, va:-.1 },
-  { game:"slot",    kind:"bot",   pos:[-6.2,0,-.3],  rot:1.0, va:1.15, label:true },                  // waiting by the wall, ready to play
+  { game:"slot",    kind:"bot",   pos:[-6.3,0,-4.3], rot:Math.PI/2, va:Math.PI/2, label:true },        // the slot alley: a row along the left wall, waiting to be played
+  { game:"slot",    kind:"bot",   pos:[-6.3,0,-3.1], rot:Math.PI/2, va:Math.PI/2 },
+  { game:"slot",    kind:"bot",   pos:[-6.3,0,-1.9], rot:Math.PI/2, va:Math.PI/2 },
   { game:"slot",    kind:"bot",   pos:[6.55,0,1.4],  rot:-Math.PI/2, va:-1.2 },                       // tending the bar
   { game:"slot",    kind:"bot",   walk:[[-6.5,1.3],[-2.35,1.3],[-2.35,5.4],[-6.5,5.4]], speed:.45, va:0 },     // wandering round the Pyramid bank
-  { game:"slot",    kind:"bot",   walk:[[-1.5,-.4],[-1.5,5.9],[4.7,5.9],[4.7,-1.4],[-1.1,-1.4]], speed:.4, va:0 } ];   // and round the middle of the floor
+  { game:"slot",    kind:"bot",   walk:[[-1.6,2.8],[2.9,2.8],[2.9,5.55],[-1.6,5.55]], speed:.4, va:0 } ];   // and round the Asteroid bank
 // ---- renderer, scene, camera ----
 const cv=$("c"), renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true});
 const PHONE=Math.min(innerWidth,innerHeight)<700; renderer.setPixelRatio(Math.min(PHONE?1.5:2,devicePixelRatio)); renderer.outputEncoding=THREE.sRGBEncoding; renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.05;
 renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 const scene=new THREE.Scene(); scene.background=new THREE.Color(0x07040f); scene.fog=new THREE.Fog(0x07040f,18,36);
 const cam=new THREE.PerspectiveCamera(45,1,.1,80);
-const HOMES={ wide:{ cam:[0,7.4,11.5], t:[0,.8,-.6] }, tall:{ cam:[0,22,8.5], t:[0,0,-.2] } };
+const HOMES={ wide:{ cam:[0,8.4,15], t:[0,.6,1.2] }, tall:{ cam:[0,24,12.5], t:[0,0,2.0] } };
 const home=()=>innerWidth<innerHeight?HOMES.tall:HOMES.wide;
 const HOME=home();
 cam.position.set(...HOME.cam);
@@ -110,7 +121,8 @@ PLAN.filter(p=>p.pos&&p.kind!=="bot").forEach(p=>{ const l=new THREE.PointLight(
 
 // ---- the room: alien carpet, panelled walls with neon and portholes onto space, the casino's sign ----
 const ctex=(c,rep)=>{ const t=new THREE.CanvasTexture(c); t.encoding=THREE.sRGBEncoding; t.anisotropy=8; if(rep){ t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(...rep); } return t; };
-const RW=14, RD=12, WH=4.6, ZC=0;   // room width, depth, wall height; the room is centred on z = 0
+const RW=14, RD=12, WH=4.6, ZC=0;   // room width, back-wall depth, wall height (the back wall is at z = ZC − RD/2 = −6)
+const ZF=9.5, SL=ZF-(ZC-RD/2), SC=(ZF+ZC-RD/2)/2;   // the side walls run on to the front of the lounge: length SL, centred at z = SC
 { // carpet: a dark violet weave with gold-and-cyan alien motifs, repeating
   const c=document.createElement("canvas"); c.width=c.height=512; const g=c.getContext("2d");
   g.fillStyle="#1a0f33"; g.fillRect(0,0,512,512); for(let i=0;i<3000;i++){ g.fillStyle=`rgba(${Math.random()<.5?"120,80,200":"40,20,80"},${Math.random()*.25})`; g.fillRect(Math.random()*512,Math.random()*512,2,2); }
@@ -122,18 +134,18 @@ const RW=14, RD=12, WH=4.6, ZC=0;   // room width, depth, wall height; the room 
   const c=document.createElement("canvas"); c.width=512; c.height=256; const g=c.getContext("2d"), gr=g.createLinearGradient(0,0,0,256); gr.addColorStop(0,"#120b26"); gr.addColorStop(1,"#1f1440"); g.fillStyle=gr; g.fillRect(0,0,512,256);
   for(let x=0;x<512;x+=128){ g.fillStyle="#0a0618"; g.fillRect(x,0,6,256); g.fillStyle="#2c1f55"; g.fillRect(x+6,0,2,256); }
   g.fillStyle="#b48cff"; g.fillRect(0,200,512,3); g.fillStyle="#5fe8ff"; g.fillRect(0,40,512,2);
-  const wm=new THREE.MeshStandardMaterial({map:ctex(c,[4,1]),roughness:.7,metalness:.2,emissive:0xffffff,emissiveMap:ctex(c,[4,1]),emissiveIntensity:.18});
+  const wm=new THREE.MeshStandardMaterial({map:ctex(c,[4.5,1]),roughness:.7,metalness:.2,emissive:0xffffff,emissiveMap:ctex(c,[4,1]),emissiveIntensity:.18});
   const wall=(w,x,z,ry)=>{ const m=new THREE.Mesh(new THREE.PlaneGeometry(w,WH),wm); m.position.set(x,WH/2,z); m.rotation.y=ry; m.receiveShadow=true; scene.add(m); };
-  wall(RW,0,ZC-RD/2,0); wall(RD,-RW/2,ZC,Math.PI/2); wall(RD,RW/2,ZC,-Math.PI/2);
+  wall(RW,0,ZC-RD/2,0); wall(SL,-RW/2,SC,Math.PI/2); wall(SL,RW/2,SC,-Math.PI/2);
   // neon strips along the foot of the walls
   const neon=(col)=>new THREE.MeshBasicMaterial({color:col});
-  for(const [w,x,z,ry,col] of [[RW,0,ZC-RD/2+.02,0,0xb48cff],[RD,-RW/2+.02,ZC,Math.PI/2,0x5fe8ff],[RD,RW/2-.02,ZC,-Math.PI/2,0x5fe8ff]]){ const m=new THREE.Mesh(new THREE.PlaneGeometry(w,.06),neon(col)); m.position.set(x,.25,z); m.rotation.y=ry; scene.add(m); const m2=m.clone(); m2.position.y=WH-.4; scene.add(m2); }
+  for(const [w,x,z,ry,col] of [[RW,0,ZC-RD/2+.02,0,0xb48cff],[SL,-RW/2+.02,SC,Math.PI/2,0x5fe8ff],[SL,RW/2-.02,SC,-Math.PI/2,0x5fe8ff]]){ const m=new THREE.Mesh(new THREE.PlaneGeometry(w,.06),neon(col)); m.position.set(x,.25,z); m.rotation.y=ry; scene.add(m); const m2=m.clone(); m2.position.y=WH-.4; scene.add(m2); }
   // portholes onto space along the side walls
   const sc=document.createElement("canvas"); sc.width=sc.height=256; const sg=sc.getContext("2d"), bg=sg.createRadialGradient(90,80,10,128,128,180); bg.addColorStop(0,"#3a1f6b"); bg.addColorStop(.6,"#0b0a2a"); bg.addColorStop(1,"#03040f"); sg.fillStyle=bg; sg.fillRect(0,0,256,256);
   for(let i=0;i<160;i++){ sg.fillStyle=`rgba(255,255,255,${Math.random()*.9})`; sg.fillRect(Math.random()*256,Math.random()*256,Math.random()<.1?2:1,Math.random()<.1?2:1); }
   sg.fillStyle="#ff9a6a"; sg.beginPath(); sg.arc(190,170,26,0,7); sg.fill(); sg.fillStyle="#0b0a2a88"; sg.beginPath(); sg.arc(200,162,24,0,7); sg.fill();
   const winM=new THREE.MeshBasicMaterial({map:ctex(sc)}), rimM=new THREE.MeshStandardMaterial({color:0x8d8aa0,metalness:.85,roughness:.3}), rimG=new THREE.MeshBasicMaterial({color:0x5fe8ff});
-  for(const side of [-1]) for(const z of [-3.6,.2]){ const x=side*(RW/2-.03), g=new THREE.Group(); g.position.set(x,2.9,z); g.rotation.y=-side*Math.PI/2; scene.add(g);
+  for(const side of [-1]) for(const z of [-4.0,-1.4]){ const x=side*(RW/2-.03), g=new THREE.Group(); g.position.set(x,2.9,z); g.rotation.y=-side*Math.PI/2; scene.add(g);
     g.add(new THREE.Mesh(new THREE.CircleGeometry(.85,40),winM)); const r=new THREE.Mesh(new THREE.TorusGeometry(.9,.1,10,40),rimM); g.add(r); const r2=new THREE.Mesh(new THREE.TorusGeometry(1.02,.02,6,40),rimG); g.add(r2); }
   // the casino sign on the back wall
   const nc=document.createElement("canvas"); nc.width=1024; nc.height=300; const ng=nc.getContext("2d"); ng.textAlign="center"; ng.textBaseline="middle";
@@ -211,7 +223,8 @@ async function buildFloor(){ const TX=await loadAll(TEX_SRC);
     const ring=new THREE.Mesh(new THREE.RingGeometry(1,1.06,64),new THREE.MeshBasicMaterial({color:new THREE.Color(g.col),transparent:true,opacity:0,depthWrite:false})); ring.rotation.x=-Math.PI/2;
     const sz=box.getSize(new THREE.Vector3()), c=box.getCenter(new THREE.Vector3()); ring.scale.setScalar(Math.max(sz.x,sz.z)*.62+.25); ring.position.set(c.x,.02,c.z); scene.add(ring);
     placed.push({ g, p, holder, box, ring, lab }); try{ renderer.compile(scene,cam); }catch(e){} }
-  $("hint").innerHTML="TAP A GAME &middot; DRAG TO LOOK AROUND"; buildNav(); }
+  $("hint").innerHTML="TAP A GAME &middot; DRAG TO LOOK AROUND"; buildNav();
+  try{ await EXTRAS.build(TX); }catch(e){ console.error("extras",e); } }
 // a wandering robot: walks its loop at its own pace, turning to face where it's going
 function placeWalker(w,dt){ if(!w.paused) w.k+=dt*w.speed/segLen(w); while(w.k>=1){ w.k-=1; w.seg=(w.seg+1)%w.path.length; }
   const a=w.path[w.seg], b=w.path[(w.seg+1)%w.path.length]; w.holder.position.set(a[0]+(b[0]-a[0])*w.k,0,a[1]+(b[1]-a[1])*w.k);
@@ -233,7 +246,8 @@ function buildNav(){ GAMES.forEach(g=>{ const b=document.createElement("button")
 const ray=new THREE.Raycaster(), ndc=new THREE.Vector2(); let down=null;
 cv.addEventListener("pointerdown",e=>{ down=[e.clientX,e.clientY,performance.now()]; });
 cv.addEventListener("pointerup",e=>{ if(!down) return; const moved=Math.hypot(e.clientX-down[0],e.clientY-down[1]); down=null; if(moved>8) return;
-  ndc.set(e.clientX/innerWidth*2-1,-(e.clientY/innerHeight)*2+1); ray.setFromCamera(ndc,cam); const hit=ray.intersectObjects(pickables,false).find(h=>h.object.userData.game);
+  ndc.set(e.clientX/innerWidth*2-1,-(e.clientY/innerHeight)*2+1); ray.setFromCamera(ndc,cam); const hit=ray.intersectObjects(pickables,false).find(h=>h.object.userData.game||h.object.userData.alien);
+  if(hit&&hit.object.userData.alien){ hit.object.userData.alien.react(); return; }   // tap an alien: it waves
   if(hit){ const g=hit.object.userData.game, sp=hit.object.userData.spot; if(focused&&focused.p===sp) openGame(g); else focus(g.id,sp); } else if(focused) unfocus(); });
 $("cBack").onclick=unfocus; $("cPlay").onclick=()=>focused&&openGame(focused.g);
 
@@ -245,12 +259,16 @@ function showBars(){ $("bars").textContent=bars.toLocaleString(); $("refill").hi
 window.__alienWallet={ get:()=>bars, set:v=>{ bars=Math.max(0,Math.floor(v)); try{ localStorage.setItem(WALLET_KEY,String(bars)); }catch(e){} showBars(); } };
 $("refill").onclick=()=>window.__alienWallet.set(WALLET_START);
 showBars();
+// ---- music: starts with the first tap (browsers need one), remembered on/off, quiet while a game is open ----
+const musicBtn=$("music"), showMusic=()=>musicBtn.setAttribute("aria-pressed",String(Music.on));
+musicBtn.onclick=e=>{ e.stopPropagation(); Music.setWanted(!Music.on); showMusic(); };
+addEventListener("pointerdown",function first(e){ if(e.target===musicBtn) return; removeEventListener("pointerdown",first,true); if(Music.wanted&&!playing){ Music.start(); showMusic(); } },true);
 const cache={}; let playing=false;
 const PREFIX='<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"></head><body>';
-async function openGame(g){ $("game").style.setProperty("--gc",g.col); $("game").hidden=false; playing=true;
+async function openGame(g){ $("game").style.setProperty("--gc",g.col); $("game").hidden=false; playing=true; Music.stop(.15); showMusic();
   try{ if(!cache[g.id]){ const r=await fetch(g.src); cache[g.id]=await r.text(); } $("frame").srcdoc=PREFIX+cache[g.id]+"</body></html>"; }
   catch(e){ $("frame").srcdoc=PREFIX+`<p style="font:16px sans-serif;color:#ccc;padding:24px">Couldn't load ${g.name}.</p>`; } }
-$("gBack").onclick=()=>{ $("frame").srcdoc=""; $("game").hidden=true; playing=false; clock.getDelta(); };
+$("gBack").onclick=()=>{ $("frame").srcdoc=""; $("game").hidden=true; playing=false; clock.getDelta(); if(Music.wanted){ Music.start(); showMusic(); } };
 
 // ---- loop ----
 function size(){ const w=innerWidth,h=innerHeight; renderer.setSize(w,h,false); cam.aspect=w/h; cam.fov=w<h?58:42; cam.updateProjectionMatrix(); }
