@@ -7,7 +7,7 @@ const EDGE = 0.97;            // payback: every strategy returns ≈97% over tim
 const HOLE_CHOICES = [1, 3, 5, 10, 20, 24];
 const MAX_MULT = 10000;       // the multiplier never goes past ×10,000
 const START = 500;
-let credits = START;
+let credits = typeof Wallet !== "undefined" ? Wallet.load() : START;
 let game = null;              // { bet, holes, mines:Set, picks:[], over:null|"lost"|"won", win }
 const FORCE = { mines: null }; // debug / tests: exact black-hole positions for the next field
 
@@ -31,6 +31,9 @@ function pick(i) {
 const current = () => game ? multFor(game.holes, game.picks.length) : 1;
 const next = () => game ? multFor(game.holes, game.picks.length + 1) : 1;
 function collect() { if (!game || game.over || !game.picks.length) return 0; const win = Math.floor(game.bet * current()); credits += win; game.over = "won"; game.win = win; return win; }
+
+// keep the shared wallet in step with this game's balance (not in Node tests)
+if (typeof Wallet !== "undefined") Wallet.watch(() => credits);
 
 if (typeof module !== "undefined") module.exports = { N, EDGE, HOLE_CHOICES, multFor, start, pick, collect, current, next, FORCE,
   get credits() { return credits; }, set credits(v) { credits = v; }, get game() { return game; } };

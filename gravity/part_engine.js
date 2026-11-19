@@ -22,7 +22,7 @@ const FRENZY_PAY = 16;                             // frenzy pool: bet the next 
 const VOID_SHIFT = VOID / 8;                       // half a sliver: centres each void on its quadrant boundary (the screen relies on this)
 const FORCE = { angles: null, frenzy: false };     // debug: force the next spin's crossing angles / a frenzy
 
-let credits = START;
+let credits = typeof Wallet !== "undefined" ? Wallet.load() : START;
 // bets: tiers[t] = { sectionIndex: amount }, colors = { quadrant: amount }, voidBet = amount
 let bets = { tiers: [{}, {}, {}], colors: {}, voidBet: 0, frenzyBet: 0 };
 let lastBets = null;
@@ -95,3 +95,6 @@ function spin() {
 }
 // the screen calls this as each part of the result is revealed, so credits rise in step with the comet
 function collect(amount) { credits += amount; }
+
+// keep the shared wallet in step with this game's balance (not in Node tests)
+if (typeof Wallet !== "undefined") Wallet.watch(() => credits);

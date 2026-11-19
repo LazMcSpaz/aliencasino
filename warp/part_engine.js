@@ -5,7 +5,7 @@ const EDGE = 0.96;            // payback: the chance the ship is still flying at
 const GROWTH = 0.12;          // the multiplier climbs as e^(GROWTH · seconds): ×2 at ~5.8 s, ×10 at ~19 s, ×100 at ~38 s
 const MAX_MULT = 1000;        // the warp core always blows by ×1000
 const START = 500;
-let credits = START, history = [];
+let credits = typeof Wallet !== "undefined" ? Wallet.load() : START, history = [];
 // two bet slots per launch: bail one early and let the other ride
 const mkSlot = () => ({ bet: 0, auto: 0, cashed: null });
 let round = { slots: [mkSlot(), mkSlot()], crash: null };
@@ -41,6 +41,9 @@ function endRound() {
   const r = { crash: round.crash, slots: round.slots.map(s => ({ bet: s.bet, cashed: s.cashed })) };
   history.unshift(round.crash); history = history.slice(0, 14);
   round = { slots: round.slots.map(s => ({ bet: 0, auto: s.auto, cashed: null })), crash: null }; return r; }
+
+// keep the shared wallet in step with this game's balance (not in Node tests)
+if (typeof Wallet !== "undefined") Wallet.watch(() => credits);
 
 if (typeof module !== "undefined") module.exports = { EDGE, GROWTH, MAX_MULT, multAt, timeFor, crashPoint, placeBet, cancelBet, setAuto, launch, cashOut, blown, endRound, FORCE,
   get credits() { return credits; }, set credits(v) { credits = v; }, get round() { return round; } };

@@ -18,6 +18,7 @@ header{position:fixed;z-index:5;top:0;left:0;right:0;padding:calc(10px + env(saf
 .logo{position:relative;font:400 1.5rem/1 "Monoton",var(--f-sign);color:#eafcff;text-shadow:0 0 4px #fff,0 0 10px var(--holo2),0 0 24px #8a4dff}
 .logo i{position:absolute;right:-30px;bottom:-14px;font:400 1.15rem "Yellowtail",cursive;font-style:normal;color:#fff0d0;transform:rotate(-8deg);text-shadow:0 0 8px #ffb070,0 0 18px #ff7a3a}
 .coins{--k:7px;display:flex;align-items:center;gap:6px;padding:6px 12px;font:700 1rem var(--f-mono);pointer-events:auto}
+.coins .refill{font:700 .75rem var(--f-mono);margin-left:6px;padding:3px 8px;border:0;border-radius:6px;background:#ffc845;color:#1a1030;cursor:pointer}
 .coins i{width:22px;height:16px;background:var(--bar) center/contain no-repeat}
 .hint{position:fixed;z-index:4;left:0;right:0;top:calc(62px + env(safe-area-inset-top,0px));text-align:center;font:400 .66rem var(--f-mono);letter-spacing:.2em;color:var(--dim);pointer-events:none;transition:opacity .4s}
 /* the game list along the bottom */
@@ -49,7 +50,7 @@ nav button[aria-pressed="true"]{--hc:var(--gold);color:#fff;text-shadow:0 0 8px 
 .loading.done{opacity:0;pointer-events:none}
 </style>
 <canvas id="c" aria-label="The Alien Casino floor"></canvas>
-<header><div class="logo">ALIEN<i>Casino</i></div><div class="coins holo"><i></i><span id="bars">500</span></div></header>
+<header><div class="logo">ALIEN<i>Casino</i></div><div class="coins holo"><i></i><span id="bars">500</span><button class="refill" id="refill" hidden>Refill</button></div></header>
 <p class="hint" id="hint">TAP A GAME &middot; DRAG TO LOOK AROUND</p>
 <nav id="nav" aria-label="Games"></nav>
 <div class="card holo" id="card" role="dialog" aria-live="polite"><span class="kind" id="cKind"></span><h2 id="cName"></h2><p id="cDesc"></p>
@@ -237,6 +238,13 @@ cv.addEventListener("pointerup",e=>{ if(!down) return; const moved=Math.hypot(e.
 $("cBack").onclick=unfocus; $("cPlay").onclick=()=>focused&&openGame(focused.g);
 
 // ---- playing: the game opens over the casino; the casino pauses until you come back ----
+// ---- the wallet: one balance of gold bars for the whole casino. Games read and save it through window.__alienWallet ----
+const WALLET_KEY="alien-casino-bars", WALLET_START=500, REFILL_BELOW=20;
+let bars=(()=>{ try{ const v=localStorage.getItem(WALLET_KEY); if(v!==null&&Number.isFinite(+v)&&+v>=0) return Math.floor(+v); }catch(e){} return WALLET_START; })();
+function showBars(){ $("bars").textContent=bars.toLocaleString(); $("refill").hidden=bars>=REFILL_BELOW; }
+window.__alienWallet={ get:()=>bars, set:v=>{ bars=Math.max(0,Math.floor(v)); try{ localStorage.setItem(WALLET_KEY,String(bars)); }catch(e){} showBars(); } };
+$("refill").onclick=()=>window.__alienWallet.set(WALLET_START);
+showBars();
 const cache={}; let playing=false;
 const PREFIX='<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"></head><body>';
 async function openGame(g){ $("game").style.setProperty("--gc",g.col); $("game").hidden=false; playing=true;

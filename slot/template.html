@@ -735,6 +735,22 @@ const ICON_IMG={};
 const iconsReady=Promise.all(Object.entries(ICON_SRC).map(([k,v])=>new Promise(res=>{ const im=new Image(); im.src=v;
   const done=()=>{ ICON_IMG[k]=im; if(window.createImageBitmap) createImageBitmap(im).then(bm=>{ ICON_IMG[k]=bm; res(); }).catch(res); else res(); };
   (im.decode ? im.decode() : new Promise(r=>im.onload=r)).then(done).catch(done); })));
+// The shared wallet: one balance of gold bars across every game in the casino (shared by all games; lives in slot/ for now, like the sound engine).
+// Inside the lobby, the lobby holds the balance (window.__alienWallet), so it carries from game to game.
+// Opened on its own, a game keeps its balance in this browser's storage, so it survives a reload.
+// Each engine does: let credits = Wallet.load(START); … Wallet.watch(() => credits)  (it saves whenever the balance changes).
+const Wallet = (() => {
+  const KEY = "alien-casino-bars", START = 500;
+  const host = (() => { try { if (window.parent !== window && window.parent.__alienWallet) return window.parent.__alienWallet; } catch (e) {} return null; })();
+  const read = () => { if (host) return host.get(); try { const v = localStorage.getItem(KEY); return v === null ? null : Number(v); } catch (e) { return null; } };
+  const write = v => { if (host) return host.set(v); try { localStorage.setItem(KEY, String(v)); } catch (e) {} };
+  return {
+    load() { const v = read(); if (v !== null && Number.isFinite(v) && v >= 0) return Math.floor(v); write(START); return START; },
+    watch(get) { let last = get(); const save = () => { const v = get(); if (v !== last && Number.isFinite(v)) { last = v; write(Math.floor(v)); } };
+      setInterval(save, 250); addEventListener("pagehide", save); document.addEventListener("visibilitychange", save); }
+  };
+})();
+
 // <engine> (this block is also run by the tuning simulation)
 // ---- Paytable (tuned by simulation) ----
 // [id, name, weight, pays for 3 on a line, pays for first 2 on a line, banana?] — pays are × line cost
@@ -807,7 +823,7 @@ const $ = id => document.getElementById(id);
 const NS = "http://www.w3.org/2000/svg";
 const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 
-let credits = START, lines = 3, spinning = false;
+let credits = typeof Wallet !== "undefined" ? Wallet.load() : START, lines = 3, spinning = false;
 let lossStreak = 0, coolLeft = 0, lastPity = 0, lastTax = 0;
 let bonusLeft = 0, bonusTotal = 0, bonusPlayed = 0;
 let grid = [[7,1,5],[4,0,8],[3,2,6]]; // grid[reel][row]
@@ -963,6 +979,9 @@ function teaseInfo(g, bonus=false){
   out.tier = best===2 ? "big" : best===1 ? "mild" : null;
   return out;
 }
+
+// keep the shared wallet in step with this game's balance (not in Node tests)
+if (typeof Wallet !== "undefined") Wallet.watch(() => credits);
 
 
 // ---- Rendering ----
@@ -1375,7 +1394,7 @@ function tick(){
 }
 
 // ---- HUD + counters ----
-let shownCredits = START;
+let shownCredits = credits;
 function animateNumber(el, from, to, ms, onDone){ const t0=performance.now();
   (function f(t){ const k=Math.min(1,(t-t0)/ms); el.textContent=Math.round(from+(to-from)*(1-Math.pow(1-k,3))); if(k<1) requestAnimationFrame(f); else onDone&&onDone(); })(t0); }
 function setCredits(animMs=0){ const from=shownCredits; shownCredits=credits; if(animMs) animateNumber($("credits"), from, credits, animMs); else $("credits").textContent=credits; }
@@ -2216,6 +2235,7 @@ new ResizeObserver(()=>{ if(spinning){ pendingFit=true; return; } fit(); }).obse
 let bulbT=null; const reBulb=new ResizeObserver(()=>{ if(!bonusVisual) return; clearTimeout(bulbT); bulbT=setTimeout(layoutBulbs,60); });
 reBulb.observe($("glass")); reBulb.observe($("facebox")); addEventListener("resize", ()=>{ sizeFx(); sizeBub(); });
 
+setCredits();   // show the wallet balance it opened with
 let startMachine="food"; try{ startMachine=localStorage.getItem("slot-machine")||"food"; }catch(e){}
 applyMachine(startMachine);
 buildRails(); buildPicker(); buildPaytable(); fit(); sizeFx(); sizeBub(); Promise.all([iconsReady, document.fonts ? document.fonts.ready : 0]).then(()=>{ sprCell=0; sizeReelCanvas(); fitTitle(); setTimeout(layoutGoop, 1200); });   // goop flipbook is prepared early, while nothing's happening

@@ -70,7 +70,7 @@ const $ = id => document.getElementById(id);
 const NS = "http://www.w3.org/2000/svg";
 const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 
-let credits = START, lines = 3, spinning = false;
+let credits = typeof Wallet !== "undefined" ? Wallet.load() : START, lines = 3, spinning = false;
 let lossStreak = 0, coolLeft = 0, lastPity = 0, lastTax = 0;
 let bonusLeft = 0, bonusTotal = 0, bonusPlayed = 0;
 let grid = [[7,1,5],[4,0,8],[3,2,6]]; // grid[reel][row]
@@ -226,3 +226,6 @@ function teaseInfo(g, bonus=false){
   out.tier = best===2 ? "big" : best===1 ? "mild" : null;
   return out;
 }
+
+// keep the shared wallet in step with this game's balance (not in Node tests)
+if (typeof Wallet !== "undefined") Wallet.watch(() => credits);

@@ -26,7 +26,7 @@ const DROP = { hit:r => Math.max(.2, .52 - .065*(r-2)), spread:.66 };
 const CRACK_RISK = .04;                                    // added collapse chance per cracked stone, on every drop
 const SHATTER = .04;                                       // chance a skim's crack spreads and the tower falls right then
 const START = 400;
-let credits = START, bet = 20, climb = null;
+let credits = typeof Wallet !== "undefined" ? Wallet.load() : START, bet = 20, climb = null;
 
 let UNIT_DIV = 20;                                   // 1 stone-value unit = bet ÷ UNIT_DIV
 const unit = () => bet / UNIT_DIV;
@@ -113,3 +113,6 @@ function setAnchor(side){
 function cashOut(){ if(!climb?.offer) return 0; const a = climb.offer.amount; credits += a; climb = null; return a; }
 function keepClimbing(){ if(climb?.offer) climb.offer = null; }
 function bandValue(r){ return climb && BANDS[r] ? Math.round(BANDS[r].mult * climb.total) : 0; }   // what a band would pay right now
+
+// keep the shared wallet in step with this game's balance (not in Node tests)
+if (typeof Wallet !== "undefined") Wallet.watch(() => credits);

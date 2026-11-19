@@ -6,6 +6,6 @@ b64 = lambda p, mime: f"data:{mime};base64," + base64.b64encode((here / p).read_
 art = {"bar": b64("../slot/icons3/bar1.a.webp", "image/webp"), "drone": b64("art/drone.webp", "image/webp")}
 snd = (here / "../slot/part_sound.js").read_text().replace("    refill(){", "    tone, arp, note, thud,\n    refill(){", 1)
 s = (here / "shell.html").read_text()
-s = s.replace("/*{{ART}}*/", json.dumps(art)).replace("/*{{ENGINE}}*/", (here / "part_engine.js").read_text()).replace("/*{{SOUND}}*/", snd)
+s = s.replace("/*{{ART}}*/", json.dumps(art)).replace("/*{{ENGINE}}*/", ((here / "../slot/part_wallet.js").read_text() + "\n" + (here / "part_engine.js").read_text())).replace("/*{{SOUND}}*/", snd)
 (here / "warp.html").write_text(s)
 print("warp.html", len(s) // 1024, "KB")

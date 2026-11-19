@@ -1063,7 +1063,7 @@ function tick(){
 }
 
 // ---- HUD + counters ----
-let shownCredits = START;
+let shownCredits = credits;
 function animateNumber(el, from, to, ms, onDone){ const t0=performance.now();
   (function f(t){ const k=Math.min(1,(t-t0)/ms); el.textContent=Math.round(from+(to-from)*(1-Math.pow(1-k,3))); if(k<1) requestAnimationFrame(f); else onDone&&onDone(); })(t0); }
 function setCredits(animMs=0){ const from=shownCredits; shownCredits=credits; if(animMs) animateNumber($("credits"), from, credits, animMs); else $("credits").textContent=credits; }
@@ -1904,6 +1904,7 @@ new ResizeObserver(()=>{ if(spinning){ pendingFit=true; return; } fit(); }).obse
 let bulbT=null; const reBulb=new ResizeObserver(()=>{ if(!bonusVisual) return; clearTimeout(bulbT); bulbT=setTimeout(layoutBulbs,60); });
 reBulb.observe($("glass")); reBulb.observe($("facebox")); addEventListener("resize", ()=>{ sizeFx(); sizeBub(); });
 
+setCredits();   // show the wallet balance it opened with
 let startMachine="food"; try{ startMachine=localStorage.getItem("slot-machine")||"food"; }catch(e){}
 applyMachine(startMachine);
 buildRails(); buildPicker(); buildPaytable(); fit(); sizeFx(); sizeBub(); Promise.all([iconsReady, document.fonts ? document.fonts.ready : 0]).then(()=>{ sprCell=0; sizeReelCanvas(); fitTitle(); setTimeout(layoutGoop, 1200); });   // goop flipbook is prepared early, while nothing's happening

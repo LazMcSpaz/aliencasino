@@ -14,7 +14,7 @@ const STREAK_PAY = { 3: 3, 4: 8, 5: 16, 6: 30 }, STREAK_TOP = 6;
 const CHIPS = [1, 5, 25, 100], START = 500;
 const FORCE = { dice: null };                       // debug: force the next roll, e.g. [3, 3]
 
-let credits = START, point = null, streak = 0;
+let credits = typeof Wallet !== "undefined" ? Wallet.load() : START, point = null, streak = 0;
 let bets = { with: 0, against: 0, gaps: {}, collide: 0, streak: 0 };
 let history = [];                                   // chips placed since the last roll, newest last (UNDO)
 
@@ -61,3 +61,6 @@ function roll(force) {                 // force: someone else is shooting, so th
   res.pointAfter = point; res.streak = streak; history = [];
   res.totalWin = res.outcomes.reduce((a, o) => a + o.win, 0); return res;
 }
+
+// keep the shared wallet in step with this game's balance (not in Node tests)
+if (typeof Wallet !== "undefined") Wallet.watch(() => credits);
