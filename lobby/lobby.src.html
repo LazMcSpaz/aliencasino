@@ -29,6 +29,7 @@ header{position:fixed;z-index:5;top:0;left:0;right:0;padding:calc(10px + env(saf
 .wpad.active{opacity:.7;transition:opacity .1s}
 .wring{position:absolute;inset:0;border-radius:50%;border:1.5px solid #5fe8ffaa;background:radial-gradient(circle,#5fe8ff14,#5fe8ff06 62%,transparent 71%);box-shadow:0 0 16px #5fe8ff44,inset 0 0 20px #5fe8ff2a}
 .wring i{position:absolute;width:11px;height:11px;border:solid #8ff3ff;border-width:2px 0 0 2px;filter:drop-shadow(0 0 4px #5fe8ff)}
+.wring .cd{left:50%;bottom:12px;margin-left:-6px;transform:rotate(225deg);opacity:.5}
 .wring .cu{left:50%;top:12px;margin-left:-6px;transform:rotate(45deg)}.wring .cl{left:12px;top:50%;margin-top:-6px;transform:rotate(-45deg)}.wring .cr{right:12px;top:50%;margin-top:-6px;transform:rotate(135deg)}
 .wdot{position:absolute;left:50%;top:50%;width:36px;height:36px;margin:-18px 0 0 -18px;border-radius:50%;background:radial-gradient(circle,#eafcffdd,#5fe8ff77 45%,transparent 72%);box-shadow:0 0 18px #5fe8ff88}
 .whint{position:fixed;z-index:4;left:0;right:0;bottom:calc(228px + env(safe-area-inset-bottom,0px));margin:0;text-align:center;font:400 .6rem/1.9 var(--f-mono);letter-spacing:.18em;color:#bfefffbb;text-shadow:0 0 8px #5fe8ff;pointer-events:none;transition:opacity .8s}
@@ -77,7 +78,7 @@ nav button[aria-pressed="true"]{--hc:var(--gold);color:#fff;text-shadow:0 0 8px 
 <p class="hint" id="hint">TAP A GAME &middot; DRAG TO LOOK AROUND</p>
 <nav id="nav" aria-label="Games"></nav>
 <!-- first-person controls: a hologram ring that follows your finger, a hint, a "tap to play" prompt, short messages -->
-<div class="wpad" id="wpad" hidden><div class="wring"><i class="cu"></i><i class="cl"></i><i class="cr"></i></div><div class="wdot" id="wdot"></div></div>
+<div class="wpad" id="wpad" hidden><div class="wring"><i class="cu"></i><i class="cl"></i><i class="cr"></i><i class="cd"></i></div><div class="wdot" id="wdot"></div></div>
 <p class="whint" id="whint" hidden>SWIPE UP TO WALK &middot; SIDEWAYS TO TURN<br>WALK UP TO A MACHINE AND TAP IT TO PLAY</p>
 <div class="wprompt" id="wprompt" hidden></div>
 <div class="wtoast" id="wtoast"></div>
@@ -108,7 +109,7 @@ const GAMES = [
   { id:"moons",   name:"Twin Moons",      kind:"Alien craps",             col:"#bfefff", src:"games/moons.html",    desc:"Roll two 8-sided moons. The gap between them counts. Matching moons collide." },
   { id:"warp",    name:"Warp Drive",      kind:"Crash game",              col:"#ff5fae", src:"games/warp.html",     desc:"A drone launches and the multiplier climbs. Bail before it explodes." } ];
 const G = Object.fromEntries(GAMES.map(g=>[g.id,g]));
-// The floor plan (metres; the room runs x −7…7, z −6 at the back wall … 9.5 at the front, where the lounge is: see part_extras.js). va = the side we look at it from when picked.
+// The floor plan (metres; the room runs x −7…7, z −6 at the back wall … 12 at the front wall; the lounge is at the front: see part_extras.js). va = the side we look at it from when picked.
 const PLAN = [
   { game:"warp",    kind:"model", pos:[-2.7,0,-3.3], rot:0,    scale:.6, va:.15 },
   { game:"gravity", kind:"model", pos:[3.3,0,-4.1],  rot:-.3,  scale:.9, va:-.25 },
@@ -146,7 +147,7 @@ PLAN.filter(p=>p.pos&&p.kind!=="bot").forEach(p=>{ const l=new THREE.PointLight(
 // ---- the room: alien carpet, panelled walls with neon and portholes onto space, the casino's sign ----
 const ctex=(c,rep)=>{ const t=new THREE.CanvasTexture(c); t.encoding=THREE.sRGBEncoding; t.anisotropy=8; if(rep){ t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(...rep); } return t; };
 const RW=14, RD=12, WH=4.6, ZC=0;   // room width, back-wall depth, wall height (the back wall is at z = ZC − RD/2 = −6)
-const ZF=9.5, SL=ZF-(ZC-RD/2), SC=(ZF+ZC-RD/2)/2;   // the side walls run on to the front of the lounge: length SL, centred at z = SC
+const ZF=12, SL=ZF-(ZC-RD/2), SC=(ZF+ZC-RD/2)/2;   // the side walls run on to the front of the lounge: length SL, centred at z = SC
 { // carpet: a dark violet weave with gold-and-cyan alien motifs, repeating
   const c=document.createElement("canvas"); c.width=c.height=512; const g=c.getContext("2d");
   g.fillStyle="#1a0f33"; g.fillRect(0,0,512,512); for(let i=0;i<3000;i++){ g.fillStyle=`rgba(${Math.random()<.5?"120,80,200":"40,20,80"},${Math.random()*.25})`; g.fillRect(Math.random()*512,Math.random()*512,2,2); }

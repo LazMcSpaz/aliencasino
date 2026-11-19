@@ -23,6 +23,8 @@ const EXTRAS = (() => {
     const booth = new THREE.Group(); booth.position.set(.55, .35, 0); g.add(booth);
     add(booth, new THREE.BoxGeometry(.6, 1.0, 1.6), mat.shell, [0, .5, 0]); add(booth, new THREE.PlaneGeometry(1.6, .8), new THREE.MeshBasicMaterial({ map: ctex(bc) }), [.301, .5, 0], [0, Math.PI / 2, 0], false);
     add(booth, new THREE.BoxGeometry(.66, .04, 1.7), mat.black, [0, 1.02, 0]);
+    // a riser box behind the booth for the DJ to stand on, so it shows above the decks
+    add(g, new THREE.BoxGeometry(.75, .32, .85), mat.shell, [-.45, .51, 0]); add(g, new THREE.BoxGeometry(.77, .02, .87), mat.cyan, [-.45, .68, 0], [0, 0, 0], false);
     const decks = [-.42, .42].map(z => { add(booth, new THREE.CylinderGeometry(.2, .2, .03, 24), mat.chrome, [-.02, 1.055, z]); const rec = add(booth, new THREE.CylinderGeometry(.17, .17, .012, 24), mat.black, [-.02, 1.075, z]);
       add(rec, new THREE.CylinderGeometry(.05, .05, .014, 16), mat.pink, [0, .002, 0], [0, 0, 0], false); add(rec, new THREE.BoxGeometry(.1, .016, .01), mat.cyan, [.06, .002, 0], [0, 0, 0], false); return rec; });
     // speakers either side, cones that thump on the beat
@@ -61,13 +63,18 @@ const EXTRAS = (() => {
 
   // ---- lounge booths along the right wall at the front: curved seats round a lit table ----
   function booths() {
-    for (const z of [6.35, 8.65]) { const g = grp([5.75, 0, z], Math.PI / 2);   // the seat curves round the wall side, open toward the room
-      const seat = add(g, new THREE.TorusGeometry(.85, .26, 10, 28, Math.PI), mat.plush, [0, .3, 0], [Math.PI / 2, 0, 0]); seat.scale.set(1, 1, .55);
-      add(g, new THREE.CylinderGeometry(1.15, 1.15, .7, 28, 1, true, 0, Math.PI), mat.plush2, [0, .65, 0], [0, -Math.PI / 2, 0]).material.side = THREE.DoubleSide;
-      add(g, new THREE.CylinderGeometry(.42, .42, .04, 24), mat.black, [0, .62, -.15]); add(g, new THREE.TorusGeometry(.42, .012, 6, 32), mat.cyan, [0, .63, -.15], [Math.PI / 2, 0, 0], false);
-      add(g, new THREE.CylinderGeometry(.05, .12, .6, 10), mat.chrome, [0, .3, -.15]);
-      for (const [x, c] of [[-.12, 0xff5fae], [.14, 0x8dff6a]]) add(g, new THREE.CylinderGeometry(.04, .03, .12, 10), B(c, { transparent: true, opacity: .85 }), [x, .7, -.15], [0, 0, 0], false);   // drinks
-      const l = new THREE.PointLight(0xff5fae, .6, 3, 2); l.position.set(0, 1.4, 0); g.add(l); }
+    // a curved bench (seat cushion + taller backrest) wrapped round the wall side of a round table, open toward the room
+    const sector = (r0, r1, a0, a1) => { const sh = new THREE.Shape(); sh.absarc(0, 0, r1, a0, a1, false); sh.absarc(0, 0, r0, a1, a0, true); sh.closePath(); return sh; };
+    const curved = (r0, r1, h, a0, a1, bev) => { const g = new THREE.ExtrudeGeometry(sector(r0, r1, a0, a1), { depth: h, bevelEnabled: true, bevelThickness: bev, bevelSize: bev, bevelSegments: 3, curveSegments: 32 }); g.rotateX(-Math.PI / 2); return g; };
+    const A = Math.PI * .58;   // the bench wraps ±104° round the back (toward the wall, +x)
+    for (const z of [6.35, 8.65]) { const g = grp([5.62, 0, z]);
+      add(g, curved(.66, 1.02, .36, -A, A, .05), mat.plush, [0, .05, 0]);                         // seat cushion
+      add(g, curved(.98, 1.13, .95, -A, A, .04), mat.plush2, [0, .05, 0]);                        // backrest
+      add(g, new THREE.TorusGeometry(1.055, .025, 6, 48, 2 * A), mat.gold, [0, 1.06, 0], [Math.PI / 2, 0, -A], false);   // gold piping along the top
+      add(g, new THREE.CylinderGeometry(.42, .42, .04, 28), mat.black, [0, .7, 0]); add(g, new THREE.TorusGeometry(.42, .012, 6, 32), mat.cyan, [0, .71, 0], [Math.PI / 2, 0, 0], false);
+      add(g, new THREE.CylinderGeometry(.05, .14, .68, 12), mat.chrome, [0, .34, 0]);
+      for (const [x, zz, c] of [[-.12, .1, 0xff5fae], [.1, -.14, 0x8dff6a]]) add(g, new THREE.CylinderGeometry(.04, .03, .12, 10), B(c, { transparent: true, opacity: .85 }), [x, .78, zz], [0, 0, 0], false);   // drinks
+      const l = new THREE.PointLight(0xff5fae, .6, 3, 2); l.position.set(0, 1.5, 0); g.add(l); }
   }
 
   // ---- the jackpot board on the back wall: a big number that keeps climbing ----
@@ -105,11 +112,23 @@ const EXTRAS = (() => {
     g.strokeStyle = "#1c1440"; g.lineWidth = 4; for (let i = 0; i <= 512; i += 128) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i, 512); g.moveTo(0, i); g.lineTo(512, i); g.stroke(); }
     for (let i = 0; i < 90; i++) { const x = Math.random() * 512, y = Math.random() * 512, r = Math.random() < .15 ? 3 : 1.5; g.fillStyle = ["#ffffff", "#bfefff", "#ffd8f0", "#e8dcff"][i % 4]; g.globalAlpha = .5 + Math.random() * .5; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); } g.globalAlpha = 1;
     for (const [x, y] of [[64, 64], [320, 320]]) { g.strokeStyle = "#5fe8ff99"; g.lineWidth = 2; g.beginPath(); g.arc(x, y, 40, 0, 7); g.stroke(); g.strokeStyle = "#b48cff88"; g.beginPath(); g.arc(x, y, 50, 0, 7); g.stroke(); }
-    const t = ctex(c, [3.5, 4]), back = -6, front = 9.5, len = front - back;
+    const t = ctex(c, [3.5, 4.5]), back = -6, front = 12, len = front - back;
     add(scene, new THREE.PlaneGeometry(14, len), new THREE.MeshStandardMaterial({ map: t, emissive: 0xffffff, emissiveMap: t, emissiveIntensity: .28, roughness: .9 }), [0, WH, (back + front) / 2], [Math.PI / 2, 0, 0], false); }
 
   // ---- the edge of the room at the front: a neon line on the floor ----
-  function frontEdge() { add(scene, new THREE.BoxGeometry(14, .015, .05), mat.violet, [0, .01, 9.75], [0, 0, 0], false); }
+  // the front wall, with the airlock you came in through. Everything here faces into the room only, so from the bird's-eye view outside it isn't drawn
+  function frontEdge() { const [c, g] = canvas(512, 640);
+    g.fillStyle = "#14101f"; g.fillRect(0, 0, 512, 640); g.fillStyle = "#1e1830"; g.fillRect(40, 40, 432, 600);
+    for (let i = 0; i < 2; i++) { const x = 56 + i * 204; g.fillStyle = "#2c2b34"; g.fillRect(x, 56, 196, 584); g.fillStyle = "#3a3846"; g.fillRect(x + 12, 70, 172, 560);
+      g.fillStyle = "#ffc845"; for (let y = 300; y < 380; y += 26) { g.beginPath(); const d = i ? -1 : 1; g.moveTo(x + 98 - d * 50, y); g.lineTo(x + 98 + d * 10, y + 12); g.lineTo(x + 98 - d * 50, y + 24); g.lineTo(x + 98 - d * 38, y + 24); g.lineTo(x + 98 + d * 22, y + 12); g.lineTo(x + 98 - d * 38, y); g.fill(); } }   // hazard chevrons pointing at the seam
+    g.fillStyle = "#5fe8ff"; g.fillRect(253, 56, 6, 584); g.font = '400 54px "Bungee",Impact,sans-serif'; g.textAlign = "center"; g.fillStyle = "#ff5fae"; g.shadowColor = "#ff5fae"; g.shadowBlur = 16; g.fillText("AIRLOCK", 256, 210); g.shadowBlur = 0;
+    g.font = '600 20px "Share Tech Mono",monospace'; g.fillStyle = "#bfefff"; g.fillText("NO EXIT FOR EARTHLINGS", 256, 250);
+    const one = (geo, m, p, r = [0, Math.PI, 0]) => { m.side = THREE.FrontSide; return add(scene, geo, m, p, r, false); };
+    const wm = new THREE.MeshStandardMaterial({ color: 0x241c3c, roughness: .7, metalness: .2 });
+    one(new THREE.PlaneGeometry(14, WH), wm, [0, WH / 2, 12]);
+    one(new THREE.PlaneGeometry(2.4, 3.0), new THREE.MeshBasicMaterial({ map: ctex(c) }), [0, 1.5, 11.98]);
+    for (const [w, h, x, y, col] of [[2.6, .05, 0, 3.05, 0x5fe8ff], [.05, 3.05, -1.25, 1.52, 0x5fe8ff], [.05, 3.05, 1.25, 1.52, 0x5fe8ff], [14, .06, 0, .25, 0xb48cff], [14, .06, 0, WH - .4, 0xb48cff]]) one(new THREE.PlaneGeometry(w, h), B(col), [x, y, 11.97]);
+    const l = new THREE.PointLight(0x5fe8ff, .8, 5, 2); l.position.set(0, 3.2, 11.2); scene.add(l); }
 
   // ---- loading the CC0 models ----
   // each model is published as base64 text (the artifact host doesn't serve .glb files); build.py writes assets/<name>.b64.txt
@@ -165,7 +184,7 @@ const EXTRAS = (() => {
       walk([[.4, -1.15], [4.95, -1.15], [4.95, 2.35], [.4, 2.35]], .5, 0);                 // round the Twin Moons table
       walk([[-.3, 9.25], [3.9, 9.25], [3.9, 5.75], [-.3, 5.75]], .42, 285);                  // round the lounge
       walk([[-1.0, -1.6], [-1.0, 1.4], [-5.2, 1.4], [-5.2, -1.6]], .38, 45);                 // past the slot alley and the warp stage
-      alien(L, { scale: SC, hue: 200, pos: [-6.35, .35, 7.5], ry: Math.PI / 2, anim: "Yes" });          // the DJ, nodding along
+      alien(L, { scale: SC, hue: 200, pos: [-6.35, .67, 7.5], ry: Math.PI / 2, anim: "Yes" });          // the DJ on its riser, nodding along
       const dancers = [[-3.75, 6.75, 35], [-2.0, 7.85, 160], [-3.3, 8.65, 300], [-1.7, 6.55, 110]].map(([x, z, hue], i) => alien(L, { scale: SC, hue, pos: [x, 0, z], ry: -Math.PI / 2 + (i - 1.5) * .35, anim: ["Yes", "Jump_Idle", "Wave", "Yes"][i] }));
       const MOVES = ["Yes", "Jump_Idle", "Yes", "Wave", "Jump_Idle"]; let lastBar = -1;
       updates.push(() => { const b = Music.bar(); if (b === lastBar || b % 2) return; lastBar = b; dancers.forEach((d, i) => { if (!d.busy) { d.base = MOVES[(b / 2 + i * 2) % MOVES.length]; d.play(d.base, .4); } }); });
@@ -178,7 +197,7 @@ const EXTRAS = (() => {
     const float = (src, o) => { if (!src) return; const a = alien(src, { scale: o.s, hue: o.hue, pos: [0, 0, 0], anim: "Flying_Idle" }); floaters.push({ a, ...o }); };
     float(got.enemy_small, { s: .3, hue: 0, c: [-2.7, 1.85, 7.5], r: .9, w: .55, ph: 0 });
     float(got.enemy_extrasmall, { s: .34, hue: 230, c: [-2.7, 2.25, 7.5], r: .7, w: -.7, ph: 2 });
-    float(got.enemy_flying, { s: .26, hue: 25, c: [4.75, .55, 7.5], r: .15, w: .4, ph: 1 });
+    float(got.enemy_flying, { s: .26, hue: 25, c: [5.62, 1.2, 6.35], r: .12, w: .4, ph: 1 });
     float(got.enemy_small, { s: .3, hue: 175, c: [.6, 2.7, 1.4], r: 3.3, w: .13, ph: 3, rz: .8 });
     float(got.enemy_extrasmall, { s: .3, hue: 300, c: [5.6, 1.6, 1.0], r: .25, w: .5, ph: 4 });   // hovering behind the bar
     updates.push(t => floaters.forEach(f => { if (f.a.busy) return; const ang = f.ph + t * f.w, x = f.c[0] + Math.cos(ang) * f.r, z = f.c[2] + Math.sin(ang) * f.r * (f.rz || 1);
@@ -186,7 +205,7 @@ const EXTRAS = (() => {
   }
 
   // footprints the first-person walker can't pass through: [x0, z0, x1, z1]
-  const obstacles = [[-7, 5.7, -4.8, 9.3], [4.55, 5.15, 7, 7.55], [4.55, 7.45, 7, 9.85], [1.75, 7.25, 2.65, 8.15]];
+  const obstacles = [[-7, 5.7, -4.8, 9.3], [4.45, 5.2, 7, 7.5], [4.45, 7.5, 7, 9.8], [1.75, 7.25, 2.65, 8.15]];
   POTS.forEach(o => obstacles.push([o.p[0] - o.r, o.p[2] - o.r, o.p[0] + o.r, o.p[2] + o.r]));
   return { build(TX) { stage(); danceFloor(); booths(); jackpot(); screens(TX); planters(); frontEdge(); ceiling(); return life(); }, aliens, obstacles };
 })();

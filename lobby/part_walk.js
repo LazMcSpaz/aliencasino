@@ -1,10 +1,10 @@
 // First-person walking: the camera at a person's eye height, moved with one finger.
-// Put a finger down and slide it up to walk forward (further up = faster, back down toward where you started = slower),
+// Put a finger down and slide it up to walk forward (further up = faster, back down toward where you started = slower, below it = a slow backup),
 // slide it left or right to turn, lift it to stop. Walk up to a machine and tap it to play. The game names along the bottom walk you over to that game.
 // Desktop: drag with the mouse the same way, or use the arrow keys / WASD.
 // May use: the lobby's cam, ctl, scene, placed, pickables, openGame, EXTRAS, walkers. Must not: change the games or the wallet.
 const WALK = (() => {
-  const EYE = 1.62, R = .32, MAXV = 1.8, MAXTURN = 1.8, REACH = 2.0, PITCH = -.12, DEAD = 12;
+  const EYE = 1.62, R = .32, MAXV = 1.8, BACKV = .55, MAXTURN = 1.8, REACH = 2.0, PITCH = -.12, DEAD = 12;
   const me = { x: .9, z: 10.6, yaw: 0, v: 0, turn: 0 };          // yaw 0 = facing the back wall (−z)
   let on = false, touch = null, rects = [], auto = null, lastAim = 0, bob = 0, walked = false, toastT = 0;
   const keys = {};
@@ -17,7 +17,7 @@ const WALK = (() => {
     placed.forEach(p => { if (p.holder.userData.walker) return; const b = new THREE.Box3().setFromObject(p.holder); rects.push([b.min.x, b.min.z, b.max.x, b.max.z]); });
     rects.push([5.85, -1.5, 7.2, 4.5]);                              // the bar counter
     (EXTRAS.obstacles || []).forEach(r => rects.push(r)); }
-  const blocked = (x, z) => x < -6.7 || x > 6.7 || z < -5.7 || z > 11.8 || rects.some(r => x > r[0] - R && x < r[2] + R && z > r[1] - R && z < r[3] + R);
+  const blocked = (x, z) => x < -6.7 || x > 6.7 || z < -5.7 || z > 11.6 || rects.some(r => x > r[0] - R && x < r[2] + R && z > r[1] - R && z < r[3] + R);
   function step(dx, dz) { if (!blocked(me.x + dx, me.z)) me.x += dx; if (!blocked(me.x, me.z + dz)) me.z += dz; }   // slide along walls instead of sticking
 
   function toast(msg) { const t = el("wtoast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), 1600); }
@@ -56,7 +56,8 @@ const WALK = (() => {
   function update(dt) {
     let vt = 0, tt = 0;
     if (touch) { const up = touch.y0 - touch.y, side = touch.x - touch.x0;
-      vt = Math.max(0, Math.min(1, (up - DEAD) / 120)) * MAXV;                                  // how far up the finger is = how fast you walk
+      vt = up > 0 ? Math.max(0, Math.min(1, (up - DEAD) / 120)) * MAXV                          // how far up the finger is = how fast you walk
+                  : -Math.max(0, Math.min(1, (-up - DEAD) / 120)) * BACKV;                       // below where it started: a slow step backward
       tt = -Math.sign(side) * Math.max(0, Math.min(1, (Math.abs(side) - DEAD) / 130)) * MAXTURN; }   // how far to the side = how fast you turn
     if (keys.arrowup || keys.w) vt = MAXV * .8; if (keys.arrowdown || keys.s) vt = -MAXV * .5;
     if (keys.arrowleft || keys.a) tt = MAXTURN * .8; if (keys.arrowright || keys.d) tt = -MAXTURN * .8;
