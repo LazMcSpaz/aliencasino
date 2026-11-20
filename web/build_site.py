@@ -62,18 +62,41 @@ head = """<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name=
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Alien Casino"><meta name="theme-color" content="#03040f"><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="icon-180.png">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}</style></head><body>"""
-sw_reg = """<script>if("serviceWorker" in navigator) addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));</script>"""
+# the service worker registration, plus a small pill that shows the offline copy being saved ("Saving for offline 12/30" → "Works offline")
+sw_reg = """<div id="offl" style="position:fixed;z-index:50;left:50%;bottom:calc(64px + env(safe-area-inset-bottom,0px));translate:-50% 0;padding:6px 12px;border-radius:20px;background:#06131fe6;border:1px solid #5fe8ff;color:#e6fbff;font:600 12px system-ui,sans-serif;box-shadow:0 0 12px #5fe8ff55;transition:opacity .6s;pointer-events:none" hidden></div>
+<script>(() => { const el = document.getElementById("offl"); let hideT;
+  const show = (t, ok) => { el.hidden = false; el.style.opacity = 1; el.style.borderColor = ok ? "#7dff9a" : "#5fe8ff"; el.textContent = t; clearTimeout(hideT); if (ok) hideT = setTimeout(() => { el.style.opacity = 0; }, 3500); };
+  if (!("serviceWorker" in navigator)) return;
+  try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) {}
+  navigator.serviceWorker.addEventListener("message", e => { const d = e.data || {}; if (d.type !== "offline") return;
+    if (d.done && !d.missing) show("\u2713 Saved \u2014 works offline", true); else if (d.done) show(`Offline copy incomplete (${d.missing} missing) \u2014 reopen with internet`); else show(`Saving for offline\u2026 ${d.have}/${d.total}`); });
+  const ask = () => navigator.serviceWorker.ready.then(r => r.active && r.active.postMessage("status")).catch(() => {});
+  addEventListener("load", () => navigator.serviceWorker.register("sw.js").then(ask).catch(() => show("Offline saving isn't available here")));
+  navigator.serviceWorker.addEventListener("controllerchange", ask); })();</script>"""
 (OUT / "index.html").write_text(head + lobby + sw_reg + "</body></html>")
 
 # the service worker: keeps every file on the phone; a new build gets a new cache name, so the app updates the next time it's opened online
 files = sorted(p.relative_to(OUT).as_posix() for p in OUT.rglob("*") if p.is_file())
 ver = hashlib.sha1(b"".join((OUT / f).read_bytes() for f in files)).hexdigest()[:10]
 (OUT / "sw.js").write_text(f"""// Alien Casino offline cache, version {ver}. Built by web/build_site.py: keeps every file on the device so the casino works with no connection.
+// Files are saved one at a time with progress messages to the page; anything that fails is retried every time the app is opened online.
 const CACHE = "alien-casino-{ver}", FILES = {json.dumps(["./"] + files)};
-self.addEventListener("install", e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting())));
+const tell = async msg => {{ for (const c of await self.clients.matchAll({{ includeUncontrolled: true }})) c.postMessage({{ type: "offline", ...msg }}); }};
+let filling = null;
+function fill() {{ return filling || (filling = (async () => {{ const c = await caches.open(CACHE); let have = 0, missing = 0;
+  for (const f of FILES) {{ if (await c.match(f)) {{ have++; continue; }}
+    let ok = false; for (let t = 0; t < 3 && !ok; t++) {{ try {{ const r = await fetch(f, {{ cache: "reload" }}); if (r.ok) {{ await c.put(f, r); ok = true; }} }} catch (e) {{}} }}
+    if (ok) have++; else missing++; tell({{ have, total: FILES.length, done: false }}); }}
+  tell({{ have, total: FILES.length, done: true, missing }}); filling = null; return missing; }})()); }}
+self.addEventListener("install", e => e.waitUntil(fill().then(() => self.skipWaiting())));
 self.addEventListener("activate", e => e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k.startsWith("alien-casino-") && k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())));
+self.addEventListener("message", e => {{ if (e.data === "status") fill(); }});
 self.addEventListener("fetch", e => {{ if (e.request.method !== "GET") return;
-  e.respondWith(caches.match(e.request, {{ ignoreSearch: true }}).then(hit => hit || fetch(e.request).then(r => {{ if (r.ok && new URL(e.request.url).origin === location.origin) {{ const copy = r.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); }} return r; }}))); }});
+  e.respondWith((async () => {{ const c = await caches.open(CACHE);
+    const hit = await c.match(e.request, {{ ignoreSearch: true }}) || (e.request.mode === "navigate" ? await c.match("./") : null);
+    if (hit) return hit;
+    try {{ const r = await fetch(e.request); if (r.ok && new URL(e.request.url).origin === location.origin) c.put(e.request, r.clone()); return r; }}
+    catch (err) {{ return (await c.match("./")) || Response.error(); }} }})()); }});
 """)
 (OUT / ".nojekyll").write_text("")
 total = sum((OUT / f).stat().st_size for f in files)
