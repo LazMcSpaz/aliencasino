@@ -1189,6 +1189,15 @@ function poke(){ clearTimeout(idleTimer);   // left alone for a while, it nods o
   idleTimer=setTimeout(()=>{ if(!spinning && !autoOn && !bonusMode && mood!=="sleepy"){ setMood("sleepy"); applyMoodUI(true); } }, 25000); }
 // ---- Moods on screen: resting face, lines, hints, music tempo, and what tapping does ----
 const MOOD_FACE  = { happy:"idle", giddy:"happy", grumpy:"angry", sleepy:"sleepy", mischievous:"sly" };
+// how each mood reacts when a spin lands: a giddy machine is thrilled even by crumbs, a grumpy one is annoyed when you win and smug when you lose,
+// a sleepy one barely stirs unless it's a big win, a mischievous one smirks either way. Anything not listed falls back to the happy machine's face.
+const MOOD_RESULT = {
+  happy:       { big:"big",       win:"happy", crumbs:"meh",    lose:"meh",       near:"sad",       streak:"sad",   smug:"smug" },
+  giddy:       { big:"big",       win:"big",   crumbs:"happy",  lose:"surprised", near:"surprised", streak:"meh",   smug:"happy" },
+  grumpy:      { big:"surprised", win:"meh",   crumbs:"angry",  lose:"smug",      near:"smug",      streak:"smug",  smug:"smug" },
+  sleepy:      { big:"surprised", win:"sleepy",crumbs:"sleepy", lose:"sleepy",    near:"meh",       streak:"sleepy",smug:"sleepy" },
+  mischievous: { big:"big",       win:"sly",   crumbs:"sly",    lose:"smug",      near:"sly",       streak:"smug",  smug:"sly" } };
+const resultFace = (kind, m) => (MOOD_RESULT[m] || MOOD_RESULT.happy)[kind] || MOOD_RESULT.happy[kind];
 const MOOD_TEMPO = { happy:1, giddy:1.08, grumpy:.94, sleepy:.82, mischievous:.97 };
 const MOOD_LINES = {
   in: {            // entering a mood — each one drops an in-character clue about its trick
@@ -2157,16 +2166,16 @@ function spin(){
       if(level>=1){ SFX.countUp(countMs); const wp=$("winpop"); wp.classList.toggle("big",level===2); $("winlabel").textContent= level===2?"BIG WIN": r.inBonus ? `WIN ×${r.mult}` : "WIN";
         wp.classList.add("show"); animateNumber($("winbig"),0,total,countMs); setTimeout(()=>wp.classList.remove("show"), level===2?2600:1500); }
       if(level===2){ Sound.bigWin(); setTimeout(signature, 400); $("app").classList.add("shake"); setTimeout(()=>$("app").classList.remove("shake"),1000);
-        setFace("big",{hold:2800,line:sayRand("big")}); pause=2800; if(autoOn && !r.inBonus) setAuto(false); }
-      else if(partial){ SFX.plink(); setFace("meh",{hold:1100,line:sayRand(missed?"nearMiss":"crumbs")}); pause=900; }
-      else { Sound.win(level); setTimeout(signature, 350); setFace(r.inBonus?"drool":"happy",{hold:1600,line:sayRand(missed?"nearMiss":r.inBonus?"bonusSpin":level?"medium":"small")}); pause = level ? 1700 : 1100; }
+        setFace(resultFace("big", r.mood),{hold:2800,line:sayRand("big")}); pause=2800; if(autoOn && !r.inBonus) setAuto(false); }
+      else if(partial){ SFX.plink(); setFace(resultFace("crumbs", r.mood),{hold:1100,line:sayRand(missed?"nearMiss":"crumbs")}); pause=900; }
+      else { Sound.win(level); setTimeout(signature, 350); setFace(r.inBonus?"drool":resultFace("win", r.mood),{hold:1600,line:sayRand(missed?"nearMiss":r.inBonus?"bonusSpin":level?"medium":"small")}); pause = level ? 1700 : 1100; }
     } else if(!r.triggered && !r.inBonus){
       showIdleLines(); Sound.lose();
       if(credits < LINE_COST){ setFace("sad",{line:sayRand("broke")}); setAuto(false); }
-      else if(missed) setFace("sad",{hold:1400,line:sayRand("nearMiss")});
-      else if(coolLeft>0) setFace("smug",{hold:1400,line:sayRand("smug")});
-      else if(lossStreak>=1.6) setFace("sad",{hold:1400,line:sayRand("streak")});
-      else setFace("meh",{hold:1200,line:sayRand("lose")});
+      else if(missed) setFace(resultFace("near", r.mood),{hold:1400,line:sayRand("nearMiss")});
+      else if(coolLeft>0) setFace(resultFace("smug", r.mood),{hold:1400,line:sayRand("smug")});
+      else if(lossStreak>=1.6) setFace(resultFace("streak", r.mood),{hold:1400,line:sayRand("streak")});
+      else setFace(resultFace("lose", r.mood),{hold:1200,line:sayRand("lose")});
     } else if(r.inBonus && !r.added) showIdleLines();
     if(called){   // the bluff call pays off — or costs two spins if the tease was real
       if(r.triggered){ const cut=Math.min(2, r.triggered-4); r.triggered-=cut; bonusLeft-=cut; stamp("REAL!","#7dff3a"); setFace("angry",{hold:1800,line:pickLine("bluffRude")}); }
