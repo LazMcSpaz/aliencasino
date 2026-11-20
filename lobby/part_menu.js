@@ -22,6 +22,7 @@ const MENU = (() => {
 .mn{position:fixed;inset:0;z-index:40;overflow:hidden;background:#05030c;display:grid;grid-template-rows:auto 1fr auto;
   padding:calc(14px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));box-sizing:border-box}
 .mn canvas.sky{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.mn canvas.peek{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0;opacity:0;transition:opacity .25s}.mn canvas.peek.on{opacity:1}
 .mn::after{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(120% 80% at 50% 50%,transparent 55%,#000a)}
 .mn > :not(canvas){position:relative;z-index:1}
 .mn .top{display:flex;justify-content:space-between;align-items:center;min-height:44px}
@@ -54,7 +55,12 @@ const MENU = (() => {
 .mn .tile.ready small{color:#fff;text-shadow:0 0 8px var(--hc)}
 .mn .tile.ready .ic{animation:mnring 1.2s ease-in-out infinite}
 @keyframes mnring{50%{box-shadow:0 0 0 1px var(--hc),0 0 0 7px color-mix(in srgb,var(--hc) 18%,transparent),0 0 26px var(--hc)}}
-.mn .dot{position:absolute;top:8px;right:10px;padding:2px 6px;border-radius:9px;background:#ff4d6d;color:#fff;font:700 .5rem var(--f-mono);letter-spacing:.06em;box-shadow:0 0 10px #ff4d6d;animation:mnpulse2 .8s ease-in-out infinite alternate}
+.mn .tile.half{grid-template-columns:auto 1fr;justify-items:start;align-items:center;gap:9px;padding:9px 10px;font-size:.66rem;text-align:left}
+.mn .tile.half .ic{width:30px;height:30px}.mn .tile.half svg{width:16px;height:16px}
+.mn .tile.half .tx{display:grid;gap:3px}.mn .tile.half small{font:700 .58rem var(--f-mono);letter-spacing:.1em}
+.mn .tile.half .dot{top:-6px;right:6px}
+.mn .tile.off{filter:grayscale(1) brightness(.75);opacity:.7}.mn .tile.off small{color:#c8c4dc}
+.mn .dot{z-index:3;position:absolute;top:8px;right:10px;padding:2px 6px;border-radius:9px;background:#ff4d6d;color:#fff;font:700 .5rem var(--f-mono);letter-spacing:.06em;box-shadow:0 0 10px #ff4d6d;animation:mnpulse2 .8s ease-in-out infinite alternate}
 @keyframes mnpulse2{to{transform:scale(1.12)}}
 .mn .foot{text-align:center;font:400 .56rem var(--f-mono);letter-spacing:.18em;color:#8a7fb0}
 .mn .head{display:flex;align-items:center;gap:10px}
@@ -111,7 +117,7 @@ const MENU = (() => {
 .mm .nt b{display:block;font:400 2.6rem/1 "Monoton",var(--f-sign);color:#f4ffe6;text-shadow:0 0 3px #fff,0 0 10px #b8ff3d,0 0 26px #7dff3a,0 0 48px #3d9a00;letter-spacing:.04em}
 .mm .wheelwrap{position:relative;width:min(84vw,320px);aspect-ratio:680/700}
 .mm .wheelwrap canvas.sp{width:100%;height:100%}
-.mm .rd{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;width:100%;margin-top:-4px}
+.mm .rd{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:10px;width:100%;margin-top:-4px}
 .mm .rdb{border-radius:14px;padding:8px 6px;background:#000;box-shadow:inset 0 0 0 1px #2e2752,inset 0 0 18px #000;display:grid;gap:3px;justify-items:center}
 .mm .rdb small{font:700 .52rem var(--f-tech);letter-spacing:.18em;color:#9a92c7}
 .mm .rdb b{font:700 1.02rem var(--f-tech);color:#f1edff;letter-spacing:.04em;white-space:nowrap}
@@ -183,20 +189,24 @@ const MENU = (() => {
   const startSky = () => { skySize(); if (!raf) raf = requestAnimationFrame(loop); };
 
   const bal = () => `<div class="bal holo" id="mnBal"><i></i><span>${W.get().toLocaleString()}</span></div>`;
+  const clock = () => { const n = new Date(); n.setHours(24, 0, 0, 0); const sec = Math.max(0, Math.floor((n - new Date()) / 1000)), p = v => String(v).padStart(2, "0"); return `${p(Math.floor(sec / 3600))}:${p(Math.floor(sec / 60) % 60)}:${p(sec % 60)}`; };   // time to local midnight, hh:mm:ss
+  setInterval(() => { if (!open || screen !== "home") return; el.querySelectorAll("[data-timer]").forEach(t => { if (t.dataset.timer) t.textContent = clock(); });
+    if ((rewardReady() && $m("mnDaily") && $m("mnDaily").classList.contains("off")) || (spinReady() && $m("mnSpin") && $m("mnSpin").classList.contains("off"))) home(); }, 1000);   // past midnight: the tiles light up again
   const nextIn = () => { const n = new Date(); n.setHours(24, 0, 0, 0); const m = Math.ceil((n - new Date()) / 6e4); return `${Math.floor(m / 60)}h ${m % 60}m`; };
   const rewardReady = () => load().claim !== today(), spinReady = () => load().spin !== today();
   function streakDay() { const d = load(); if (!d.claim) return 0; const gap = dayDiff(d.claim, today()); return gap === 0 ? (d.streak - 1) % 7 : gap === 1 ? d.streak % 7 : 0; }   // which day (0…6) is up next
   // ---- the home screen ----
   function home() { screen = "home"; body.style.alignContent = "";
     top.innerHTML = bal() + `<span></span>`;
-    const tile = (id, col, icon, name, sub, ready, badge) => `<button class="tile holo ${ready ? "ready" : ""}" id="${id}" style="--hc:${col}"><span class="ic">${svg(icon)}</span>${name}<small>${sub}</small>${ready && badge ? `<span class="dot">${badge}</span>` : ""}</button>`;
+    const tile = (id, col, icon, name, sub) => `<button class="tile holo" id="${id}" style="--hc:${col}"><span class="ic">${svg(icon)}</span>${name}<small>${sub}</small></button>`;
+    const half = (id, col, icon, name, ready, badge) => `<button class="tile half holo ${ready ? "ready" : "off"}" id="${id}" style="--hc:${col}"><span class="ic">${svg(icon)}</span><span class="tx">${name}<small data-timer="${ready ? "" : id}">${ready ? "ready!" : clock()}</small></span>${ready ? `<span class="dot">${badge}</span>` : ""}</button>`;
     body.innerHTML = `<div class="page"><div class="logo"><b>ALIEN</b><i>Casino</i></div><div class="tag">win your way home</div>
       <button class="big holo" id="mnEnter">ENTER THE CASINO<small>walk the floor &middot; 3D</small></button>
       <div class="grid2">
-        ${tile("mnQuick", "#5fe8ff", '<path d="M7 4l12 8-12 8z"/>', "QUICK PLAY", "straight to a game", false)}
-        ${tile("mnSpin", "#ff4fae", '<circle cx="12" cy="13" r="8"/><path d="M12 5v16M4 13h16M6.3 7.3l11.4 11.4M17.7 7.3L6.3 18.7"/><path d="M12 1l2 3h-4z"/>', "DAILY SPIN", spinReady() ? "free spin ready!" : "next in " + nextIn(), spinReady(), "FREE")}
-        ${tile("mnDaily", "#7dff9a", '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M9 15l2 2 4-4"/>', "DAILY REWARD", rewardReady() ? "claim it now!" : "next in " + nextIn(), rewardReady(), "NEW")}
-        ${tile("mnStore", "#ffc845", '<path d="M4 8h16l-1.5 12h-13z"/><path d="M8 8V6a4 4 0 0 1 8 0v2"/>', "STORE", "get more bars", false)}
+        ${tile("mnQuick", "#5fe8ff", '<path d="M7 4l12 8-12 8z"/>', "QUICK PLAY", "straight to a game")}
+        ${tile("mnStore", "#ffc845", '<path d="M4 8h16l-1.5 12h-13z"/><path d="M8 8V6a4 4 0 0 1 8 0v2"/>', "STORE", "get more bars")}
+        ${half("mnDaily", "#7dff9a", '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M9 15l2 2 4-4"/>', "DAILY REWARD", rewardReady(), "NEW")}
+        ${half("mnSpin", "#ff4fae", '<circle cx="12" cy="13" r="8"/><path d="M12 5v16M4 13h16M6.3 7.3l11.4 11.4M17.7 7.3L6.3 18.7"/><path d="M12 1l2 3h-4z"/>', "DAILY SPIN", spinReady(), "FREE")}
       </div></div>`;
     foot.textContent = "A TRAVELLING CASINO · SOMEWHERE PAST JUPITER";
     $m("mnEnter").onclick = () => { SFX.open(); hide(); enterCasino(); }; $m("mnQuick").onclick = () => { SFX.tap(); quick(); }; $m("mnSpin").onclick = dailySpin; $m("mnDaily").onclick = dailyReward; $m("mnStore").onclick = store; }
@@ -236,13 +246,14 @@ const MENU = (() => {
     const m = document.createElement("div"); m.className = "mm"; document.body.appendChild(m);
     m.innerHTML = `<div class="box glass" style="--hc:#b8ff3d"><div class="nt"><i>Daily</i><b>SPIN</b></div>
       <div class="wheelwrap"><canvas class="sp" width="680" height="700"></canvas></div>
-      <div class="rd"><div class="rdb"><small>PRIZES</small><b>UP TO 2,500</b></div><div class="spinbtn"><button class="bigspin" id="mmGo" ${ready ? "" : "disabled"}>${ready ? "SPIN<small>FREE</small>" : "DONE<small>today</small>"}</button></div><div class="rdb"><small>WON</small><b id="mmWon">${ready ? "&ndash;" : "&ndash;"}</b></div></div>
+      <div class="rd"><div class="rdb"><small>TOP PRIZE</small><b>2,500</b></div><div class="spinbtn"><button class="bigspin" id="mmGo" ${ready ? "" : "disabled"}>${ready ? "SPIN<small>FREE</small>" : "DONE<small>today</small>"}</button></div><div class="rdb"><small>WON</small><b id="mmWon">${ready ? "&ndash;" : "&ndash;"}</b></div></div>
       <p class="msg" id="mmMsg">${ready ? "One free spin every day." : "Already spun today. Next spin in " + nextIn() + "."}</p><button class="x" id="mmX">CLOSE</button></div>`;
     const close = () => { m.remove(); refresh(); }; m.addEventListener("click", e => { if (e.target === m && !m.dataset.busy) close(); });
     const q = sel => m.querySelector(sel), cv = q("canvas"), g = cv.getContext("2d"), N = SPIN.length, seg = Math.PI * 2 / N;
     const CX = 340, CY = 360, RO = 318, RL = 270, RS = 256, RH = 84;                  // outer lip, lip's inner edge, segments' outer edge, hub
     let ang = 0, busy = false, flap = 0, winK = -1, spinning = false, lit = 0;
     const bar = new Image(); bar.src = ART.bar;
+    const TAU = Math.PI * 2, ring = (r0, r1) => { g.beginPath(); g.arc(CX, CY, r0, 0, TAU); g.moveTo(CX + r1, CY); g.arc(CX, CY, r1, TAU, 0, true); g.closePath(); };   // a clean donut
     const band = (r0, r1, a0, a1) => { g.beginPath(); g.arc(CX, CY, r0, a0, a1); g.arc(CX, CY, r1, a1, a0, true); g.closePath(); };
     function draw(t) { g.clearRect(0, 0, 680, 700);
       // the lip: brushed metal lit from the top-left, a specular streak, rivets and LEDs set into it
@@ -260,7 +271,7 @@ const MENU = (() => {
         g.fillStyle = led; g.beginPath(); g.arc(x, y, 7, 0, 7); g.fill(); if (on) { g.save(); g.globalAlpha = .5; g.shadowColor = c; g.shadowBlur = 18; g.fill(); g.restore(); } }
       // the drop from the lip to the face
       const wall = g.createRadialGradient(CX, CY, RS, CX, CY, RL); wall.addColorStop(0, "#07060d"); wall.addColorStop(1, "#3a3650");
-      g.fillStyle = wall; g.beginPath(); g.arc(CX, CY, RL, 0, 7); g.arc(CX, CY, RS, 0, 7, true); g.fill();
+      g.fillStyle = wall; ring(RL, RS); g.fill();
       // the face: inset enamel segments, turning with the wheel
       g.save(); g.translate(CX, CY); g.rotate(ang); g.translate(-CX, -CY);
       for (let i = 0; i < N; i++) { const [v, , col] = SPIN[i], a0 = -Math.PI / 2 - seg / 2 + i * seg, a1 = a0 + seg, alt = i % 2 ? .78 : 1, hot = winK === i;
@@ -275,7 +286,7 @@ const MENU = (() => {
         g.restore(); }
       g.restore();
       // the step down into the face casts a shadow; light falls across from the top-left
-      const sh = g.createRadialGradient(CX, CY, RS - 34, CX, CY, RS); sh.addColorStop(0, "#0000"); sh.addColorStop(1, "#000a"); g.fillStyle = sh; g.beginPath(); g.arc(CX, CY, RS, 0, 7); g.arc(CX, CY, RS - 34, 0, 7, true); g.fill();
+      const sh = g.createRadialGradient(CX, CY, RS - 34, CX, CY, RS); sh.addColorStop(0, "#0000"); sh.addColorStop(1, "#000a"); g.fillStyle = sh; ring(RS, RS - 34); g.fill();
       g.save(); g.beginPath(); g.arc(CX, CY, RS, 0, 7); g.clip(); const lt = g.createLinearGradient(CX - RS, CY - RS, CX + RS, CY + RS); lt.addColorStop(0, "#ffffff22"); lt.addColorStop(.5, "#00000000"); lt.addColorStop(1, "#00000055"); g.fillStyle = lt; g.fillRect(0, 0, 680, 700); g.restore();
       // the hub: a machined collar round a dark glass dome with a lime LED ring
       const col2 = g.createLinearGradient(CX - RH, CY - RH, CX + RH, CY + RH); col2.addColorStop(0, "#b4b1c6"); col2.addColorStop(.5, "#4c495e"); col2.addColorStop(1, "#1a1826");
@@ -316,10 +327,49 @@ const MENU = (() => {
       md.q("#mmNo").onclick = () => { md.close(); store(); };
       md.q("#mmBuy").onclick = () => { award(p.bars); SFX.win(p.bars >= 30000); confetti(md.m, p.bars >= 30000); md.q(".box").innerHTML = `<h3>THANK YOU!</h3><div class="won" id="mmWon"></div><p>bars added</p><button class="go" id="mmOk">DONE</button>`; countUp(md.q("#mmWon"), p.bars); md.q("#mmOk").onclick = md.close; }; }); }
   function refresh() { if (!open) return; if (screen === "home") home(); else { const b = top.querySelector(".bal span"); if (b) b.textContent = W.get().toLocaleString(); } }
-  function show() { open = true; el.hidden = false; home(); startSky(); }
+  function show() { open = true; el.hidden = false; home(); startSky(); PEEK.schedule(true); }
   function hide() { open = false; el.hidden = true; }
   addEventListener("storage", refresh);
   home(); startSky();
+
+  // ---- the Living Slot peeks in: now and then the casino's slot robot leans in from the bottom-left corner, waves, looks at you and blinks.
+  //      It's the same 3D robot as on the casino floor, drawn on its own canvas behind the buttons, and only while it's on screen. ----
+  const PEEK = (() => { let ren = null, scene, cam, bot, faceMat, faceCanvas, faceImg, arm, armBase, H = 2, S = 1, t0 = -1, timer = 0, loading = null;
+    const DUR = 6.6, cv = document.createElement("canvas"); cv.className = "peek"; cv.setAttribute("aria-hidden", "true"); el.insertBefore(cv, el.children[1]);
+    async function setup() { if (loading) return loading; return loading = (async () => {
+      ren = new THREE.WebGLRenderer({ canvas: cv, alpha: true, antialias: true }); ren.setPixelRatio(Math.min(2, devicePixelRatio || 1)); ren.outputEncoding = THREE.sRGBEncoding; ren.toneMapping = THREE.ACESFilmicToneMapping; ren.toneMappingExposure = 1.05;
+      scene = new THREE.Scene(); cam = new THREE.PerspectiveCamera(30, 1, .1, 40); cam.position.set(0, 0, 6); cam.lookAt(0, 0, 0);
+      scene.add(new THREE.HemisphereLight(0xd8ccff, 0x1a1030, 1.1)); const key = new THREE.DirectionalLight(0xfff2dc, 1.6); key.position.set(3, 4, 5); scene.add(key);
+      const rimP = new THREE.DirectionalLight(0xff5fae, 1.4); rimP.position.set(-4, 2, -3); const rimC = new THREE.DirectionalLight(0x5fe8ff, 1.2); rimC.position.set(4, 1, -3); scene.add(rimP, rimC);
+      const tex = await loadAll(TEX_SRC.slot), m = buildSlotBot(THREE, { mood: "happy", tex }); bot = m.root; faceCanvas = m.faceCanvas; faceImg = tex.faces.happy; scene.add(bot);
+      bot.traverse(o => { if (o.isMesh && o.material && o.material.name === "FaceScreen") faceMat = o.material; });
+      bot.updateMatrixWorld(true); const box = new THREE.Box3().setFromObject(bot); H = box.max.y - box.min.y; bot.userData.y0 = box.min.y; bot.userData.w = box.max.x - box.min.x; bot.userData.x0 = (box.max.x + box.min.x) / 2;
+      // the arm on the screen-right side is the one that waves
+      const L = bot.getObjectByName("Shoulder_L"), R = bot.getObjectByName("Shoulder_R"), wp = o => o ? o.getWorldPosition(new THREE.Vector3()).x : -9;
+      arm = wp(L) > wp(R) ? L : R; armBase = arm ? arm.quaternion.clone() : null; bot.userData.sign = arm === L ? -1 : 1; })(); }
+    function size() { if (!ren) return; const w = el.clientWidth, h = el.clientHeight; ren.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix();
+      const halfH = 6 * Math.tan(15 * Math.PI / 180); S = halfH * 2 * .27 / (H * .67); }            // the visible upper two-thirds fill about 27% of the screen height, below the buttons
+    function face(k) { if (!faceCanvas || !faceImg) return; const c = faceCanvas.getContext("2d"), cy = 150; c.fillStyle = "#000"; c.fillRect(0, 0, 716, 410);
+      c.drawImage(faceImg, 0, cy - cy * k, 716, 410 * k); if (faceMat && faceMat.emissiveMap) faceMat.emissiveMap.needsUpdate = true; }   // k < 1 squashes the eyes shut
+    const ease = u => 1 - Math.pow(1 - u, 3), back = u => { const c = 1.6; return 1 + (c + 1) * Math.pow(u - 1, 3) + c * Math.pow(u - 1, 2); };
+    function frame(now) { if (t0 < 0) return; const t = (now - t0) / 1000;
+      if (t > DUR || !open || screen !== "home" || document.querySelector(".mm") || playingGame()) { t0 = -1; cv.classList.remove("on"); face(1); schedule(); return; }
+      const halfH = 6 * Math.tan(15 * Math.PI / 180), halfW = halfH * cam.aspect, w = bot.userData.w * S;
+      // where it rests: bottom third below the screen's edge, a sliver of its left side off the left edge
+      const rx = -halfW + w * .27 - bot.userData.x0 * S, ry = -halfH - bot.userData.y0 * S - H * S * .33, inK = t < .9 ? back(Math.min(1, t / .9)) : t > DUR - .8 ? 1 - ease((t - (DUR - .8)) / .8) : 1;
+      bot.scale.setScalar(S); bot.position.set(rx - (1 - inK) * w * 1.2, ry - (1 - inK) * H * S * .5, 0);
+      // it leans in sideways, then straightens up to look at you
+      const look = Math.min(1, Math.max(0, (t - 2.6) / .45)); bot.rotation.set(0, .55 * (1 - ease(look)), -.18 * (1 - ease(look)) + Math.sin(t * 1.4) * .02);
+      if (arm && armBase) { const wv = t > .9 && t < 2.6 ? Math.sin(Math.min(1, (t - .9) / .3) * Math.PI / 2) * (Math.min(1, (2.6 - t) / .3)) : 0;   // raise, wave, lower
+        arm.quaternion.copy(armBase).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(-.3 * wv, 0, bot.userData.sign * (2.5 * wv + Math.sin(t * 13) * .4 * wv)))); }
+      const bl = [3.2, 3.75].find(b => t > b && t < b + .18); face(bl ? Math.max(.06, Math.abs((t - bl) / .09 - 1)) : 1);   // two quick blinks
+      ren.render(scene, cam); requestAnimationFrame(frame); }
+    async function go() { if (!open || screen !== "home" || document.querySelector(".mm") || playingGame()) return schedule();
+      try { await setup(); } catch (e) { return; } size(); cv.classList.add("on"); t0 = performance.now(); requestAnimationFrame(frame); }
+    function schedule(first) { clearTimeout(timer); timer = setTimeout(go, first ? 4000 : 22000 + Math.random() * 18000); }
+    addEventListener("resize", size);
+    return { schedule }; })();
+  PEEK.schedule(true);
   // the first time each day, the reward pops up by itself
   if (rewardReady()) setTimeout(() => { if (open && screen === "home" && !document.querySelector(".mm")) dailyReward(); }, 900);
   return { show, hide, refresh, get open() { return open; }, store };
