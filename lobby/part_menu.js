@@ -363,23 +363,24 @@ const MENU = (() => {
     const ease = u => 1 - Math.pow(1 - u, 3), back = u => { const c = 1.6; return 1 + (c + 1) * Math.pow(u - 1, 3) + c * Math.pow(u - 1, 2); };
     // two ways in, taking turns: from the bottom-left corner behind the buttons, or from the right edge, much closer to you
     const VARIANTS = {
-      left:  { z: 0,   k: 1,   side: -1, show: .27, cut: .27, low: .33, arm: "right", front: false },
-      right: { z: 3.4, k: .95, side: 1,  show: .4,  cut: .1,  low: .6,  arm: "left",  front: true } };
+      left:  { z: 0,   k: 1,   side: -1, show: .27, cut: .27, low: .33, arm: "right", front: false, lean: 0, yaw: .55 },
+      right: { z: 4.0, k: .9,  side: 1,  show: .4,  cut: .24, low: .62, arm: "left",  front: true, lean: .26, yaw: .3 } };   // leans left the whole time
     function frame(now) { if (t0 < 0) return; const t = (now - t0) / 1000;
       if (t > DUR || !open || screen !== "home" || document.querySelector(".mm") || playingGame()) { t0 = -1; cv.classList.remove("on"); face(1); schedule(); return; }
       const halfH = (6 - V.z) * Math.tan(15 * Math.PI / 180), halfW = halfH * cam.aspect, sc = S * V.k, w = bot.userData.w * sc;
       // where it rests: the lower part below the screen's edge, part of its outer side off the side edge
       const rx = V.side * (halfW - w * V.cut) - bot.userData.x0 * sc, ry = -halfH - bot.userData.y0 * sc - H * sc * V.low, inK = t < .9 ? back(Math.min(1, t / .9)) : t > DUR - .8 ? 1 - ease((t - (DUR - .8)) / .8) : 1;
       bot.scale.setScalar(sc); bot.position.set(rx + V.side * (1 - inK) * w * 1.2, ry - (1 - inK) * H * sc * .5, V.z);
-      // it leans in sideways, then straightens up to look at you
-      const look = Math.min(1, Math.max(0, (t - 2.6) / .45)); bot.rotation.set(0, -V.side * .55 * (1 - ease(look)), V.side * .18 * (1 - ease(look)) + Math.sin(t * 1.4) * .02);
+      // it leans in sideways, then turns to look at you (the close one stays tilted to the left)
+      const look = Math.min(1, Math.max(0, (t - 2.6) / .45)); const roll = V.side * (V.lean + .18 * (1 - ease(look))) + Math.sin(t * 1.4) * .02; bot.rotation.set(0, -V.side * V.yaw * (1 - ease(look)), roll);
+      bot.position.x += Math.sin(roll) * H * sc * .8;   // it pivots at its feet, far below the screen: shift it so the tilt doesn't swing its head across the screen
       for (const k of ["left", "right"]) { const A = arms[k]; if (!A) continue; const wv = k === V.arm && t > .9 && t < 2.6 ? Math.sin(Math.min(1, (t - .9) / .3) * Math.PI / 2) * (Math.min(1, (2.6 - t) / .3)) : 0;   // raise, wave, lower
         A.a.quaternion.copy(A.base).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(-.3 * wv, 0, A.sign * (2.5 * wv + Math.sin(t * 13) * .4 * wv)))); }
       const bl = [3.2, 3.75].find(b => t > b && t < b + .18); face(bl ? Math.max(.06, Math.abs((t - bl) / .09 - 1)) : 1);   // two quick blinks
       ren.render(scene, cam); requestAnimationFrame(frame); }
     async function go() { if (!open || screen !== "home" || document.querySelector(".mm") || playingGame()) return schedule();
       try { await setup(); } catch (e) { return; } size(); V = VARIANTS[turn++ % 2 ? "right" : "left"]; cv.classList.toggle("front", V.front); cv.classList.add("on"); t0 = performance.now(); requestAnimationFrame(frame); }
-    function schedule(first) { clearTimeout(timer); timer = setTimeout(go, first ? 4000 : 22000 + Math.random() * 18000); }
+    function schedule(first) { clearTimeout(timer); timer = setTimeout(go, first ? 3000 : 7000 + Math.random() * 5000); }   // every 7–12 seconds
     addEventListener("resize", size);
     return { schedule, go }; })();
   PEEK.schedule(true);
