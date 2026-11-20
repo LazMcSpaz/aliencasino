@@ -8275,7 +8275,7 @@ const EXTRAS = (() => {
     aliens.push(a); return a; }
 
   async function life() {
-    const names = ["enemy_large", "enemy_small", "enemy_extrasmall", "enemy_flying", "plant_1", "plant_3", "bush_1", "tree_floating_1", "tree_light_1", "tree_blob_1", "tree_spiral_1", "planet_1", "planet_2", "planet_5", "planet_9", "props_statue"];
+    const names = ["enemy_large", "cute_alien", "cute_alien_tall", "enemy_small", "enemy_extrasmall", "enemy_flying", "plant_1", "plant_3", "bush_1", "tree_floating_1", "tree_light_1", "tree_blob_1", "tree_spiral_1", "planet_1", "planet_2", "planet_5", "planet_9", "props_statue"];
     const got = {}; await Promise.all(names.map(n => loadGLB(n).then(g => got[n] = g).catch(e => console.warn("model", n, e))));
     const place = (n, p, s, ry = 0) => { if (!got[n]) return null; const o = got[n].scene.clone(true); o.traverse(m => { if (m.isMesh) { m.castShadow = m.receiveShadow = true; } }); o.scale.setScalar(s); o.position.set(...p); o.rotation.y = ry; scene.add(o); return o; };
     // plants into their pots
@@ -8290,26 +8290,31 @@ const EXTRAS = (() => {
       add(bar, new THREE.BoxGeometry(.42, .16, .2), mat.gold, [0, 0, 0]); add(bar, new THREE.TorusGeometry(.4, .012, 6, 40), mat.cyan, [0, 0, 0], [Math.PI / 2, 0, 0], false);
       const l = new THREE.PointLight(0xffc845, .9, 4, 2); l.position.set(0, 2.6, 16); scene.add(l); updates.push(t => { bar.rotation.y = t * 1.2; bar.position.y = 2.05 + Math.sin(t * 2) * .06; }); }
     // walking, dancing, drinking aliens (the green "big alien", tinted to different colours)
-    const L = got.enemy_large, SC = .41;
+    const L = got.enemy_large, SC = .41, CA = got.cute_alien, CT = got.cute_alien_tall, CS = .33, TS = .37;   // the big alien (Space Kit), the antenna alien and the four-eyed tall alien (Cute Monsters)
     if (L) {
       const walk = (path, speed, hue) => { const a = alien(L, { scale: SC, hue, anim: "Walk" }); const w = { holder: a.holder, path, seg: 0, k: Math.random(), speed, paused: false }; walkers.push(w); a.walker = w; placeWalker(w, 0); a.mx.timeScale = speed / .5; return a; };
       walk([[-1.7, 19.4], [-1.7, -2.9], [1.7, -2.9], [1.7, 19.4]], .5, 0);                    // up and down the centre aisle
       walk([[2.3, -2.9], [6.8, -2.9], [6.8, .5], [2.3, .5]], .45, 285);                          // round the right Twin Moons table
       walk([[-2.3, -2.9], [-2.3, .5], [-6.8, .5], [-6.8, -2.9]], .4, 45);                        // round the left one
       walk([[-9, 7.75], [9, 7.75]], .45, 140);                                                   // across the room between the banks
+      const stroll = (src, sc, path, speed, hue) => { if (!src) return; const a = alien(src, { scale: sc, hue, anim: "Walk" }); const w = { holder: a.holder, path, seg: 0, k: Math.random(), speed, paused: false }; walkers.push(w); a.walker = w; placeWalker(w, 0); a.mx.timeScale = speed / .45; };
+      stroll(CT, TS, [[1.7, 19.4], [1.7, -2.9], [-1.7, -2.9], [-1.7, 19.4]], .42, 0);            // the tall one, the other way round the aisle
+      stroll(CA, CS, [[9, 11.2], [-9, 11.2]], .4, 280);                                           // an antenna alien crossing the back of the banks
       walk([[3.2, 13.9], [8.4, 13.9], [8.4, 20.2], [3.2, 20.2]], .42, 210);                      // round the lounge
       alien(L, { scale: SC, hue: 200, pos: [-RX + .65, .67, 17.5], ry: Math.PI / 2, anim: "Yes" });          // the DJ on its riser, nodding along
-      const dancers = [[-7.9, 16.2, 35], [-5.8, 17.2, 160], [-7.2, 18.9, 300], [-4.6, 16.0, 110], [-4.3, 18.6, 250], [-6.3, 19.6, 75]]
-        .map(([x, z, hue], i) => alien(L, { scale: SC, hue, pos: [x, 0, z], ry: -Math.PI / 2 + (i % 3 - 1) * .4, anim: ["Yes", "Jump_Idle", "Wave", "Yes", "Jump_Idle", "Yes"][i] }));
-      const MOVES = ["Yes", "Jump_Idle", "Yes", "Wave", "Jump_Idle"]; let lastBar = -1;
-      updates.push(() => { const b = Music.bar(); if (b === lastBar || b % 2) return; lastBar = b; dancers.forEach((d, i) => { if (!d.busy) { d.base = MOVES[(b / 2 + i * 2) % MOVES.length]; d.play(d.base, .4); } }); });
-      for (const [z, hue] of [[2.0, 100], [5.9, 330], [9.0, 20]]) alien(L, { scale: SC, hue, pos: [RX - 1.95, 0, z], ry: Math.PI / 2 + (z % 2 - .5) * .4, anim: "Idle" });   // at the bar
+      // the dance floor: the big aliens bob and wave; the antenna aliens and the four-eyed tall aliens (Quaternius Cute Monsters) really dance
+      const dancers = [[-7.9, 16.2, 35, L, SC], [-5.8, 17.2, 0, CA, CS], [-7.2, 18.9, 300, L, SC], [-4.6, 16.0, 0, CT, TS], [-4.3, 18.6, 250, L, SC], [-6.3, 19.6, 200, CA, CS]]
+        .map(([x, z, hue, src, sc], i) => { const big = src === L || !src, d = alien(big ? L : src, { scale: big ? SC : sc, hue, pos: [x, 0, z], ry: -Math.PI / 2 + (i % 3 - 1) * .4, anim: big ? ["Yes", "Jump_Idle", "Wave"][i % 3] : "Dance" });
+          d.moves = big ? ["Yes", "Jump_Idle", "Yes", "Wave", "Jump_Idle"] : ["Dance", "Dance", "Yes", "Dance", "Jump"]; return d; });
+      let lastBar = -1;
+      updates.push(() => { const b = Music.bar(); if (b === lastBar || b % 2) return; lastBar = b; dancers.forEach((d, i) => { if (!d.busy) { d.base = d.moves[(b / 2 + i * 2) % d.moves.length]; d.play(d.base, .4); } }); });
+      for (const [z, hue, src] of [[2.0, 100, L], [5.9, 0, CT], [9.0, 20, L]]) alien(src || L, { scale: src === CT ? TS : SC, hue, pos: [RX - 1.95, 0, z], ry: Math.PI / 2 + (z % 2 - .5) * .4, anim: "Idle" });   // at the bar
       alien(L, { scale: SC, hue: 250, pos: [2.9, 0, -3.5], ry: Math.PI - .4, anim: "Idle" });          // watching the drone launch
-      alien(L, { scale: SC, hue: 60, pos: [-5.3, 0, -4.4], ry: -2.4, anim: "Idle" });                  // at the Gravity Wells
+      alien(CA || L, { scale: CA ? CS : SC, hue: CA ? 0 : 60, pos: [-5.3, 0, -4.4], ry: -2.4, anim: "Idle" });   // at the Gravity Wells
       alien(L, { scale: SC, hue: 170, pos: [5.3, 0, -4.4], ry: 2.4, anim: "Idle" });
-      alien(L, { scale: SC, hue: 300, pos: [-4.6, 0, .35], ry: Math.PI, anim: "Idle" });               // at the Twin Moons tables
+      alien(CT || L, { scale: CT ? TS : SC, hue: CT ? 160 : 300, pos: [-4.6, 0, .35], ry: Math.PI, anim: "Idle" });   // at the Twin Moons tables
       alien(L, { scale: SC, hue: 15, pos: [6.55, 0, -1.2], ry: -Math.PI / 2, anim: "Idle" });
-      for (const [x, z, hue, ry] of [[5.2, 15.65, 120, Math.PI], [7.45, 17.4, 270, -Math.PI / 2], [4.8, 18.55, 40, 0]]) alien(L, { scale: SC, hue, pos: [x, 0, z], ry, anim: "Idle" });   // at the cocktail tables
+      for (const [x, z, hue, ry, src] of [[5.2, 15.65, 120, Math.PI, L], [7.45, 17.4, 0, -Math.PI / 2, CA], [4.8, 18.55, 40, 0, CT]]) alien(src || L, { scale: src === CA ? CS : src === CT ? TS : SC, hue, pos: [x, 0, z], ry, anim: "Idle" });   // at the cocktail tables
     }
     // floating blob aliens: bobbing over the dance floor, by a booth, and one drifting round the whole room up high
     const floaters = [];
