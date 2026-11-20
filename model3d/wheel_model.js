@@ -93,7 +93,7 @@ function buildWheel(THREE, opts = {}) {
 
   let angle = 0, lastPeg = 0, onPeg = null, flapV = 0, flapA = 0, prevA = 0;
   const pegIndex = a => Math.floor((a - step / 2) / step);
-  function setAngle(a) { angle = a; wheel.rotation.z = a; const p = pegIndex(a); if (p !== lastPeg) { const dir = Math.sign(a - prevA) || -1; flapV += dir * 9; lastPeg = p; if (onPeg) onPeg(); } prevA = a; }
+  function setAngle(a) { angle = a; wheel.rotation.z = a; const p = pegIndex(a); if (p !== lastPeg) { const dir = Math.sign(a - prevA) || -1; flapV -= dir * 9; /* the pegs drag the flapper's tip along with the rim (wheel turning clockwise: tip swings right), then it springs back */ lastPeg = p; if (onPeg) onPeg(); } prevA = a; }
   const BCOL = [0xff4fae, 0xffc845, 0x7dff9a, 0x4fe6ff, 0xb48cff].map(c => new THREE.Color(c)), OFF = new THREE.Color(0x2a2040);
   let mode = "chase", beamT = -1, beamTo = 0;
   // update(t, dt): bulbs, the flapper's spring, the scanner beam. mode: "chase" (idle), "spin" (fast sparkle), "win" (all flashing)

@@ -217,7 +217,8 @@ const Sound = (()=>{
   try{ on = localStorage.getItem("slot-sound")!=="off"; musicOn = localStorage.getItem("slot-music")!=="off"; }catch(e){}
   function ensure(){
     if(!ctx){ const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return null;
-      ctx=new AC(); master=ctx.createGain(); master.gain.value=0.55;
+      let shared=null; try{ if(window.parent!==window && window.parent.__alienAudio) shared=window.parent.__alienAudio(); }catch(e){}   // inside the casino app: use its audio, already unlocked by a tap
+      ctx=shared||new AC(); master=ctx.createGain(); master.gain.value=0.55;
       const lim=ctx.createDynamicsCompressor(); lim.threshold.value=-10; lim.knee.value=6; lim.ratio.value=8; lim.attack.value=.003; lim.release.value=.15;
       master.connect(lim).connect(ctx.destination);   // limiter: stops loud moments from overdriving a phone speaker
       const hp=ctx.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=90; hp.Q.value=.7;
@@ -296,6 +297,12 @@ const Sound = (()=>{
     refill(){ for(let i=0;i<8;i++) tone(1800+i*120,.04,{type:"triangle",vol:.05,at:i*.04}); },
   };
 })();
+// auto-start: a game opened from the casino app starts its music right away (the app's audio is already unlocked);
+// opened on its own, the music starts with the first tap anywhere on the screen.
+setTimeout(()=>{ const go=()=>{ try{ Sound.unlock(); if(typeof Music==="undefined") return; if(Music.start) Music.start(); else if(Music.play && !Music.kind && !(typeof bonusMode!=="undefined" && bonusMode)) Music.play("base"); }catch(e){} };
+  let inApp=false; try{ inApp = window.parent!==window && !!window.parent.__alienAudio && window.parent.__alienAudio().state==="running"; }catch(e){}
+  if(inApp) go(); addEventListener("pointerdown", go, { once:true, capture:true }); }, 250);
+
 const $ = id => document.getElementById(id);
 const wait = ms => new Promise(r=>setTimeout(r,ms));
 document.documentElement.style.setProperty("--bar", `url(${ART.bar})`);
