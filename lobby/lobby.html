@@ -2309,7 +2309,7 @@ const MENU = (() => {
 .intro .ip{position:absolute;bottom:-10px;width:var(--s);height:var(--s);border-radius:50%;background:#eafff0;box-shadow:0 0 8px #7dff9a,0 0 2px #fff;opacity:0;animation:irise var(--d) linear infinite;animation-play-state:paused}
 .intro.beam .ip{animation-play-state:running}
 @keyframes irise{from{transform:translateY(0);opacity:0}15%{opacity:1}to{transform:translateY(-105vh);opacity:.2}}
-.intro.black .ibeam,.intro.black .isrc,.intro.black .ip{opacity:0!important;animation:none;transition:opacity .3s}
+.intro .ibw{position:absolute;inset:0;transition:opacity 1s ease-in}.intro.beamout .ibw{opacity:0}.intro.black .ibw{visibility:hidden}
 .intro .idoor{position:absolute;top:0;bottom:0;width:50.5%;background:#000;opacity:0;transition:transform 1.15s cubic-bezier(.75,0,.2,1)}
 .intro .idoor.l{left:0}.intro .idoor.r{right:0}
 .intro.black .idoor{opacity:1}
@@ -2319,7 +2319,7 @@ const MENU = (() => {
 .intro.open .idoor.l{transform:translateX(-102%)}.intro.open .idoor.r{transform:translateX(102%)}
 .intro.open{pointer-events:none}
 .intro .iwel{position:absolute;inset:0;display:grid;place-content:center;justify-items:center;gap:4px;text-align:center;opacity:0;transition:opacity .6s;z-index:2}
-.intro.wel .iwel{opacity:1}.intro.seam .iwel{opacity:0;transition:opacity .25s}
+.intro.wel .iwel{opacity:1}.intro.textout .iwel{opacity:0;transition:opacity .8s ease-in}
 .intro .iwel small{font:700 .78rem var(--f-tech);letter-spacing:.42em;color:#c8b8ff;margin-bottom:6px;margin-right:-.42em}
 .intro .iwel b{font:400 3.6rem/1 "Monoton",var(--f-sign);color:#fbf4ff;text-shadow:0 0 4px #fff,0 0 14px #c89cff,0 0 34px #8a4dff,0 0 70px #6a2dff}
 .intro .iwel em{font:400 2.8rem/1 "Yellowtail",cursive;font-style:normal;color:#fff1d0;margin-top:-12px;text-shadow:0 0 6px #fff4,0 0 16px #ffc845,0 0 36px #ff8a3a}
@@ -2369,7 +2369,8 @@ const MENU = (() => {
     const bg = g.createLinearGradient(0, 0, 0, SH); bg.addColorStop(0, "#0a0420"); bg.addColorStop(.55, "#160a3a"); bg.addColorStop(1, "#05030c"); g.fillStyle = bg; g.fillRect(0, 0, SW, SH);
     for (const [x, y, r, c] of [[.2, .25, .55, "120,40,200"], [.85, .6, .5, "30,120,200"], [.4, .85, .45, "200,40,120"]]) { const gr = g.createRadialGradient(x * SW, y * SH, 0, x * SW, y * SH, r * Math.max(SW, SH));
       gr.addColorStop(0, `rgba(${c},.32)`); gr.addColorStop(1, `rgba(${c},0)`); g.fillStyle = gr; g.fillRect(0, 0, SW, SH); }
-    const top = g.createLinearGradient(0, -SH * .6, 0, 0); top.addColorStop(0, "#000"); top.addColorStop(1, "#0a0420"); g.fillStyle = top; g.fillRect(0, -SH * .6, SW, SH * .6);   // deep space above
+    const fade = g.createLinearGradient(0, -SH * .05, 0, SH * .75); fade.addColorStop(0, "#000"); fade.addColorStop(.35, "rgba(0,0,0,.75)"); fade.addColorStop(1, "rgba(0,0,0,0)");
+    g.fillStyle = fade; g.fillRect(0, -SH * .05, SW, SH * .8); g.fillStyle = "#000"; g.fillRect(0, -SH * 1.2, SW, SH * 1.15);   // deep space above: no hard top edge
     g.restore();
     g.lineCap = "round";
     for (const st of bstars) { st.y += sp * st.v * dt; if (st.y > SH + 40) { st.y -= SH + 80; st.x = Math.random() * SW; }
@@ -2532,17 +2533,19 @@ const MENU = (() => {
     const sleep = ms => new Promise(r => setTimeout(r, ms));
     async function play() { if (busy) return; busy = true;
       const o = document.createElement("div"); o.className = "intro"; o.setAttribute("role", "status"); o.setAttribute("aria-label", "Welcome to the Alien Casino");
-      o.innerHTML = `<div class="ibeam"></div><div class="isrc"></div>${Array.from({ length: 26 }, (_, i) => `<i class="ip" style="left:${38 + Math.random() * 24}%;animation-delay:${(i * .07).toFixed(2)}s;--d:${(.9 + Math.random() * .7).toFixed(2)}s;--s:${(2 + Math.random() * 3).toFixed(1)}px"></i>`).join("")}
+      o.innerHTML = `<div class="ibw"><div class="ibeam"></div><div class="isrc"></div>${Array.from({ length: 26 }, (_, i) => `<i class="ip" style="left:${38 + Math.random() * 24}%;animation-delay:${(i * .07).toFixed(2)}s;--d:${(.9 + Math.random() * .7).toFixed(2)}s;--s:${(2 + Math.random() * 3).toFixed(1)}px"></i>`).join("")}</div>
         <div class="idoor l"></div><div class="idoor r"></div><div class="iwel"><small>WELCOME TO THE</small><b>ALIEN</b><em>Casino</em></div>`;
       el.classList.add("boarding"); PEEK.stop(); document.body.appendChild(o); const off = document.getElementById("offl"); if (off) off.hidden = true;       // the menu fades away; the sky stays
       await sleep(450); o.classList.add("beam"); startBoard();                       // the beam comes in, and the sky starts streaming down
       tone(90, 2.2, { type: "sawtooth", vol: .025, slide: 2.2 }); tone(220, 1.8, { type: "sine", vol: .04, slide: 4 });
-      await sleep(2200); o.classList.add("black");                                  // all black: the beam goes out
+      await sleep(1300); o.classList.add("beamout");                               // the beam fades away as the sky sinks into black
+      await sleep(900); o.classList.add("black");
       await sleep(350); hide(); boardT = 0; el.classList.remove("boarding");
       const ready = enterCasino();                                                    // build the casino behind the black (the beam stayed smooth)
       await sleep(250); o.classList.add("wel");
       await Promise.all([ready.catch ? ready.catch(() => {}) : ready, sleep(1900)]);   // let the welcome sit, and wait for the floor to be ready
-      o.classList.add("seam"); tone(1200, .3, { type: "sine", vol: .03 }); await sleep(260);
+      o.classList.add("textout"); await sleep(800);                                  // the welcome fades, then the doors
+      o.classList.add("seam"); tone(1200, .3, { type: "sine", vol: .03 }); await sleep(300);
       o.classList.add("open"); tone(140, .7, { type: "sawtooth", vol: .03, slide: .5 }); tone(900, .9, { type: "sine", vol: .02, slide: .3, at: .05 });
       await sleep(1250); o.remove(); busy = false; }
     return { play }; })();
