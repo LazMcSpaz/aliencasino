@@ -8060,7 +8060,7 @@ function buildWheel(THREE, opts = {}) {
 
   let angle = 0, lastPeg = 0, onPeg = null, flapV = 0, flapA = 0, prevA = 0;
   const pegIndex = a => Math.floor((a - step / 2) / step);
-  function setAngle(a) { angle = a; wheel.rotation.z = a; const p = pegIndex(a); if (p !== lastPeg) { const dir = Math.sign(a - prevA) || -1; flapV += dir * 9; lastPeg = p; if (onPeg) onPeg(); } prevA = a; }
+  function setAngle(a) { angle = a; wheel.rotation.z = a; const p = pegIndex(a); if (p !== lastPeg) { const dir = Math.sign(a - prevA) || -1; flapV -= dir * 9; /* the pegs drag the flapper's tip along with the rim (wheel turning clockwise: tip swings right), then it springs back */ lastPeg = p; if (onPeg) onPeg(); } prevA = a; }
   const BCOL = [0xff4fae, 0xffc845, 0x7dff9a, 0x4fe6ff, 0xb48cff].map(c => new THREE.Color(c)), OFF = new THREE.Color(0x2a2040);
   let mode = "chase", beamT = -1, beamTo = 0;
   // update(t, dt): bulbs, the flapper's spring, the scanner beam. mode: "chase" (idle), "spin" (fast sparkle), "win" (all flashing)
@@ -8964,11 +8964,41 @@ const MENU = (() => {
   const $m = id => document.getElementById(id);
 
   // ---- sound: little synth chimes (on when the music is on) ----
+  // one audio context for the whole app, unlocked by the first tap; the games opened inside the app share it (so their music starts straight away)
   let ac = null;
-  function tone(f, d, { type = "triangle", vol = .06, at = 0, slide = 1 } = {}) { if (typeof Music !== "undefined" && !Music.wanted) return;
-    try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); if (ac.state === "suspended") ac.resume(); const t = ac.currentTime + at, o = ac.createOscillator(), g = ac.createGain();
+  window.__alienAudio = () => { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); if (ac.state === "suspended") ac.resume(); return ac; };
+  addEventListener("pointerdown", () => { try { window.__alienAudio(); } catch (e) {} }, true);
+  const sfxOn = () => typeof Music === "undefined" || Music.wanted;
+  function tone(f, d, { type = "triangle", vol = .06, at = 0, slide = 1 } = {}) { if (!sfxOn()) return;
+    try { window.__alienAudio(); const t = ac.currentTime + at, o = ac.createOscillator(), g = ac.createGain();
       o.type = type; o.frequency.setValueAtTime(f, t); if (slide !== 1) o.frequency.exponentialRampToValueAtTime(f * slide, t + d); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + .01); g.gain.exponentialRampToValueAtTime(.0001, t + d);
       o.connect(g).connect(ac.destination); o.start(t); o.stop(t + d + .02); } catch (e) {} }
+  let noiseBuf = null;
+  function noise(d, { vol = .05, at = 0, type = "bandpass", f = 800, f2 = f, q = 1, attack = .05 } = {}) { if (!sfxOn()) return;
+    try { window.__alienAudio(); if (!noiseBuf) { noiseBuf = ac.createBuffer(1, ac.sampleRate * 2, ac.sampleRate); const ch = noiseBuf.getChannelData(0); for (let i = 0; i < ch.length; i++) ch[i] = Math.random() * 2 - 1; }
+      const t = ac.currentTime + at, src = ac.createBufferSource(), fl = ac.createBiquadFilter(), g = ac.createGain(); src.buffer = noiseBuf; src.loop = true;
+      fl.type = type; fl.Q.value = q; fl.frequency.setValueAtTime(f, t); fl.frequency.exponentialRampToValueAtTime(f2, t + d);
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + attack); g.gain.exponentialRampToValueAtTime(.0001, t + d);
+      src.connect(fl).connect(g).connect(ac.destination); src.start(t); src.stop(t + d + .05); } catch (e) {} }
+  function pad(f, d, { vol = .04, at = 0, attack = .6, type = "sine", slide = 1 } = {}) { if (!sfxOn()) return;
+    try { window.__alienAudio(); const t = ac.currentTime + at, o = ac.createOscillator(), g = ac.createGain(); o.type = type; o.frequency.setValueAtTime(f, t); if (slide !== 1) o.frequency.exponentialRampToValueAtTime(f * slide, t + d);
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + attack); g.gain.setValueAtTime(vol, t + Math.max(attack, d - .8)); g.gain.exponentialRampToValueAtTime(.0001, t + d);
+      o.connect(g).connect(ac.destination); o.start(t); o.stop(t + d + .05); } catch (e) {} }
+  // the boarding sequence's sounds, one per moment
+  const BOARD = {
+    fade: () => { noise(.7, { vol: .035, type: "lowpass", f: 2400, f2: 300 }); },                                                    // the menu dissolving
+    beam: () => { tone(180, .5, { type: "sine", vol: .06, slide: 7 }); noise(.5, { vol: .05, type: "highpass", f: 2000, f2: 6000, attack: .02 });   // the beam switching on: a zap
+      pad(70, 2.6, { type: "sawtooth", vol: .022, attack: .3, slide: 2.4 }); pad(140, 2.6, { vol: .03, attack: .3, slide: 2.4 });                  // its hum, rising as you're lifted
+      for (let i = 0; i < 10; i++) tone(1600 + i * 180, .12, { vol: .015, at: .2 + i * .17 }); },                                              // shimmer from the rising sparks
+    rush: () => { noise(2.3, { vol: .07, type: "bandpass", f: 300, f2: 3200, q: .7, attack: 1.6 }); },                                         // the stars streaming past
+    beamOut: () => { tone(900, .9, { type: "sine", vol: .03, slide: .25 }); for (let i = 0; i < 5; i++) tone(2400 - i * 300, .1, { vol: .012, at: i * .12 }); },
+    black: () => { tone(55, 1.4, { type: "sine", vol: .14, slide: .7 }); noise(1.2, { vol: .03, type: "lowpass", f: 400, f2: 80 }); },         // a deep thump into silence
+    welcome: () => { [0, .11, .15, .22, .37].forEach(a => noise(.04, { vol: .05, type: "bandpass", f: 3000, at: a, attack: .003 }));             // the neon flickering on
+      tone(120, .5, { type: "square", vol: .012, at: .4 }); [220, 277, 330, 440].forEach((f, i) => pad(f, 3.2, { vol: .022, at: .4 + i * .08, attack: .9, type: i % 2 ? "triangle" : "sine" })); },   // a warm chord
+    textOut: () => { pad(440, 1, { vol: .012, attack: .05, slide: .5 }); },
+    seam: () => { tone(300, .35, { type: "sawtooth", vol: .02, slide: 5 }); noise(.08, { vol: .05, type: "bandpass", f: 4000, at: .28, attack: .003 }); },   // the seam charging, then a click
+    doors: () => { noise(1.1, { vol: .09, type: "highpass", f: 5000, f2: 1500, attack: .02 }); pad(48, 1.1, { type: "sawtooth", vol: .05, attack: .08, slide: 1.4 });   // a pneumatic hiss and a heavy slide
+      tone(70, .6, { type: "sine", vol: .12, at: 1.1, slide: .6 }); noise(.25, { vol: .05, type: "lowpass", f: 600, f2: 120, at: 1.1, attack: .005 }); } };    // the doors landing open
   const SFX = { tap: () => tone(1400, .05, { vol: .04 }), open: () => { tone(660, .12, { vol: .04 }); tone(990, .16, { vol: .04, at: .06 }); },
     tick: () => tone(1800 + Math.random() * 300, .02, { type: "square", vol: .02 }),
     win: big => { [523, 659, 784, 1047, big ? 1319 : 0, big ? 1568 : 0].filter(Boolean).forEach((f, i) => tone(f, .25, { vol: .07, at: i * .08 })); for (let i = 0; i < 8; i++) tone(2000 + Math.random() * 1500, .05, { vol: .025, at: .3 + i * .06 }); },
@@ -9134,7 +9164,7 @@ const MENU = (() => {
       const end = from - (((from + k * seg) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2) - Math.PI * 2 * 6 + (Math.random() - .5) * seg * .7;
       let lastPeg = Math.floor((from + seg / 2) / seg), fv = 0; q("#mmMsg").textContent = "Round and round…";
       (function step(now) { const u = Math.min(1, (now - start) / dur), e = 1 - Math.pow(1 - u, 4); ang = from + (end - from) * e;
-        const pg = Math.floor((ang + seg / 2) / seg); if (pg !== lastPeg) { lastPeg = pg; fv = -.45; SFX.tick(); } flap += (fv - flap) * .5; fv *= .8; draw(now / 1000);
+        const pg = Math.floor((ang + seg / 2) / seg); if (pg !== lastPeg) { lastPeg = pg; fv = .45; SFX.tick();   /* the wheel turns anticlockwise on screen: the top of the rim moves left and drags the pointer tip left with it */ } flap += (fv - flap) * .5; fv *= .8; draw(now / 1000);
         if (u < 1) return requestAnimationFrame(step);
         spinning = false; flap = 0; winK = k; const v = SPIN[k][0]; award(v); SFX.win(v >= 1000); confetti(m, v >= 1000); q(".spinbtn").classList.remove("on");
         countUp(q("#mmWon"), v); q("#mmWon").parentElement.classList.add("hit"); q("#mmMsg").textContent = v >= 1000 ? "Huge! Come back tomorrow for another." : "Nice! Come back tomorrow for another.";
@@ -9164,18 +9194,17 @@ const MENU = (() => {
       const o = document.createElement("div"); o.className = "intro"; o.setAttribute("role", "status"); o.setAttribute("aria-label", "Welcome to the Alien Casino");
       o.innerHTML = `<div class="ibw"><div class="ibeam"></div><div class="isrc"></div>${Array.from({ length: 26 }, (_, i) => `<i class="ip" style="left:${38 + Math.random() * 24}%;animation-delay:${(i * .07).toFixed(2)}s;--d:${(.9 + Math.random() * .7).toFixed(2)}s;--s:${(2 + Math.random() * 3).toFixed(1)}px"></i>`).join("")}</div>
         <div class="idoor l"></div><div class="idoor r"></div><div class="iwel"><small>WELCOME TO THE</small><b>ALIEN</b><em>Casino</em></div>`;
-      el.classList.add("boarding"); PEEK.stop(); document.body.appendChild(o); const off = document.getElementById("offl"); if (off) off.hidden = true;       // the menu fades away; the sky stays
-      await sleep(450); o.classList.add("beam"); startBoard();                       // the beam comes in, and the sky starts streaming down
-      tone(90, 2.2, { type: "sawtooth", vol: .025, slide: 2.2 }); tone(220, 1.8, { type: "sine", vol: .04, slide: 4 });
-      await sleep(1300); o.classList.add("beamout");                               // the beam fades away as the sky sinks into black
-      await sleep(900); o.classList.add("black");
+      BOARD.fade(); el.classList.add("boarding"); PEEK.stop(); document.body.appendChild(o); const off = document.getElementById("offl"); if (off) off.hidden = true;       // the menu fades away; the sky stays
+      await sleep(450); o.classList.add("beam"); startBoard(); BOARD.beam(); BOARD.rush();   // the beam comes in, and the sky starts streaming down
+      await sleep(1300); o.classList.add("beamout"); BOARD.beamOut();                               // the beam fades away as the sky sinks into black
+      await sleep(900); o.classList.add("black"); BOARD.black();
       await sleep(350); hide(); boardT = 0; el.classList.remove("boarding");
       const ready = enterCasino();                                                    // build the casino behind the black (the beam stayed smooth)
-      await sleep(250); o.classList.add("wel");
+      await sleep(250); o.classList.add("wel"); BOARD.welcome();
       await Promise.all([ready.catch ? ready.catch(() => {}) : ready, sleep(1900)]);   // let the welcome sit, and wait for the floor to be ready
-      o.classList.add("textout"); await sleep(800);                                  // the welcome fades, then the doors
-      o.classList.add("seam"); tone(1200, .3, { type: "sine", vol: .03 }); await sleep(300);
-      o.classList.add("open"); tone(140, .7, { type: "sawtooth", vol: .03, slide: .5 }); tone(900, .9, { type: "sine", vol: .02, slide: .3, at: .05 });
+      o.classList.add("textout"); BOARD.textOut(); await sleep(800);                                  // the welcome fades, then the doors
+      o.classList.add("seam"); BOARD.seam(); await sleep(300);
+      o.classList.add("open"); BOARD.doors();
       await sleep(1250); o.remove(); busy = false; }
     return { play }; })();
 
