@@ -124,3 +124,7 @@ Run these from `slot/`:
 - A real name for the club machine.
 - Phase two of moods: the player influences the mood (feeding, petting, betting style).
 - The Godot build with the 3D casino and the walking robot, with mood animations matching the moods above.
+
+web/         the offline web app (iPhone: open https://lazmcspaz.github.io/aliencasino/ in Safari → Share → Add to Home Screen)
+  build_site.py   packs the lobby + games with the 3D engine, physics and fonts inside (vendor/, fonts/: OFL fonts), adds a service worker,
+                  manifest and icon, writes site/. Publish: push site/ to the gh-pages branch (GitHub Pages, branch gh-pages, root)
