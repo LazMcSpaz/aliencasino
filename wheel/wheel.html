@@ -1,0 +1,561 @@
+<!-- Wheel of Worlds (big wheel): page layout, styles, the 3D view and screen logic. build.py adds the engine, the shared sound engine and the wheel
+     model (../model3d/wheel_model.js, also used by the lobby) and writes wheel.html.
+     May use: part_engine.js (outcomes, payouts, credits), Sound (shared synth), buildWheel (the model). Must not: decide outcomes or change credits itself. -->
+<meta charset="utf-8">
+<title>Wheel of Worlds</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Chakra+Petch:wght@500;600;700&family=Monoton&family=Share+Tech+Mono&family=Yellowtail&display=swap">
+<style>
+:root{--void:#03040f;--ink:#e6fbff;--dim:#7fb3c7;--holo:#5fe8ff;--holo2:#b48cff;--gold:#ffc845;--hot:#ff4d6d;--win:#7dff9a;
+  --f-sign:"Bungee",Impact,sans-serif;--f-tech:"Chakra Petch",system-ui,sans-serif;--f-mono:"Share Tech Mono",ui-monospace,monospace;color-scheme:dark}
+html,body{height:100%}
+body{margin:0;background:radial-gradient(100% 60% at 50% 30%,#1a1240 0%,var(--void) 75%);color:var(--ink);font:500 14px var(--f-tech);overflow:hidden;-webkit-tap-highlight-color:transparent;user-select:none}
+[hidden]{display:none!important}
+.app{position:relative;height:100dvh;max-width:480px;margin:0 auto;display:grid;grid-template-rows:auto minmax(0,1fr) auto;gap:7px;box-sizing:border-box;
+  padding:calc(8px + env(safe-area-inset-top,0px)) max(12px,env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) max(12px,env(safe-area-inset-left,0px))}
+.holo{--k:10px;--hc:var(--holo);position:relative;isolation:isolate;border:0;color:var(--ink);
+  clip-path:polygon(var(--k) 0,100% 0,100% calc(100% - var(--k)),calc(100% - var(--k)) 100%,0 100%,0 var(--k));
+  background:linear-gradient(180deg,color-mix(in srgb,var(--hc) 15%,transparent),color-mix(in srgb,var(--hc) 5%,transparent)),repeating-linear-gradient(0deg,color-mix(in srgb,var(--hc) 7%,transparent) 0 1px,transparent 1px 3px);
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--hc) 45%,transparent),inset 0 0 22px color-mix(in srgb,var(--hc) 12%,transparent)}
+.holo::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:2;
+  background:linear-gradient(var(--hc),var(--hc)) 0 100%/12px 1.5px no-repeat,linear-gradient(var(--hc),var(--hc)) 0 100%/1.5px 12px no-repeat,
+    linear-gradient(var(--hc),var(--hc)) 100% 0/12px 1.5px no-repeat,linear-gradient(var(--hc),var(--hc)) 100% 0/1.5px 12px no-repeat;opacity:.9}
+.lbl{font:400 .56rem/1 var(--f-mono);letter-spacing:.22em;color:var(--dim);text-transform:uppercase}
+.hud{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;height:48px}
+.coins{display:flex;align-items:center;gap:7px;justify-self:start;padding:6px 12px 6px 8px}
+.coins i{width:24px;height:18px;background:var(--bar) center/contain no-repeat;filter:drop-shadow(0 0 4px #ffc84588)}
+.coins b{font:700 1.05rem/1 var(--f-mono);text-shadow:0 0 8px var(--holo)}
+.title{position:relative;justify-self:center;text-align:center;white-space:nowrap;font:400 1.15rem/1 "Monoton",var(--f-sign);color:#f2e6ff;text-shadow:0 0 4px #fff,0 0 12px #b48cff,0 0 26px #8a4dff}
+.title span{font:400 1rem "Yellowtail",cursive;color:#fff1dc;text-shadow:0 0 8px #ffc845;margin:0 4px}
+.icons{justify-self:end;display:flex;gap:6px}
+.icon{--k:7px;width:36px;height:36px;display:grid;place-items:center;cursor:pointer;padding:0;color:var(--holo)}
+.icon svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+.icon[aria-pressed="false"] .on{display:none}.icon[aria-pressed="true"] .off{display:none}
+.fieldbox{--k:14px;min-height:0;overflow:hidden;background:radial-gradient(90% 90% at 50% 40%,#140f33,#04050f)}
+#cv{position:absolute;inset:0;width:100%;height:100%;display:block}
+#fx{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:3}
+.boot{position:absolute;inset:0;display:grid;place-items:center;z-index:8;font:400 .7rem var(--f-mono);letter-spacing:.2em;color:var(--dim);pointer-events:none}
+.bub{position:absolute;z-index:6;bottom:8px;left:50%;translate:-50% 0;max-width:84%;width:max-content;padding:6px 10px;background:#04121fe6;border:1px solid var(--gold);color:#fff;
+  font:600 .76rem/1.28 var(--f-tech);text-align:center;box-shadow:0 0 14px #ffc84544;opacity:0;transform:scale(.85);transition:opacity .18s,transform .24s cubic-bezier(.3,1.6,.5,1);pointer-events:none}
+.bub.show{opacity:1;transform:none}
+.bub b{display:block;font:400 .5rem/1 var(--f-mono);letter-spacing:.2em;color:var(--gold);margin-bottom:3px}
+.banner{position:absolute;z-index:7;left:50%;top:46%;translate:-50% -50%;text-align:center;pointer-events:none;opacity:0;font:400 1.7rem/1 var(--f-sign);color:var(--bc,#fff);text-shadow:0 0 18px var(--bc,#5fe8ff),0 0 3px #fff;white-space:nowrap}
+.banner small{display:block;font:400 .7rem var(--f-mono);letter-spacing:.24em;margin-top:6px;color:#fff;text-shadow:0 0 8px var(--bc)}
+.banner.show{animation:ban 2.2s ease-out forwards}
+@keyframes ban{0%{opacity:0;transform:scale(.4)}12%{opacity:1;transform:scale(1.15)}22%{transform:scale(1)}80%{opacity:1}100%{opacity:0;transform:scale(1.05)}}
+.hist{position:absolute;z-index:5;top:7px;left:8px;display:flex;gap:3px}
+.hist canvas{width:18px;height:18px}
+.ride{position:absolute;z-index:5;top:7px;right:8px;font:400 .8rem var(--f-sign);color:#ff9ad6;text-shadow:0 0 10px #ff4fae;opacity:0;transition:opacity .3s}
+.ride.on{opacity:1;animation:pulse .6s ease-in-out infinite alternate}
+@keyframes pulse{to{transform:scale(1.12)}}
+.flash{position:absolute;inset:0;z-index:4;pointer-events:none;opacity:0}
+.flash.worm{background:radial-gradient(circle,#ff4fae00 30%,#ff4fae88 70%,#b48cffcc);animation:fl 1.6s ease-out}
+.flash.hole{background:radial-gradient(circle,#000c 0%,#0000 70%);animation:fl 1.2s ease-out}
+@keyframes fl{0%{opacity:0}15%{opacity:1}100%{opacity:0}}
+.controls{display:grid;gap:7px}
+.crew{display:flex;gap:4px;overflow:hidden;height:22px}
+.crew span{flex:0 0 auto;display:flex;align-items:center;gap:4px;padding:0 7px;font:600 .62rem/22px var(--f-mono);color:#fff;background:#ffffff0d;border-left:2px solid var(--mc);white-space:nowrap}
+.crew canvas{width:14px;height:14px}
+.crew span.won{background:color-mix(in srgb,var(--win) 25%,transparent)}.crew span.lost{opacity:.45}
+.worlds{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.world{--k:9px;--hc:var(--wc);cursor:pointer;padding:6px 4px 5px;display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto;column-gap:5px;align-items:center;text-align:left}
+.world canvas{grid-row:1/3;width:34px;height:34px}
+.world b{font:400 .78rem/1 var(--f-sign);color:#fff;text-shadow:0 0 8px var(--wc)}
+.world small{font:400 .56rem/1.1 var(--f-mono);color:var(--dim);letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.world .chip{position:absolute;top:3px;right:4px;z-index:3;min-width:18px;padding:2px 5px;border-radius:20px;background:var(--gold);color:#1a1240;font:700 .66rem/1 var(--f-mono);text-align:center;box-shadow:0 0 8px #ffc845aa}
+.world .chip:empty{display:none}
+.world .bst{position:absolute;bottom:3px;right:4px;z-index:3;font:400 .62rem var(--f-sign);color:var(--gold);text-shadow:0 0 8px var(--gold)}
+.world.boosted{animation:bglow 1s ease-in-out infinite alternate}
+@keyframes bglow{to{box-shadow:inset 0 0 0 1px var(--gold),inset 0 0 26px #ffc84555,0 0 12px #ffc84566}}
+.world.hit{animation:hit .5s ease-in-out 4}
+@keyframes hit{50%{filter:brightness(1.8)}}
+.world[aria-disabled="true"]{opacity:.55}
+.row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:6px}
+.chips{padding:6px 8px;display:flex;align-items:center;gap:6px}
+.chips button{flex:1;border:0;cursor:pointer;padding:7px 0;border-radius:50px;font:700 .82rem var(--f-mono);color:#fff;background:radial-gradient(circle at 35% 30%,color-mix(in srgb,var(--c) 70%,#fff),var(--c) 45%,color-mix(in srgb,var(--c) 45%,#000));opacity:.45;box-shadow:inset 0 -2px 0 #0006}
+.chips button[aria-pressed="true"]{opacity:1;box-shadow:0 0 0 2px #fff,0 0 14px var(--c);text-shadow:0 1px 2px #000a}
+.sm{--k:8px;--hc:var(--holo2);width:64px;cursor:pointer;font:400 .66rem var(--f-sign);color:#fff;display:grid;place-content:center;gap:2px}
+.sm small{font:400 .5rem var(--f-mono);color:var(--holo2);letter-spacing:.06em}
+.spinrow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px}
+.total{--hc:var(--gold);padding:6px 10px;display:grid;align-content:center;gap:3px}
+.total b{font:700 1.2rem/1 var(--f-mono);color:#fff;text-shadow:0 0 10px var(--gold)}
+.spin{--k:12px;--hc:var(--win);width:150px;height:54px;cursor:pointer;font:400 1.3rem/1 var(--f-sign);color:#fff;text-shadow:0 0 12px var(--win)}
+.spin[aria-disabled="true"]{--hc:#7a8aa0;color:#9aa6c8;text-shadow:none}
+.spin:not([aria-disabled="true"]){animation:sglow .8s ease-in-out infinite alternate}
+@keyframes sglow{to{box-shadow:inset 0 0 0 1px var(--win),inset 0 0 30px #7dff9a55,0 0 14px #7dff9a66}}
+.sheet{position:fixed;inset:0;z-index:100;display:grid;place-items:center;background:#000c;padding:16px}
+.card{--k:14px;max-width:360px;max-height:86dvh;overflow:auto;padding:18px;font:500 .88rem/1.45 var(--f-tech);background:#06131fee}
+.card h2{margin:0 0 8px;font:400 1.15rem var(--f-sign);color:var(--holo);text-shadow:0 0 10px var(--holo)}
+.card table{width:100%;border-collapse:collapse;margin:8px 0;font:400 .8rem var(--f-mono)}.card td{padding:3px 0;border-bottom:1px solid #ffffff14}.card td:last-child{text-align:right}
+.card .dbg{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+.card .dbg button{--k:6px;font:600 .72rem var(--f-mono);padding:7px 10px;cursor:pointer;color:var(--holo)}
+.say{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+</style>
+
+<div class="app" id="app">
+  <header class="hud">
+    <div class="coins holo"><i aria-hidden="true"></i><b id="credits">500</b></div>
+    <div class="title" aria-label="Wheel of Worlds">WHEEL<span>of</span>WORLDS</div>
+    <div class="icons">
+      <button class="icon holo" id="snd" aria-pressed="true" aria-label="Sound"><svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="on" d="M17 9a4 4 0 0 1 0 6"/><path class="off" d="M17 9l4 6M21 9l-4 6"/></svg></button>
+      <button class="icon holo" id="info" aria-label="How to play"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg></button>
+    </div>
+  </header>
+  <section class="fieldbox holo" id="fieldbox">
+    <canvas id="cv" aria-label="The Wheel of Worlds"></canvas>
+    <canvas id="fx" aria-hidden="true"></canvas>
+    <div class="boot" id="boot">Setting up the wheel…</div>
+    <div class="flash" id="flash"></div>
+    <div class="hist" id="hist" aria-label="Last results"></div>
+    <div class="ride" id="ride">BETS RIDE ×2</div>
+    <div class="banner" id="banner"></div>
+    <div class="bub" id="dealer"><b>ZIB</b><span></span></div>
+    <p class="say" id="say" aria-live="polite"></p>
+  </section>
+  <section class="controls">
+    <div class="crew" id="crew" aria-label="Other players"></div>
+    <div class="worlds" id="worlds"></div>
+    <div class="row">
+      <div class="chips holo" id="chips"><span class="lbl">Chip</span></div>
+      <button class="sm holo" id="clear">CLEAR<small>take back</small></button>
+      <button class="sm holo" id="rebet">REBET<small>same again</small></button>
+    </div>
+    <div class="spinrow">
+      <div class="total holo"><span class="lbl">On the table</span><b id="total">0</b></div>
+      <button class="spin holo" id="spin" aria-disabled="true">SPIN</button>
+    </div>
+  </section>
+</div>
+<div class="sheet" id="sheet" hidden><div class="card holo" role="dialog" aria-label="How to play">
+  <h2>How to play</h2>
+  <p>Pick a chip, then tap the worlds you want to bet on (tap again to add more). Press <b>SPIN</b>. If the wheel stops on a world you backed, you get your bet × that world's number.</p>
+  <table id="paytable"></table>
+  <p><b>Planetary alignment:</b> before every spin a scanner picks one world and boosts it (×2 to ×10). If that world comes up, its payout is multiplied by the boost.</p>
+  <p><b>Wormhole:</b> nobody wins or loses yet. Every bet rides again on a free spin, paying double. Two wormholes in a row: ×4.</p>
+  <p><b>Black hole:</b> swallows every bet on the table.</p>
+  <p>Over a long time the wheel pays back about 96% of what goes in.</p>
+  <div class="dbg"><button class="holo" id="fearth">Debug: next is Earth</button><button class="holo" id="fworm">Debug: next is a wormhole</button><button class="holo" id="close">Close</button></div>
+</div></div>
+
+<script>
+const ART = {"bar": "data:image/webp;base64,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", "planets": {}};
+// The shared wallet: one balance of gold bars across every game in the casino (shared by all games; lives in slot/ for now, like the sound engine).
+// Inside the lobby, the lobby holds the balance (window.__alienWallet), so it carries from game to game.
+// Opened on its own, a game keeps its balance in this browser's storage, so it survives a reload.
+// Each engine does: let credits = Wallet.load(START); … Wallet.watch(() => credits)  (it saves whenever the balance changes).
+const Wallet = (() => {
+  const KEY = "alien-casino-bars", START = 500;
+  const host = (() => { try { if (window.parent !== window && window.parent.__alienWallet) return window.parent.__alienWallet; } catch (e) {} return null; })();
+  const read = () => { if (host) return host.get(); try { const v = localStorage.getItem(KEY); return v === null ? null : Number(v); } catch (e) { return null; } };
+  const write = v => { if (host) return host.set(v); try { localStorage.setItem(KEY, String(v)); } catch (e) {} };
+  return {
+    load() { const v = read(); if (v !== null && Number.isFinite(v) && v >= 0) return Math.floor(v); write(START); return START; },
+    watch(get) { let last = get(); const save = () => { const v = get(); if (v !== last && Number.isFinite(v)) { last = v; write(Math.floor(v)); } };
+      setInterval(save, 250); addEventListener("pagehide", save); document.addEventListener("visibilitychange", save); }
+  };
+})();
+
+// Wheel of Worlds: the game maths. A giant wheel of 54 segments, each a world (or a wormhole, or a black hole). Bet bars on worlds, spin;
+// if it stops on your world you get bet × that world's multiplier. Pure logic: no drawing, no sound. The screen (shell.html) reads and calls these;
+// tools/sim.js checks the payback in Node. May use: Wallet if the page has it. Must not: touch the page.
+// Each world has (segments × multiplier) = 40, so every bet returns the same: 40/54 straight, × the alignment boost (≈1.25 on average)
+// × the wormhole (≈1.04) ≈ 96% over a long run. The black holes are what's left over: they swallow every bet.
+const WORLDS = [                                   // id, multiplier (total paid back per bar), segments on the wheel
+  { id: "moon",  name: "Moon",          mult: 2,  n: 20 },
+  { id: "red",   name: "Red Planet",    mult: 4,  n: 10 },
+  { id: "ice",   name: "Ice World",     mult: 8,  n: 5 },
+  { id: "gas",   name: "Gas Giant",     mult: 10, n: 4 },
+  { id: "ring",  name: "Ringed Planet", mult: 20, n: 2 },
+  { id: "earth", name: "Earth",         mult: 40, n: 1 } ];
+const SPECIAL = [{ id: "worm", name: "Wormhole", n: 1 }, { id: "hole", name: "Black Hole", n: 11 }];
+const S = 54;
+// planetary alignment: before every spin one world gets a boost; it multiplies that world's payout if it comes up
+const BOOSTS = [[2, .72], [3, .2], [5, .07], [10, .01]];
+const CHIPS = [1, 5, 25, 100], START = 500, MAXBET = 500;   // max total on the table per spin
+const byId = Object.fromEntries([...WORLDS, ...SPECIAL].map(w => [w.id, w]));
+// the wheel's layout: spread every kind evenly round the rim (a fixed order, so the wheel's picture never changes)
+const LAYOUT = (() => { const kinds = [...WORLDS, ...SPECIAL], credit = kinds.map(() => 0), out = [];
+  for (let i = 0; i < S; i++) { kinds.forEach((k, j) => credit[j] += k.n / S); let b = 0; kinds.forEach((k, j) => { if (credit[j] > credit[b] + 1e-9 || (Math.abs(credit[j] - credit[b]) < 1e-9 && k.n < kinds[b].n)) b = j; }); credit[b] -= 1; out.push(kinds[b].id); }
+  return out; })();
+let credits = typeof Wallet !== "undefined" ? Wallet.load() : START;
+let bets = {}, lastBets = {}, boost = null, ride = 1, phase = "bet", history = [];
+const FORCE = { seg: null };                       // debug / tests: the next spin lands on this kind ("earth", "worm", …)
+const total = () => Object.values(bets).reduce((a, b) => a + b, 0);
+const rollBoost = () => { let r = Math.random(), m = 2; for (const [v, p] of BOOSTS) { if (r < p) { m = v; break; } r -= p; } return { world: WORLDS[Math.floor(Math.random() * WORLDS.length)].id, mult: m }; };
+// a new round: clear the table, new alignment boost
+function newRound() { lastBets = Object.keys(bets).length ? { ...bets } : lastBets; bets = {}; ride = 1; phase = "bet"; boost = rollBoost(); return boost; }
+function placeBet(world, amt) { if (phase !== "bet" || !byId[world] || !WORLDS.includes(byId[world]) || amt <= 0 || amt > credits || total() + amt > MAXBET) return false; credits -= amt; bets[world] = (bets[world] || 0) + amt; return true; }
+function clearBets() { if (phase !== "bet") return 0; const t = total(); credits += t; bets = {}; return t; }
+function rebet() { if (phase !== "bet" || total()) return false; const t = Object.values(lastBets).reduce((a, b) => a + b, 0); if (!t || t > credits || t > MAXBET) return false; for (const [w, a] of Object.entries(lastBets)) placeBet(w, a); return true; }
+// spin: decides where the wheel stops. Returns { index (segment 0…53), seg (kind), wins: [{world, bet, win}], paid, wormhole, ride }.
+// A wormhole keeps the bets on the table, doubles what they'll pay (ride), and the screen spins again straight away.
+function spin() { if (phase === "bet" && !total()) return null; phase = "spin";
+  let index; if (FORCE.seg) { const opts = LAYOUT.map((k, i) => k === FORCE.seg ? i : -1).filter(i => i >= 0); index = opts[Math.floor(Math.random() * opts.length)]; FORCE.seg = null; } else index = Math.floor(Math.random() * S);
+  const seg = LAYOUT[index], res = { index, seg, wins: [], paid: 0, wormhole: false, ride };
+  if (seg === "worm") { ride *= 2; res.wormhole = true; res.ride = ride; return res; }
+  const b = bets[seg]; if (b) { const w = byId[seg], k = boost && boost.world === seg ? boost.mult : 1, win = b * w.mult * k * ride; credits += win; res.wins.push({ world: seg, bet: b, win, boost: k }); res.paid = win; }
+  history.unshift(seg); history = history.slice(0, 16); phase = "done"; return res; }
+// keep the shared wallet in step with this game's balance (not in Node tests)
+if (typeof Wallet !== "undefined") Wallet.watch(() => credits);
+if (typeof module !== "undefined") module.exports = { WORLDS, SPECIAL, S, BOOSTS, CHIPS, MAXBET, LAYOUT, byId, newRound, placeBet, clearBets, rebet, spin, total, FORCE,
+  get credits() { return credits; }, set credits(v) { credits = v; }, get bets() { return bets; }, get boost() { return boost; }, get ride() { return ride; }, get phase() { return phase; }, get history() { return history; } };
+
+// ---- Sound: all synthesized live with Web Audio, no sound files needed ----
+const Sound = (()=>{
+  let ctx=null, master=null, mbus=null, on=true, musicOn=true, mlevel=1;
+  try{ on = localStorage.getItem("slot-sound")!=="off"; musicOn = localStorage.getItem("slot-music")!=="off"; }catch(e){}
+  function ensure(){
+    if(!ctx){ const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return null;
+      ctx=new AC(); master=ctx.createGain(); master.gain.value=0.55;
+      const lim=ctx.createDynamicsCompressor(); lim.threshold.value=-10; lim.knee.value=6; lim.ratio.value=8; lim.attack.value=.003; lim.release.value=.15;
+      master.connect(lim).connect(ctx.destination);   // limiter: stops loud moments from overdriving a phone speaker
+      const hp=ctx.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=90; hp.Q.value=.7;
+      mbus=ctx.createGain(); mbus.gain.value=musicOn?mlevel:0; mbus.connect(hp).connect(master); decodeClips(); }
+    if(ctx.state==="suspended") ctx.resume();
+    return ctx;
+  }
+  // lp = low-pass filter cutoff (warmer, rounder sound); lpEnd = where the cutoff sweeps to; detune in cents; bus "music" goes through the music volume
+  function tone(freq, dur, {type="sine", vol=0.2, at=0, slide=0, attack=0.004, lp=0, lpEnd=0, q=1, detune=0, bus=null, vib=0}={}){
+    if(!on) return; const c=ensure(); if(!c) return; if(bus==="music") attack=Math.max(attack,.008);   // softer note starts = no clicks
+    const t=c.currentTime+Math.max(0,at), o=c.createOscillator(), g=c.createGain();
+    o.type=type; o.frequency.setValueAtTime(freq,t); if(detune) o.detune.value=detune;
+    if(slide) o.frequency.exponentialRampToValueAtTime(Math.max(30,freq*slide), t+dur);
+    if(vib){ const l=c.createOscillator(), lg=c.createGain(); l.frequency.value=5.5; lg.gain.value=freq*vib; l.connect(lg).connect(o.frequency); l.start(t); l.stop(t+dur+0.05); }
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol,t+attack); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    let node=o; if(lp){ const f=c.createBiquadFilter(); f.type="lowpass"; f.Q.value=q; f.frequency.setValueAtTime(lp,t); if(lpEnd) f.frequency.exponentialRampToValueAtTime(lpEnd,t+dur); node.connect(f); node=f; }
+    node.connect(g).connect(bus==="music"?mbus:master); o.start(t); o.stop(t+dur+0.05);
+  }
+  function thud(vol=0.25, freq=260){
+    if(!on) return; const c=ensure(); if(!c) return;
+    const len=Math.floor(c.sampleRate*0.09), buf=c.createBuffer(1,len,c.sampleRate), d=buf.getChannelData(0);
+    for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/len,3);
+    const src=c.createBufferSource(), f=c.createBiquadFilter(), g=c.createGain();
+    src.buffer=buf; f.type="lowpass"; f.frequency.value=freq; g.gain.value=vol;
+    src.connect(f).connect(g).connect(master); src.start();
+  }
+  // Recorded clips (base64 mp3 in SND_SRC) are decoded once the audio system wakes up, then played through the same volume control
+  const clips={};
+  function decodeClips(){ if(typeof SND_SRC==="undefined") return;
+    for(const [k,b64] of Object.entries(SND_SRC)){ if(clips[k]) continue; clips[k]="loading";
+      const bin=atob(b64.split(",")[1]), buf=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) buf[i]=bin.charCodeAt(i);
+      ctx.decodeAudioData(buf.buffer).then(ab=>{ clips[k]=ab; }).catch(()=>{ delete clips[k]; }); } }
+  function clip(name, {vol=1, at=0}={}){ // returns false if the clip isn't ready, so callers can fall back to synth sounds
+    if(!on) return true; const c=ensure(); const ab=clips[name]; if(!c || !(ab instanceof AudioBuffer)) return false;
+    const src=c.createBufferSource(), g=c.createGain(), t=c.currentTime+at; src.buffer=ab;
+    g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(vol,t+.005);   // 5 ms fade-in: no pop when a clip starts
+    src.connect(g).connect(master); src.start(t); return true; }
+  function noise(dur, {vol=0.2, at=0, type="lowpass", freq=1200, q=0.8, attack=0.004, sweep=0, bus=null}={}){   // filtered noise burst: gunshots, tyres, crowds, scribbles
+    if(!on) return; const c=ensure(); if(!c) return; if(bus==="music") attack=Math.max(attack,.01);   // no instant starts on music percussion
+    const t=c.currentTime+Math.max(0,at), len=Math.max(1,Math.floor(c.sampleRate*dur)), buf=c.createBuffer(1,len,c.sampleRate), d=buf.getChannelData(0);
+    for(let i=0;i<len;i++) d[i]=Math.random()*2-1;
+    const src=c.createBufferSource(), f=c.createBiquadFilter(), g=c.createGain();
+    src.buffer=buf; f.type=type; f.frequency.setValueAtTime(freq,t); f.Q.value=q; if(sweep) f.frequency.exponentialRampToValueAtTime(Math.max(40,freq*sweep), t+dur);
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol,t+attack); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    src.connect(f).connect(g).connect(bus==="music"?mbus:master); src.start(t); src.stop(t+dur+0.05);
+  }
+  const note = n => 440*Math.pow(2,(n-9)/12); // n = semitones above C4 (0 = C)
+  const arp = (notes, gap, opts) => notes.forEach((n,i)=>tone(note(n), opts.dur||0.18, {...opts, at:i*gap}));
+  return {
+    get on(){ return on; },
+    set on(v){ on=v; try{ localStorage.setItem("slot-sound", v?"on":"off"); }catch(e){} if(v) ensure(); },
+    unlock(){ if(on) ensure(); },
+    get musicOn(){ return musicOn; },
+    set musicOn(v){ musicOn=v; try{ localStorage.setItem("slot-music", v?"on":"off"); }catch(e){} if(mbus) mbus.gain.setTargetAtTime(v?mlevel:0, ctx.currentTime, .05); },
+    musicLevel(v){ mlevel=v; if(mbus && musicOn) mbus.gain.setTargetAtTime(v, ctx.currentTime, .08); },
+    now(){ return ctx ? ctx.currentTime : null; },
+    ready(){ return !!ctx && ctx.state==="running"; },
+    tap(){ tone(880,.05,{type:"triangle",vol:.08}); },
+    lines(n){ arp([0,4,7,12,16].slice(0,n), .045, {type:"triangle", vol:.09, dur:.12}); },
+    spinStart(){ tone(140,.4,{type:"sawtooth",vol:.05,slide:3}); tone(70,.25,{type:"sine",vol:.12,slide:.8}); },
+    tick(){ tone(1500+Math.random()*400,.02,{type:"square",vol:.018}); },
+    reelStop(i){ thud(.35, 240); tone(150-i*18,.14,{type:"sine",vol:.22,slide:.55}); },
+    wild(){ arp([24,28,31,36], .05, {type:"sine", vol:.08, dur:.25}); },
+    lose(){ tone(note(-5),.18,{type:"triangle",vol:.05}); tone(note(-8),.25,{type:"triangle",vol:.05,at:.12}); },
+    win(level){ // 0 small, 1 medium
+      if(level===0) arp([12,16,19], .07, {type:"triangle", vol:.12, dur:.2});
+      else { arp([7,12,16,19,24], .07, {type:"triangle", vol:.13, dur:.22}); arp([19,24], .1, {type:"sine", vol:.06, dur:.5, at:0}); }
+    },
+    bigWin(){
+      arp([0,4,7,12, 4,7,12,16, 7,12,16,19,24], .085, {type:"square", vol:.05, dur:.16});
+      [0,4,7,12].forEach(n=>tone(note(n),1.4,{type:"triangle",vol:.06,at:1.1,attack:.02}));
+      for(let i=0;i<10;i++) tone(2000+Math.random()*1500,.05,{type:"sine",vol:.03,at:1.1+i*.07});
+    },
+    noise, clip,
+    tone, arp, note, thud,
+    refill(){ for(let i=0;i<8;i++) tone(1800+i*120,.04,{type:"triangle",vol:.05,at:i*.04}); },
+  };
+})();
+// Wheel of Worlds: the big wheel, used by BOTH the casino floor (lobby) and the game, so it looks the same from outside and from the player's seat.
+// A 2 m wheel of 54 segments (each a world, a wormhole or a black hole) in a chrome rim with pegs and chasing bulbs, a gold flapper at the top that ticks
+// over the pegs, a glowing hub with the alignment scanner, held up by a sculpted stand with light strips, and a curved sign arching over the top.
+// Units are metres; it faces +Z; the floor is y = 0; the wheel's centre is at (0, CY, 0).
+// opts: { layout: the 54 segment kinds in order (clockwise from the top), worlds: [{id, mult}], art: { planets: {id: image src} } (optional) }.
+// Returns { root, wheel, R, CY, step, setAngle(a), angle, drawFace(boost), update(t), pegClick(cb) }.
+// Angles: wheel.rotation.z = a. Segment i sits under the flapper when a ≡ i × step (mod 2π); the wheel turns clockwise as a decreases.
+function buildWheel(THREE, opts = {}) {
+  const LAY = opts.layout, S = LAY.length, step = Math.PI * 2 / S, MULT = Object.fromEntries((opts.worlds || []).map(w => [w.id, w.mult])), ART = (opts.art && opts.art.planets) || {};
+  const R = 1.0, CY = 2.05;
+  const canvas = (w, h) => { const c = document.createElement("canvas"); c.width = w; c.height = h; return [c, c.getContext("2d")]; };
+  const ctex = (c, rep) => { const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 8; if (rep) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(...rep); } return t; };
+  const ENV = buildWheel.env(THREE);
+  const std = (color, metalness, roughness, extra = {}) => new THREE.MeshStandardMaterial({ color, metalness, roughness, envMap: ENV, ...extra });
+  const glow = c => new THREE.MeshBasicMaterial({ color: c, toneMapped: false });
+  const halo = (c, o = .16) => new THREE.MeshBasicMaterial({ color: c, toneMapped: false, transparent: true, opacity: o, blending: THREE.AdditiveBlending, depthWrite: false });
+  const mat = { paint: new THREE.MeshPhysicalMaterial({ color: 0x1c1240, metalness: .4, roughness: .32, clearcoat: 1, clearcoatRoughness: .12, envMap: ENV }),
+    dark: std(0x0d0b1a, .5, .45), chrome: std(0xcfd3e6, 1, .14), gold: std(0xffc845, 1, .2, { emissive: 0x6a4000, emissiveIntensity: .3 }), black: std(0x05040a, .3, .6) };
+  const add = (parent, geo, m, p = [0, 0, 0], r = [0, 0, 0]) => { const o = new THREE.Mesh(geo, m); o.position.set(...p); o.rotation.set(...r); o.castShadow = o.receiveShadow = !m.isMeshBasicMaterial && !m.transparent; parent.add(o); return o; };
+  const tube = (parent, pts, col, r = .008) => { const c = new THREE.CatmullRomCurve3(pts.map(p => new THREE.Vector3(...p))); add(parent, new THREE.TubeGeometry(c, 64, r, 8), glow(col)); add(parent, new THREE.TubeGeometry(c, 64, r * 3.2, 8), halo(col)); };
+  const root = new THREE.Group(); root.name = "WheelOfWorlds";
+
+  // ---- the stand: two sculpted arms rising from a plinth to hold the axle, glossy paint, light strips up their edges, underglow ----
+  { const sh = new THREE.Shape(); sh.moveTo(-.55, 0); sh.lineTo(.55, 0); sh.quadraticCurveTo(.5, .5, .24, .9); sh.lineTo(.16, CY - .05); sh.quadraticCurveTo(0, CY + .14, -.16, CY - .05); sh.lineTo(-.24, .9); sh.quadraticCurveTo(-.5, .5, -.55, 0);
+    const g = new THREE.ExtrudeGeometry(sh, { depth: .16, bevelEnabled: true, bevelThickness: .03, bevelSize: .03, bevelSegments: 4, curveSegments: 16 }); g.translate(0, 0, -.08);
+    add(root, g, mat.paint, [0, 0, -.2]);
+    for (const s of [-1, 1]) tube(root, [[s * .57, .1, -.04], [s * .5, .5, -.04], [s * .27, .9, -.04], [s * .19, CY - .1, -.04]], s < 0 ? 0xff4fae : 0x4fe6ff, .007); }
+  add(root, new THREE.CylinderGeometry(.85, .95, .14, 48), mat.dark, [0, .07, -.15]);
+  add(root, new THREE.CylinderGeometry(.86, .86, .02, 48), mat.chrome, [0, .15, -.15]);
+  add(root, new THREE.TorusGeometry(.95, .008, 8, 96), glow(0x7dff9a), [0, .015, -.15], [Math.PI / 2, 0, 0]); add(root, new THREE.TorusGeometry(.95, .03, 8, 96), halo(0x7dff9a), [0, .015, -.15], [Math.PI / 2, 0, 0]);
+  add(root, new THREE.CylinderGeometry(.07, .07, .5, 24), mat.chrome, [0, CY, -.1], [Math.PI / 2, 0, 0]);   // the axle
+  // a glowing ring behind the wheel
+  add(root, new THREE.TorusGeometry(R + .12, .012, 8, 128), glow(0xb48cff), [0, CY, -.12]); add(root, new THREE.TorusGeometry(R + .12, .05, 8, 128), halo(0xb48cff, .12), [0, CY, -.12]);
+
+  // ---- the wheel ----
+  const wheel = new THREE.Group(); wheel.name = "Wheel"; wheel.position.set(0, CY, 0); root.add(wheel);
+  const [fc, fg] = canvas(2048, 2048), faceTex = ctex(fc);
+  add(wheel, new THREE.CylinderGeometry(R, R, .06, 96), mat.dark, [0, 0, -.03], [Math.PI / 2, 0, 0]);
+  add(wheel, new THREE.CircleGeometry(R - .025, 128), new THREE.MeshStandardMaterial({ map: faceTex, emissiveMap: faceTex, emissive: 0xffffff, emissiveIntensity: .55, roughness: .45, metalness: .1, envMap: ENV, envMapIntensity: .4 }), [0, 0, .002]);
+  add(wheel, new THREE.TorusGeometry(R - .01, .03, 16, 160), mat.chrome);
+  add(wheel, new THREE.TorusGeometry(R * .44, .018, 12, 96), mat.chrome, [0, 0, .004]);
+  { const pg = new THREE.CylinderGeometry(.011, .011, .07, 10), pm = new THREE.InstancedMesh(pg, mat.chrome, S), M = new THREE.Matrix4(), q = new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0));
+    for (let i = 0; i < S; i++) { const a = (i + .5) * step; M.compose(new THREE.Vector3(Math.sin(a) * (R - .055), Math.cos(a) * (R - .055), .035), q, new THREE.Vector3(1, 1, 1)); pm.setMatrixAt(i, M); }
+    pm.castShadow = true; wheel.add(pm); }
+  // the hub: a chrome dome with a glowing core and the scanner's beam emitter
+  add(wheel, new THREE.CylinderGeometry(.2, .24, .07, 48), mat.chrome, [0, 0, .03], [Math.PI / 2, 0, 0]);
+  add(wheel, new THREE.SphereGeometry(.15, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshPhysicalMaterial({ color: 0x4fe6ff, emissive: 0x1a6aff, emissiveIntensity: .8, roughness: .05, clearcoat: 1, transmission: 0, envMap: ENV, toneMapped: false }), [0, 0, .065], [Math.PI / 2, 0, 0]);
+  // bulbs round the outside of the rim (they stay still while the wheel turns), and the flapper at the top
+  const NB = 48, bulbs = new THREE.InstancedMesh(new THREE.SphereGeometry(.022, 12, 8), new THREE.MeshBasicMaterial({ toneMapped: false }), NB);
+  { const M = new THREE.Matrix4(); for (let i = 0; i < NB; i++) { const a = i / NB * Math.PI * 2; M.makeTranslation(Math.sin(a) * (R + .065), CY + Math.cos(a) * (R + .065), .02); bulbs.setMatrixAt(i, M); bulbs.setColorAt(i, new THREE.Color(0xffffff)); } root.add(bulbs); }
+  add(root, new THREE.TorusGeometry(R + .065, .03, 12, 160), mat.dark, [0, CY, -.005]);
+  const flap = new THREE.Group(); flap.position.set(0, CY + R + .1, .07); root.add(flap);
+  { const sh = new THREE.Shape(); sh.moveTo(0, -.2); sh.lineTo(.055, -.02); sh.quadraticCurveTo(.06, .05, 0, .06); sh.quadraticCurveTo(-.06, .05, -.055, -.02); sh.closePath();
+    const g = new THREE.ExtrudeGeometry(sh, { depth: .02, bevelEnabled: true, bevelThickness: .01, bevelSize: .008, bevelSegments: 3 }); g.translate(0, 0, -.01); add(flap, g, mat.gold);
+    add(flap, new THREE.CylinderGeometry(.025, .025, .06, 16), mat.chrome, [0, 0, 0], [Math.PI / 2, 0, 0]); add(flap, new THREE.SphereGeometry(.018, 12, 8), glow(0xff4d6d), [0, -.05, .025]); }
+  // ---- the sign: a curved panel arching over the wheel ----
+  { const [c, g] = canvas(2048, 256); g.fillStyle = "#0c0820"; g.fillRect(0, 0, 2048, 256); g.textAlign = "center"; g.textBaseline = "middle";
+    g.font = '400 150px "Monoton","Bungee",Impact,sans-serif'; g.shadowColor = "#b48cff"; g.shadowBlur = 40; g.fillStyle = "#f2e6ff"; g.fillText("WHEEL", 640, 132);
+    g.font = '400 120px "Yellowtail",cursive'; g.shadowColor = "#ffc845"; g.fillStyle = "#fff1dc"; g.fillText("of", 1024, 140);
+    g.font = '400 150px "Monoton","Bungee",Impact,sans-serif'; g.shadowColor = "#4fe6ff"; g.fillStyle = "#e6fbff"; g.fillText("WORLDS", 1430, 132); g.shadowBlur = 0;
+    const ri = R + .2, ro = R + .5, arcA = 1.5, st = Math.PI / 2 - arcA / 2, sg = new THREE.RingGeometry(ri, ro, 64, 1, st, arcA), p = sg.attributes.position, uv = sg.attributes.uv;
+    for (let i = 0; i < p.count; i++) { const x = p.getX(i), y = p.getY(i); uv.setXY(i, (st + arcA - Math.atan2(y, x)) / arcA, (Math.hypot(x, y) - ri) / (ro - ri)); }   // the text follows the curve
+    add(root, sg, new THREE.MeshBasicMaterial({ map: ctex(c), toneMapped: false }), [0, CY, .03]);
+    add(root, new THREE.RingGeometry(ri - .01, ro + .01, 64, 1, st - .01, arcA + .02), mat.dark, [0, CY, .02]);
+    for (const r of [ri - .012, ro + .012]) { const t = add(root, new THREE.TorusGeometry(r, .014, 10, 64, arcA + .02), mat.chrome, [0, CY, .03]); t.rotation.z = st - .01; } }
+  // ---- the alignment scanner: a beam from the hub to the boosted world, shown while the boost is being picked ----
+  const beamPivot = new THREE.Group(); beamPivot.position.z = .04; wheel.add(beamPivot);
+  const beam = add(beamPivot, new THREE.PlaneGeometry(.07, R * .55), halo(0xffc845, 0), [0, R * .72, 0]);
+
+  // ---- the face: each wedge coloured by its world, its planet, its multiplier; boosted wedges glow with their boost ----
+  const COL = { moon: ["#5d6a88", "#27304a"], red: ["#d8452c", "#5a1410"], ice: ["#3cc8f0", "#0c3a5a"], gas: ["#ff9a2c", "#6a3008"], ring: ["#9a52ff", "#2a0e5a"], earth: ["#2ed58a", "#0a3a4a"], worm: ["#ff4fae", "#2a0430"], hole: ["#1a1426", "#020104"] };
+  const imgs = {}; for (const [k, src] of Object.entries(ART)) { const im = new Image(); im.onload = () => drawFace(lastBoost); im.src = src; imgs[k] = im; }
+  const planet = (g, kind, x, y, s) => buildWheel.drawPlanet(g, kind, x, y, s, imgs[kind]);
+  let lastBoost = null;
+  function drawFace(boost) { lastBoost = boost || null; const g = fg, C = 1024, ro = 1000, ri = 450;
+    g.fillStyle = "#07051a"; g.fillRect(0, 0, 2048, 2048);
+    const sg = g.createRadialGradient(C, C, 0, C, C, ri); sg.addColorStop(0, "#2a1a5a"); sg.addColorStop(1, "#07051a"); g.fillStyle = sg; g.beginPath(); g.arc(C, C, ri, 0, 7); g.fill();
+    for (let i = 0; i < 160; i++) { const a = Math.random() * 7, r = Math.random() * ri; g.fillStyle = `rgba(255,255,255,${Math.random() * .7 + .2})`; g.fillRect(C + Math.cos(a) * r, C + Math.sin(a) * r, 2, 2); }
+    for (let i = 0; i < S; i++) { const k = LAY[i], a0 = -Math.PI / 2 + (i - .5) * step, a1 = a0 + step, am = (a0 + a1) / 2, [c1, c2] = COL[k], hot = boost && boost.world === k;
+      const gr = g.createRadialGradient(C, C, ri, C, C, ro); gr.addColorStop(0, c2); gr.addColorStop(1, c1); g.fillStyle = gr;
+      g.beginPath(); g.arc(C, C, ro, a0, a1); g.arc(C, C, ri, a1, a0, true); g.closePath(); g.fill();
+      if (hot) { g.save(); g.fillStyle = "#ffc84566"; g.fill(); g.shadowColor = "#ffc845"; g.shadowBlur = 30; g.strokeStyle = "#ffe08a"; g.lineWidth = 14; g.stroke(); g.restore(); }
+      g.save(); g.translate(C, C); g.rotate(am + Math.PI / 2);
+      planet(g, k, 0, -ro + 92, k === "earth" ? 58 : k === "hole" ? 62 : 52);
+      g.textAlign = "center"; g.textBaseline = "middle"; g.shadowColor = "#000"; g.shadowBlur = 10;
+      if (MULT[k]) { g.save(); g.translate(0, -ro + 270); g.rotate(-Math.PI / 2); g.font = '400 70px "Bungee",Impact,sans-serif'; g.fillStyle = hot ? "#ffe08a" : "#ffffff"; g.fillText("\u00d7" + MULT[k], 0, 0); g.restore();
+        if (hot) { g.save(); g.translate(0, -ro + 430); g.rotate(-Math.PI / 2); g.font = '400 52px "Bungee",Impact,sans-serif'; g.fillStyle = "#ffc845"; g.shadowColor = "#ffc845"; g.shadowBlur = 24; g.fillText("BOOST \u00d7" + boost.mult, 0, 0); g.restore(); } }
+      g.restore(); }
+    g.strokeStyle = "#ffc845"; g.lineWidth = 5; for (let i = 0; i < S; i++) { const a = -Math.PI / 2 + (i - .5) * step; g.beginPath(); g.moveTo(C + Math.cos(a) * ri, C + Math.sin(a) * ri); g.lineTo(C + Math.cos(a) * ro, C + Math.sin(a) * ro); g.stroke(); }
+    g.lineWidth = 8; g.beginPath(); g.arc(C, C, ri, 0, 7); g.stroke();
+    faceTex.needsUpdate = true; }
+  drawFace(null);
+
+  let angle = 0, lastPeg = 0, onPeg = null, flapV = 0, flapA = 0, prevA = 0;
+  const pegIndex = a => Math.floor((a - step / 2) / step);
+  function setAngle(a) { angle = a; wheel.rotation.z = a; const p = pegIndex(a); if (p !== lastPeg) { const dir = Math.sign(a - prevA) || -1; flapV += dir * 9; lastPeg = p; if (onPeg) onPeg(); } prevA = a; }
+  const BCOL = [0xff4fae, 0xffc845, 0x7dff9a, 0x4fe6ff, 0xb48cff].map(c => new THREE.Color(c)), OFF = new THREE.Color(0x2a2040);
+  let mode = "chase", beamT = -1, beamTo = 0;
+  // update(t, dt): bulbs, the flapper's spring, the scanner beam. mode: "chase" (idle), "spin" (fast sparkle), "win" (all flashing)
+  function update(t, dt = 1 / 60, m) { if (m) mode = m;
+    const stp = Math.floor(t * (mode === "spin" ? 18 : 7));
+    for (let i = 0; i < NB; i++) { const on = mode === "win" ? stp % 2 === 0 : mode === "spin" ? (i + stp) % 4 === 0 : (i + stp) % 3 === 0; bulbs.setColorAt(i, on ? BCOL[(i + (mode === "win" ? stp : 0)) % 5] : OFF); }
+    bulbs.instanceColor.needsUpdate = true;
+    flapV += (-flapA * 160 - flapV * 9) * dt; flapA += flapV * dt; flapA = Math.max(-.7, Math.min(.7, flapA)); flap.rotation.z = flapA;
+    if (beamT >= 0) { beamT += dt; const k = Math.min(1, beamT / 1.6); beamPivot.rotation.z = beamTo * k + (1 - k) * (beamTo + Math.PI * 4) ; beam.material.opacity = beamT < 2.4 ? .7 : Math.max(0, .7 - (beamT - 2.4) * 1.5); if (beamT > 3) beamT = -1; }
+    if (opts.idle) setAngle(angle - dt * .25); }
+  // point the scanner beam at segment i (in the wheel's own frame) — it sweeps round twice and settles
+  function scan(i) { beamTo = -i * step; beamT = 0; }
+  return { root, wheel, R, CY, step, S, setAngle, get angle() { return angle; }, drawFace, update, scan, pegClick(cb) { onPeg = cb; } };
+}
+// the reflection map for the metal (the same dark room with light panels as Star Dozer's)
+buildWheel.env = THREE => { if (typeof buildPusher !== "undefined" && buildPusher.env) return buildPusher.env(THREE); if (buildWheel._env) return buildWheel._env;
+  const c = document.createElement("canvas"); c.width = 512; c.height = 256; const g = c.getContext("2d"), gr = g.createLinearGradient(0, 0, 0, 256); gr.addColorStop(0, "#1a1630"); gr.addColorStop(.5, "#0b0918"); gr.addColorStop(1, "#040308"); g.fillStyle = gr; g.fillRect(0, 0, 512, 256);
+  const soft = (x, y, w, h, col, a) => { g.globalAlpha = a; g.fillStyle = col; g.shadowColor = col; g.shadowBlur = 20; g.fillRect(x, y, w, h); g.globalAlpha = 1; g.shadowBlur = 0; };
+  soft(40, 30, 90, 36, "#c8c8dc", .7); soft(300, 24, 120, 30, "#d8ccb8", .6); soft(200, 100, 18, 60, "#ff4fae", .8); soft(420, 100, 18, 60, "#4fe6ff", .8); soft(0, 140, 512, 4, "#b48cff", .4); soft(100, 120, 40, 14, "#ffc845", .5);
+  const t = new THREE.CanvasTexture(c); t.mapping = THREE.EquirectangularReflectionMapping; t.encoding = THREE.sRGBEncoding; return buildWheel._env = t; };
+// a world's picture: the art if there is any, otherwise drawn in code (also used by the game's betting tiles)
+buildWheel.drawPlanet = (g, kind, x, y, s, im) => {
+    if (im && im.complete && im.naturalWidth) { g.drawImage(im, x - s, y - s, s * 2, s * 2); return; }
+    g.save(); g.translate(x, y);
+    if (kind === "hole") { const gr = g.createRadialGradient(0, 0, s * .2, 0, 0, s); gr.addColorStop(0, "#000"); gr.addColorStop(.55, "#000"); gr.addColorStop(.7, "#ff9a3a"); gr.addColorStop(.8, "#b4407a"); gr.addColorStop(1, "#b4407a00"); g.fillStyle = gr; g.beginPath(); g.arc(0, 0, s, 0, 7); g.fill(); g.restore(); return; }
+    if (kind === "worm") { for (let i = 0; i < 5; i++) { g.strokeStyle = ["#ff4fae", "#b48cff", "#4fe6ff", "#ffffff", "#ff4fae"][i]; g.lineWidth = s * .12; g.beginPath(); for (let a = 0; a < 9; a += .2) { const r = s * (1 - a / 9) ; g.lineTo(Math.cos(a + i * 1.25) * r, Math.sin(a + i * 1.25) * r); } g.stroke(); } g.restore(); return; }
+    const [a, b] = { moon: ["#c8d0e0", "#5a6276"], red: ["#ff8a5a", "#8a2410"], ice: ["#e6fbff", "#3a8ac8"], gas: ["#ffd08a", "#c85a10"], ring: ["#d0a8ff", "#5a24a8"], earth: ["#5ab4ff", "#0a3a8a"] }[kind];
+    if (kind === "ring") { g.strokeStyle = "#ffc845"; g.lineWidth = s * .14; g.beginPath(); g.ellipse(0, 0, s * 1.5, s * .38, -.35, Math.PI, 2 * Math.PI); g.stroke(); }
+    const gr = g.createRadialGradient(-s * .35, -s * .35, s * .1, 0, 0, s); gr.addColorStop(0, a); gr.addColorStop(1, b); g.fillStyle = gr; g.beginPath(); g.arc(0, 0, s, 0, 7); g.fill();
+    g.save(); g.beginPath(); g.arc(0, 0, s, 0, 7); g.clip();
+    if (kind === "moon") { g.fillStyle = "#00000033"; for (const [cx, cy, r] of [[-.3, .2, .25], [.35, -.1, .18], [.1, .5, .14], [-.1, -.45, .12]]) { g.beginPath(); g.arc(cx * s, cy * s, r * s, 0, 7); g.fill(); } }
+    if (kind === "red") { g.fillStyle = "#5a141066"; g.beginPath(); g.ellipse(s * .1, s * .2, s * .6, s * .18, .3, 0, 7); g.fill(); g.fillStyle = "#fff4"; g.beginPath(); g.ellipse(0, -s * .85, s * .4, s * .15, 0, 0, 7); g.fill(); }
+    if (kind === "ice") { g.strokeStyle = "#ffffffaa"; g.lineWidth = s * .05; g.beginPath(); g.moveTo(-s * .6, -s * .2); g.lineTo(-s * .1, s * .1); g.lineTo(s * .2, -s * .4); g.moveTo(-s * .1, s * .1); g.lineTo(s * .1, s * .6); g.stroke(); }
+    if (kind === "gas") { for (let i = -3; i <= 3; i++) { g.fillStyle = i % 2 ? "#8a3a0855" : "#ffe0b055"; g.fillRect(-s, i * s * .28 - s * .08, s * 2, s * .16); } g.fillStyle = "#a8301899"; g.beginPath(); g.ellipse(s * .3, s * .25, s * .22, s * .12, 0, 0, 7); g.fill(); }
+    if (kind === "earth") { g.fillStyle = "#3ac86a"; for (const [cx, cy, rx, ry] of [[-.3, -.2, .35, .25], [.35, .3, .3, .35], [.2, -.55, .2, .12]]) { g.beginPath(); g.ellipse(cx * s, cy * s, rx * s, ry * s, .4, 0, 7); g.fill(); } g.fillStyle = "#ffffffaa"; g.beginPath(); g.ellipse(-s * .1, s * .1, s * .5, s * .08, -.3, 0, 7); g.fill(); }
+    g.restore();
+    if (kind === "ring") { g.strokeStyle = "#ffc845"; g.lineWidth = s * .14; g.beginPath(); g.ellipse(0, 0, s * 1.5, s * .38, -.35, 0, Math.PI); g.stroke(); }
+    g.fillStyle = "#ffffff55"; g.beginPath(); g.ellipse(-s * .4, -s * .45, s * .25, s * .14, -.7, 0, 7); g.fill();
+    g.restore(); };
+
+document.documentElement.style.setProperty("--bar", `url(${ART.bar})`);
+const $ = id => document.getElementById(id);
+const WCOL = { moon: "#9aa6c8", red: "#ff6a4a", ice: "#5fe8ff", gas: "#ffa83a", ring: "#b48cff", earth: "#4fe08a", worm: "#ff4fae", hole: "#5a4a7a" };
+let chip = 5, busy = false, ready = false, roundT = 0;
+try { const c = +localStorage.getItem("alien-casino-wheel-chip"); if (CHIPS.includes(c)) chip = c; } catch (e) {}
+
+// ---- the 3D view: the wheel model (the same one on the casino floor) ----
+const cv = $("cv"), renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true });
+renderer.setPixelRatio(Math.min(2, devicePixelRatio || 1)); renderer.outputEncoding = THREE.sRGBEncoding; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = .95;
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x07040f);
+const cam = new THREE.PerspectiveCamera(40, 1, .1, 60);
+scene.add(new THREE.HemisphereLight(0xc8b8ff, 0x1a1030, .5));
+const key = new THREE.DirectionalLight(0xfff2dc, 1.1); key.position.set(1.5, 4, 4); key.castShadow = true; key.shadow.mapSize.set(1024, 1024); Object.assign(key.shadow.camera, { left: -2, right: 2, top: 4, bottom: -1, near: 1, far: 12 }); scene.add(key);
+const glowL = new THREE.PointLight(0xff4fae, .8, 6, 2); glowL.position.set(-2, 2, 1.5); const glowR = new THREE.PointLight(0x4fe6ff, .8, 6, 2); glowR.position.set(2, 2, 1.5); scene.add(glowL, glowR);
+const winLight = new THREE.PointLight(0xffc845, 0, 4, 2); scene.add(winLight);
+const W3 = buildWheel(THREE, { layout: LAYOUT, worlds: WORLDS, art: { planets: ART.planets || {} } }); scene.add(W3.root);
+{ const floor = new THREE.Mesh(new THREE.CircleGeometry(6, 64), new THREE.MeshStandardMaterial({ color: 0x120c26, roughness: .7, metalness: .2 })); floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+  const g = new THREE.BufferGeometry(), p = []; for (let i = 0; i < 500; i++) { const a = Math.random() * 6.28, r = 10 + Math.random() * 20; p.push(Math.cos(a) * r, Math.random() * 18 - 2, -8 - Math.random() * 15); }
+  g.setAttribute("position", new THREE.Float32BufferAttribute(p, 3)); scene.add(new THREE.Points(g, new THREE.PointsMaterial({ color: 0xffffff, size: .06, transparent: true, opacity: .7 }))); }
+let angle = 0; W3.setAngle(0);
+W3.pegClick(() => SFX.tick());
+
+// fit the camera so the whole wheel and its sign are on screen, whatever the phone's shape
+const fx = $("fx"), fg = fx.getContext("2d"); let VW = 1, VH = 1;
+const FIT = [[0, W3.CY + W3.R + .52, 0], [0, W3.CY - W3.R - .08, 0], [-W3.R - .16, W3.CY, 0], [W3.R + .16, W3.CY, 0]], tmpV = new THREE.Vector3();
+function size() { const r = $("fieldbox").getBoundingClientRect(); VW = r.width; VH = r.height; renderer.setSize(VW, VH, false); const dpr = Math.min(2, devicePixelRatio || 1); fx.width = VW * dpr; fx.height = VH * dpr; fg.setTransform(dpr, 0, 0, dpr, 0, 0);
+  cam.aspect = VW / VH; cam.fov = 38; cam.updateProjectionMatrix(); const ty = W3.CY + .22; let lo = 1, hi = 20;
+  for (let i = 0; i < 26; i++) { const d = (lo + hi) / 2; cam.position.set(0, ty - .25, d); cam.lookAt(0, ty, 0); cam.updateMatrixWorld(); if (FIT.every(p => { tmpV.set(...p).project(cam); return Math.abs(tmpV.x) < .98 && Math.abs(tmpV.y) < .92; })) hi = d; else lo = d; }
+  cam.position.set(0, ty - .25, hi); cam.lookAt(0, ty, 0); cam.updateMatrixWorld(); baseCam = cam.position.clone(); }
+let baseCam = new THREE.Vector3();
+
+// ---- sparkles over the 3D view ----
+const sparks = [], floats = [];
+const toScreen = (x, y, z) => { tmpV.set(x, y, z).project(cam); return [(tmpV.x + 1) / 2 * VW, (1 - tmpV.y) / 2 * VH]; };
+function drawFx(dt) { fg.clearRect(0, 0, VW, VH);
+  for (let i = sparks.length - 1; i >= 0; i--) { const s = sparks[i]; s.t += dt; if (s.t > s.life) { sparks.splice(i, 1); continue; } s.x += s.vx * dt; s.y += s.vy * dt; s.vy += 300 * dt; fg.globalAlpha = 1 - s.t / s.life; fg.fillStyle = s.col; fg.beginPath(); fg.arc(s.x, s.y, s.r, 0, 7); fg.fill(); }
+  for (let i = floats.length - 1; i >= 0; i--) { const f = floats[i]; f.t += dt; if (f.t > 1.6) { floats.splice(i, 1); continue; } fg.globalAlpha = Math.min(1, 3 - f.t * 1.9); fg.font = '700 26px "Share Tech Mono",monospace'; fg.textAlign = "center"; fg.fillStyle = f.col; fg.shadowColor = f.col; fg.shadowBlur = 12; fg.fillText(f.txt, f.x, f.y - f.t * 40); fg.shadowBlur = 0; }
+  fg.globalAlpha = 1; }
+const burst = (x, y, cols, n, sp = 1) => { for (let i = 0; i < n; i++) { const a = Math.random() * 6.28, v = (80 + Math.random() * 220) * sp; sparks.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 140, r: 1.5 + Math.random() * 3, col: cols[i % cols.length], t: 0, life: .7 + Math.random() * .6 }); } };
+
+// ---- the betting tiles ----
+const tiles = {};
+const planetIcon = (k, px) => { const c = document.createElement("canvas"); c.width = c.height = px * 2; buildWheel.drawPlanet(c.getContext("2d"), k, px, px, px * .62, null); return c; };
+WORLDS.forEach(w => { const b = document.createElement("button"); b.className = "world holo"; b.style.setProperty("--wc", WCOL[w.id]); b.setAttribute("aria-label", `${w.name}, pays ${w.mult} times`);
+  b.append(planetIcon(w.id, 34)); b.insertAdjacentHTML("beforeend", `<b>×${w.mult}</b><small>${w.name}</small><span class="chip"></span><span class="bst"></span>`);
+  b.onclick = () => bet(w.id); $("worlds").append(b); tiles[w.id] = b; });
+CHIPS.forEach(c => { const b = document.createElement("button"); b.textContent = c; b.dataset.v = c; b.style.setProperty("--c", { 1: "#c8d0e0", 5: "#ff5fae", 25: "#3fd17a", 100: "#5fa8ff" }[c]); b.onclick = () => { chip = c; try { localStorage.setItem("alien-casino-wheel-chip", c); } catch (e) {} SFX.chip(); paint(); }; $("chips").append(b); });
+function bet(id) { if (busy || !ready) return; Sound.unlock(); Music.start(); if (!placeBet(id, chip)) { say(credits < chip ? "Not enough bars for that chip." : `The table limit is ${MAXBET} a spin.`); return; } SFX.chip(); paint();
+  const r = tiles[id].getBoundingClientRect(), f = $("fieldbox").getBoundingClientRect(); }
+$("clear").onclick = () => { if (busy) return; if (clearBets()) SFX.chip(); paint(); };
+$("rebet").onclick = () => { if (busy) return; Sound.unlock(); if (rebet()) SFX.chip(); else say(total() ? "Bets are already down." : "Nothing to repeat yet."); paint(); };
+function paint() { $("credits").textContent = credits; $("total").textContent = total();
+  WORLDS.forEach(w => { const t = tiles[w.id]; t.querySelector(".chip").textContent = bets[w.id] || ""; const hot = boost && boost.world === w.id; t.classList.toggle("boosted", !!hot); t.querySelector(".bst").textContent = ""; t.querySelector("small").textContent = hot ? "×" + boost.mult + " BOOST" : w.name; t.querySelector("small").style.color = hot ? "var(--gold)" : ""; t.setAttribute("aria-disabled", String(busy)); });
+  document.querySelectorAll("#chips button").forEach(b => b.setAttribute("aria-pressed", String(+b.dataset.v === chip)));
+  $("spin").setAttribute("aria-disabled", String(busy || !total())); $("ride").classList.toggle("on", ride > 1); $("ride").textContent = `BETS RIDE ×${ride}`; }
+function say(t) { if (!t) return; $("say").textContent = t; const d = $("dealer"); d.querySelector("span").textContent = t; d.classList.remove("show"); void d.offsetWidth; d.classList.add("show"); clearTimeout(say.t); say.t = setTimeout(() => d.classList.remove("show"), 1800 + t.length * 40); }
+function banner(big, small, col) { const b = $("banner"); b.innerHTML = `${big}<small>${small || ""}</small>`; b.style.setProperty("--bc", col); b.classList.remove("show"); void b.offsetWidth; b.classList.add("show"); }
+function flash(cls) { const f = $("flash"); f.className = "flash"; void f.offsetWidth; f.className = "flash " + cls; }
+function addHist(k) { const c = planetIcon(k, 18); c.title = byId[k].name; $("hist").prepend(c); while ($("hist").children.length > 8) $("hist").lastChild.remove(); }
+
+// ---- the other players: a few aliens bet each round, just for company ----
+const CREW = [{ name: "ZORP", col: "#b45cff", style: "safe" }, { name: "GLIM", col: "#ff8a3a", style: "wild" }, { name: "VEXA", col: "#8dff6a", style: "mid" }, { name: "KRILL", col: "#3fe6c8", style: "safe" }, { name: "BLORB", col: "#ff5fae", style: "wild" }, { name: "NIX", col: "#ffe14a", style: "mid" }];
+let crewBets = [];
+function crewBet() { $("crew").innerHTML = ""; crewBets = [];
+  const pool = { safe: ["moon", "moon", "red"], mid: ["red", "ice", "gas"], wild: ["ring", "earth", "gas", "ice"] };
+  for (const c of CREW) { if (Math.random() < .35) continue; let w = pool[c.style][Math.floor(Math.random() * pool[c.style].length)]; if (boost && Math.random() < .3) w = boost.world;
+    const amt = [5, 10, 25, 50][Math.floor(Math.random() * 4)], el = document.createElement("span"); el.style.setProperty("--mc", c.col); el.append(planetIcon(w, 7)); el.insertAdjacentHTML("beforeend", `${c.name} ${amt}`); $("crew").append(el); crewBets.push({ c, w, amt, el }); } }
+function crewSettle(seg, mult) { let best = null; for (const b of crewBets) { const won = b.w === seg; b.el.classList.add(won ? "won" : "lost"); if (won && (!best || b.amt > best.amt)) best = b; }
+  if (best) setTimeout(() => say(`${best.c.name} wins ${best.amt * mult}! "${["Ha! Pay up!", "The stars love me!", "Knew it!"][Math.floor(Math.random() * 3)]}"`), 1200); }
+
+// ---- a round: alignment scan → bets → spin → result ----
+function startRound() { busy = true; const b = newRound(); W3.drawFace(null); paint(); crewBet();
+  const idx = LAYOUT.map((k, i) => k === b.world ? i : -1).filter(i => i >= 0), near = idx.reduce((m, i) => { const d = Math.abs(((i * W3.step - angle) % (Math.PI * 2) + Math.PI * 3) % (Math.PI * 2) - Math.PI); return d < m.d ? { i, d } : m; }, { i: idx[0], d: 9 }).i;
+  W3.scan(near); SFX.scan();
+  setTimeout(() => { W3.drawFace(b); SFX.boost(b.mult); banner("ALIGNMENT!", `${byId[b.world].name} ×${b.mult} boost`, "#ffc845"); busy = false; paint(); }, 1700); }
+let spinAnim = null;
+function doSpin() { if (busy || !total()) return; Sound.unlock(); Music.start(); const res = spin(); if (!res) return; busy = true; paint(); go(res); }
+function go(res) { const S = W3.S, st = W3.step, off = (Math.random() - .5) * .76 * st, base = res.index * st + off, diff = (((angle - base) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+  const to = angle - diff - Math.PI * 2 * (4 + Math.floor(Math.random() * 2)), dur = 6.2 + Math.random() * 1.2;
+  spinAnim = { from: angle, to, t: 0, dur, res }; SFX.whoosh(); say(["Round and round…", "Come on, come on…", "Where will it land?"][Math.floor(Math.random() * 3)]); }
+const ease = u => 1 - Math.pow(1 - u, 4);
+function landed(res) { const k = res.seg, w = byId[k]; addHist(k);
+  const [sx, sy] = toScreen(0, W3.CY + W3.R - .2, .1);
+  if (res.wormhole) { flash("worm"); SFX.worm(); banner("WORMHOLE!", `free spin · bets ride ×${res.ride}`, "#ff4fae"); say("Into the wormhole! Your bets go round again, paying double!"); paint();
+    burst(sx, sy, ["#ff4fae", "#b48cff", "#4fe6ff", "#fff"], 50, 1.3); setTimeout(() => { go(spin()); }, 2300); return; }
+  crewSettle(k, w.mult || 0);
+  if (res.paid) { const x = res.wins[0]; W3.update(0, 0, "win"); winLight.intensity = 3; winLight.position.set(0, W3.CY + W3.R, 1.2); setTimeout(() => winLight.intensity = 0, 2400);
+    banner(res.paid >= 200 ? "HUGE WIN!" : "WIN!", `+${res.paid}${x.boost > 1 ? ` · boosted ×${x.boost}` : ""}${res.ride > 1 ? ` · wormhole ×${res.ride}` : ""}`, WCOL[k]);
+    floats.push({ x: sx, y: sy + 30, t: 0, txt: "+" + res.paid, col: "#7dff9a" }); burst(sx, sy, [WCOL[k], "#ffc845", "#fff"], res.paid >= 200 ? 120 : 50); SFX.win(res.paid >= 200); tiles[k].classList.remove("hit"); void tiles[k].offsetWidth; tiles[k].classList.add("hit");
+    say(k === "earth" ? "EARTH! A little closer to home!" : `${w.name}! Nice call!`); }
+  else if (k === "hole") { flash("hole"); SFX.hole(); banner("BLACK HOLE", "it swallowed every bet", "#8a7aa8"); say("The black hole eats everything. Ouch."); }
+  else { SFX.lose(); banner(w.name.toUpperCase(), "no bets on it", WCOL[k]); say(`${w.name}. Not this time.`); }
+  paint(); setTimeout(() => { W3.update(0, 0, "chase"); startRound(); }, 2800); }
+$("spin").onclick = doSpin;
+
+// ---- the loop ----
+let last = performance.now();
+function frame(now) { const dt = Math.min(.1, (now - last) / 1000); last = now;
+  if (spinAnim) { const a = spinAnim; a.t += dt; const u = Math.min(1, a.t / a.dur); angle = a.from + (a.to - a.from) * ease(u); W3.setAngle(angle); if (u >= 1) { spinAnim = null; landed(a.res); } }
+  W3.update(now / 1000, dt, spinAnim ? "spin" : undefined);
+  renderer.render(scene, cam); drawFx(dt); requestAnimationFrame(frame); }
+
+// ---- sound ----
+const SFX = {
+  chip() { Sound.tone(2200, .03, { type: "triangle", vol: .05 }); Sound.tone(3000, .02, { type: "sine", vol: .03, at: .02 }); },
+  tick() { Sound.tone(1700 + Math.random() * 200, .018, { type: "square", vol: .03 }); },
+  scan() { Sound.tone(300, 1.5, { type: "sawtooth", vol: .03, slide: 4, lp: 1800 }); },
+  boost(m) { Sound.arp(m >= 5 ? [12, 16, 19, 24, 28, 31] : [12, 16, 19, 24], .07, { type: "triangle", vol: .08, dur: .2 }); },
+  whoosh() { Sound.noise(1.2, { vol: .06, type: "bandpass", freq: 800, sweep: .4 }); },
+  worm() { Sound.tone(900, 1.4, { type: "sine", vol: .1, slide: .15 }); Sound.arp([24, 19, 16, 12, 24, 28, 31], .08, { type: "triangle", vol: .06, dur: .2, at: .6 }); },
+  hole() { Sound.tone(120, 1.2, { type: "sine", vol: .2, slide: .4 }); Sound.noise(.9, { vol: .06, type: "lowpass", freq: 400 }); },
+  lose() { Sound.tone(Sound.note(-5), .18, { type: "triangle", vol: .05 }); Sound.tone(Sound.note(-8), .25, { type: "triangle", vol: .05, at: .16 }); },
+  win(big) { Sound.arp(big ? [12, 16, 19, 24, 28, 31, 36, 40] : [12, 16, 19, 24], .07, { type: "triangle", vol: .1, dur: .25 }); for (let i = 0; i < (big ? 14 : 6); i++) Sound.tone(1800 + Math.random() * 900, .06, { type: "triangle", vol: .04, at: .3 + i * .07 }); } };
+const Music = (() => { let timer = null, stp = 0, nextT = 0; const CH = [[0, 4, 7, 11], [5, 9, 12, 16], [2, 5, 9, 12], [7, 11, 14, 17]];
+  function tick() { if (!Sound.ready()) return; const now = Sound.now(), sd = 60 / 100 / 2; if (nextT < now - .25) nextT = now + .05;
+    while (nextT < now + .12) { const at = nextT - now, k = stp % 16, ch = CH[Math.floor(stp / 16) % 4];
+      if (Sound.on && Sound.musicOn) { const Mu = { bus: "music" };
+        if (k === 0) ch.forEach(n => Sound.tone(Sound.note(n), sd * 15, { ...Mu, at, type: "sine", vol: .012, attack: .3 }));
+        if (k % 4 === 0) Sound.tone(Sound.note(ch[0] - 12), sd * 1.4, { ...Mu, at, type: "triangle", vol: .035, lp: 600 });
+        if (k % 2 === 1) Sound.tone(Sound.note(ch[(k >> 1) % 4] + 12), sd * .6, { ...Mu, at, type: "sine", vol: .01 }); }
+      stp++; nextT += sd; } }
+  return { start() { if (!timer) { nextT = (Sound.now() || 0) + .1; timer = setInterval(tick, 25); } } }; })();
+
+// ---- wiring ----
+$("snd").addEventListener("click", () => { Sound.on = !Sound.on; $("snd").setAttribute("aria-pressed", String(Sound.on)); });
+$("info").addEventListener("click", () => { $("paytable").innerHTML = `<tr><td>World</td><td>Pays</td></tr>` + WORLDS.map(w => `<tr><td>${w.name}</td><td>× ${w.mult}</td></tr>`).join("") + `<tr><td>Wormhole</td><td>free spin, ×2</td></tr><tr><td>Black hole</td><td>loses</td></tr>`; $("sheet").hidden = false; });
+$("close").addEventListener("click", () => $("sheet").hidden = true);
+$("sheet").addEventListener("click", e => { if (e.target.id === "sheet") $("sheet").hidden = true; });
+$("fearth").addEventListener("click", () => { FORCE.seg = "earth"; $("sheet").hidden = true; });
+$("fworm").addEventListener("click", () => { FORCE.seg = "worm"; $("sheet").hidden = true; });
+document.addEventListener("pointerdown", () => Sound.unlock(), { once: true });
+addEventListener("resize", size);
+size(); paint(); requestAnimationFrame(t => { last = t; frame(t); });
+$("boot").hidden = true; ready = true; setTimeout(() => { startRound(); say("Welcome to the Wheel of Worlds! Pick a chip and tap a world."); }, 500); window.__ready = true;
+</script>

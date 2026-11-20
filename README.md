@@ -38,6 +38,10 @@ asteroid/    Asteroid Field: a "mines" game — crack asteroids for crystals, co
   part_engine.js   5×5 field, 1–24 black holes, multiplier = fair odds × 97% · tools/sim.js checks payback, tools/playtest.js browser test
   shell.html       holo field with procedural rocks and crystals, multiplier ladder, escalating effects, black-hole pull · build.py → asteroid.html
 
+wheel/       Wheel of Worlds: a big wheel of 54 worlds (its wheel is model3d/wheel_model.js, shared with the lobby) — bet on worlds, one gets an alignment boost each spin,
+             wormholes re-spin with bets doubled, black holes eat everything
+  part_engine.js   layout, payouts, boosts, wormholes (every bet ≈96%) · tools/sim.js checks payback · shell.html the 3D wheel + betting tiles · build.py → wheel.html
+  tools/playtest.js headless play-through · planet art (optional): wheel/art/planet_<id>.webp replaces the code-drawn planets
 pusher/      Star Dozer (its machine is model3d/pusher_model.js, shared with the lobby so it looks the same inside and out), a pusher with real 3D physics (Rapier, loaded from the CDN): drop gold bars on the sliding pusher, shove the pile over the front edge; one bar value, crystals are the big prizes; slap the side when Zib (the lookout on the marquee) says the coast is clear, or security fines you; the tray is kept between visits. tools/sim.js checks payback, tools/slaptest.js plays the slap mechanic
   part_engine.js   the physics world, payouts, crystals; no drawing · shell.html the three.js view + screen · build.py → pusher.html
   tools/sim.js     payback check in Node (about 95%; needs @dimforge/rapier3d-compat@0.14.0) · tools/playtest.js headless play-through

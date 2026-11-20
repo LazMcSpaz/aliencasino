@@ -108,6 +108,7 @@ const GAMES = [
   { id:"gravity", name:"Gravity Well",    kind:"Spiral roulette",         col:"#b48cff", src:"games/gravity.html",  desc:"A comet spirals down three tiers into a black hole. Bet on where it lands." },
   { id:"moons",   name:"Twin Moons",      kind:"Alien craps",             col:"#bfefff", src:"games/moons.html",    desc:"Roll two 8-sided moons. The gap between them counts. Matching moons collide." },
   { id:"warp",    name:"Warp Drive",      kind:"Crash game",              col:"#ff5fae", src:"games/warp.html",     desc:"A drone launches and the multiplier climbs. Bail before it explodes." },
+  { id:"wheel",   name:"Wheel of Worlds", kind:"Big wheel",               col:"#ffc845", src:"games/wheel.html",    desc:"Bet on the worlds and spin the giant wheel. One world gets a boost every spin; wormholes double your bets, black holes eat them." },
   { id:"pusher",  name:"Star Dozer",      kind:"Coin pusher",             col:"#8dff6a", src:"games/pusher.html",   desc:"Drop gold bars onto the sliding pusher and shove the pile over the edge. Crystals are the big prizes, and a slap on the side helps (if security isn't looking)." } ];
 const G = Object.fromEntries(GAMES.map(g=>[g.id,g]));
 // The floor plan (metres; the room runs x −12…12, z −10 at the back wall … 21 at the front wall with the airlock).
@@ -121,6 +122,8 @@ const PLAN = [
   // a Star Dozer coin pusher in each gap beside the Warp stage, against the back wall
   { game:"pusher",  kind:"model", pos:[-4.15,0,-8.98], rot:0,   scale:.8,  va:0 },
   { game:"pusher",  kind:"model", pos:[4.15,0,-8.98],  rot:0,   scale:.8,  va:0 },
+  // the Wheel of Worlds in the front lounge, turned toward the airlock so it's the first thing you see
+  { game:"wheel",   kind:"model", pos:[2.7,0,16.6], rot:-.6,  scale:.85, va:-.6 },
   // a Twin Moons table either side of the centre aisle
   { game:"moons",   kind:"model", pos:[-4.6,0,-1.2], rot:0,    scale:.85, va:0 },
   { game:"moons",   kind:"model", pos:[4.6,0,-1.2],  rot:0,    scale:.85, va:0 },
@@ -245,7 +248,8 @@ async function buildFloor(){ const TX=await loadAll(TEX_SRC);
   // the shared models: one of each, cloned where the floor needs several
   const proto={}, protoClips={};
   const make={ slot:()=>buildSlotBot(THREE,{mood:"happy",tex:TX.slot}), pyramid:()=>buildPyramidBot(THREE,{tex:TX.pyramid}), asteroid:()=>buildPyramidBot(THREE,{tex:TX.asteroid}),
-    gravity:()=>buildGravityTable(THREE,{tex:TX.gravity}), moons:()=>buildMoonsTable(THREE,{tex:TX.moons}), warp:()=>buildWarpStage(THREE,{tex:TX.warp}), pusher:()=>buildPusher(THREE,{tex:TEX_SRC.pusher}) };
+    gravity:()=>buildGravityTable(THREE,{tex:TX.gravity}), moons:()=>buildMoonsTable(THREE,{tex:TX.moons}), warp:()=>buildWarpStage(THREE,{tex:TX.warp}), pusher:()=>buildPusher(THREE,{tex:TEX_SRC.pusher}),
+    wheel:()=>{ const m=buildWheel(THREE,{layout:TEX_SRC.wheel.layout, worlds:TEX_SRC.wheel.worlds, idle:true}); let lt=0; return { root:m.root, update:t=>{ m.update(t, Math.min(.1, Math.max(0, t-lt))); lt=t; } }; } };
   $("loading").classList.add("done"); let n=0;
   for(const p of PLAN){ n++; $("hint").textContent=`SETTING UP THE FLOOR ${n}/${PLAN.length}`; await new Promise(r=>requestAnimationFrame(()=>setTimeout(r,0)));
     const g=G[p.game], holder=new THREE.Group(); holder.userData.game=g; scene.add(holder);

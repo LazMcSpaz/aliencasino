@@ -1,0 +1,282 @@
+<!-- Wheel of Worlds (big wheel): page layout, styles, the 3D view and screen logic. build.py adds the engine, the shared sound engine and the wheel
+     model (../model3d/wheel_model.js, also used by the lobby) and writes wheel.html.
+     May use: part_engine.js (outcomes, payouts, credits), Sound (shared synth), buildWheel (the model). Must not: decide outcomes or change credits itself. -->
+<meta charset="utf-8">
+<title>Wheel of Worlds</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Chakra+Petch:wght@500;600;700&family=Monoton&family=Share+Tech+Mono&family=Yellowtail&display=swap">
+<style>
+:root{--void:#03040f;--ink:#e6fbff;--dim:#7fb3c7;--holo:#5fe8ff;--holo2:#b48cff;--gold:#ffc845;--hot:#ff4d6d;--win:#7dff9a;
+  --f-sign:"Bungee",Impact,sans-serif;--f-tech:"Chakra Petch",system-ui,sans-serif;--f-mono:"Share Tech Mono",ui-monospace,monospace;color-scheme:dark}
+html,body{height:100%}
+body{margin:0;background:radial-gradient(100% 60% at 50% 30%,#1a1240 0%,var(--void) 75%);color:var(--ink);font:500 14px var(--f-tech);overflow:hidden;-webkit-tap-highlight-color:transparent;user-select:none}
+[hidden]{display:none!important}
+.app{position:relative;height:100dvh;max-width:480px;margin:0 auto;display:grid;grid-template-rows:auto minmax(0,1fr) auto;gap:7px;box-sizing:border-box;
+  padding:calc(8px + env(safe-area-inset-top,0px)) max(12px,env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) max(12px,env(safe-area-inset-left,0px))}
+.holo{--k:10px;--hc:var(--holo);position:relative;isolation:isolate;border:0;color:var(--ink);
+  clip-path:polygon(var(--k) 0,100% 0,100% calc(100% - var(--k)),calc(100% - var(--k)) 100%,0 100%,0 var(--k));
+  background:linear-gradient(180deg,color-mix(in srgb,var(--hc) 15%,transparent),color-mix(in srgb,var(--hc) 5%,transparent)),repeating-linear-gradient(0deg,color-mix(in srgb,var(--hc) 7%,transparent) 0 1px,transparent 1px 3px);
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--hc) 45%,transparent),inset 0 0 22px color-mix(in srgb,var(--hc) 12%,transparent)}
+.holo::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:2;
+  background:linear-gradient(var(--hc),var(--hc)) 0 100%/12px 1.5px no-repeat,linear-gradient(var(--hc),var(--hc)) 0 100%/1.5px 12px no-repeat,
+    linear-gradient(var(--hc),var(--hc)) 100% 0/12px 1.5px no-repeat,linear-gradient(var(--hc),var(--hc)) 100% 0/1.5px 12px no-repeat;opacity:.9}
+.lbl{font:400 .56rem/1 var(--f-mono);letter-spacing:.22em;color:var(--dim);text-transform:uppercase}
+.hud{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;height:48px}
+.coins{display:flex;align-items:center;gap:7px;justify-self:start;padding:6px 12px 6px 8px}
+.coins i{width:24px;height:18px;background:var(--bar) center/contain no-repeat;filter:drop-shadow(0 0 4px #ffc84588)}
+.coins b{font:700 1.05rem/1 var(--f-mono);text-shadow:0 0 8px var(--holo)}
+.title{position:relative;justify-self:center;text-align:center;white-space:nowrap;font:400 1.15rem/1 "Monoton",var(--f-sign);color:#f2e6ff;text-shadow:0 0 4px #fff,0 0 12px #b48cff,0 0 26px #8a4dff}
+.title span{font:400 1rem "Yellowtail",cursive;color:#fff1dc;text-shadow:0 0 8px #ffc845;margin:0 4px}
+.icons{justify-self:end;display:flex;gap:6px}
+.icon{--k:7px;width:36px;height:36px;display:grid;place-items:center;cursor:pointer;padding:0;color:var(--holo)}
+.icon svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+.icon[aria-pressed="false"] .on{display:none}.icon[aria-pressed="true"] .off{display:none}
+.fieldbox{--k:14px;min-height:0;overflow:hidden;background:radial-gradient(90% 90% at 50% 40%,#140f33,#04050f)}
+#cv{position:absolute;inset:0;width:100%;height:100%;display:block}
+#fx{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:3}
+.boot{position:absolute;inset:0;display:grid;place-items:center;z-index:8;font:400 .7rem var(--f-mono);letter-spacing:.2em;color:var(--dim);pointer-events:none}
+.bub{position:absolute;z-index:6;bottom:8px;left:50%;translate:-50% 0;max-width:84%;width:max-content;padding:6px 10px;background:#04121fe6;border:1px solid var(--gold);color:#fff;
+  font:600 .76rem/1.28 var(--f-tech);text-align:center;box-shadow:0 0 14px #ffc84544;opacity:0;transform:scale(.85);transition:opacity .18s,transform .24s cubic-bezier(.3,1.6,.5,1);pointer-events:none}
+.bub.show{opacity:1;transform:none}
+.bub b{display:block;font:400 .5rem/1 var(--f-mono);letter-spacing:.2em;color:var(--gold);margin-bottom:3px}
+.banner{position:absolute;z-index:7;left:50%;top:46%;translate:-50% -50%;text-align:center;pointer-events:none;opacity:0;font:400 1.7rem/1 var(--f-sign);color:var(--bc,#fff);text-shadow:0 0 18px var(--bc,#5fe8ff),0 0 3px #fff;white-space:nowrap}
+.banner small{display:block;font:400 .7rem var(--f-mono);letter-spacing:.24em;margin-top:6px;color:#fff;text-shadow:0 0 8px var(--bc)}
+.banner.show{animation:ban 2.2s ease-out forwards}
+@keyframes ban{0%{opacity:0;transform:scale(.4)}12%{opacity:1;transform:scale(1.15)}22%{transform:scale(1)}80%{opacity:1}100%{opacity:0;transform:scale(1.05)}}
+.hist{position:absolute;z-index:5;top:7px;left:8px;display:flex;gap:3px}
+.hist canvas{width:18px;height:18px}
+.ride{position:absolute;z-index:5;top:7px;right:8px;font:400 .8rem var(--f-sign);color:#ff9ad6;text-shadow:0 0 10px #ff4fae;opacity:0;transition:opacity .3s}
+.ride.on{opacity:1;animation:pulse .6s ease-in-out infinite alternate}
+@keyframes pulse{to{transform:scale(1.12)}}
+.flash{position:absolute;inset:0;z-index:4;pointer-events:none;opacity:0}
+.flash.worm{background:radial-gradient(circle,#ff4fae00 30%,#ff4fae88 70%,#b48cffcc);animation:fl 1.6s ease-out}
+.flash.hole{background:radial-gradient(circle,#000c 0%,#0000 70%);animation:fl 1.2s ease-out}
+@keyframes fl{0%{opacity:0}15%{opacity:1}100%{opacity:0}}
+.controls{display:grid;gap:7px}
+.crew{display:flex;gap:4px;overflow:hidden;height:22px}
+.crew span{flex:0 0 auto;display:flex;align-items:center;gap:4px;padding:0 7px;font:600 .62rem/22px var(--f-mono);color:#fff;background:#ffffff0d;border-left:2px solid var(--mc);white-space:nowrap}
+.crew canvas{width:14px;height:14px}
+.crew span.won{background:color-mix(in srgb,var(--win) 25%,transparent)}.crew span.lost{opacity:.45}
+.worlds{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.world{--k:9px;--hc:var(--wc);cursor:pointer;padding:6px 4px 5px;display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto;column-gap:5px;align-items:center;text-align:left}
+.world canvas{grid-row:1/3;width:34px;height:34px}
+.world b{font:400 .78rem/1 var(--f-sign);color:#fff;text-shadow:0 0 8px var(--wc)}
+.world small{font:400 .56rem/1.1 var(--f-mono);color:var(--dim);letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.world .chip{position:absolute;top:3px;right:4px;z-index:3;min-width:18px;padding:2px 5px;border-radius:20px;background:var(--gold);color:#1a1240;font:700 .66rem/1 var(--f-mono);text-align:center;box-shadow:0 0 8px #ffc845aa}
+.world .chip:empty{display:none}
+.world .bst{position:absolute;bottom:3px;right:4px;z-index:3;font:400 .62rem var(--f-sign);color:var(--gold);text-shadow:0 0 8px var(--gold)}
+.world.boosted{animation:bglow 1s ease-in-out infinite alternate}
+@keyframes bglow{to{box-shadow:inset 0 0 0 1px var(--gold),inset 0 0 26px #ffc84555,0 0 12px #ffc84566}}
+.world.hit{animation:hit .5s ease-in-out 4}
+@keyframes hit{50%{filter:brightness(1.8)}}
+.world[aria-disabled="true"]{opacity:.55}
+.row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:6px}
+.chips{padding:6px 8px;display:flex;align-items:center;gap:6px}
+.chips button{flex:1;border:0;cursor:pointer;padding:7px 0;border-radius:50px;font:700 .82rem var(--f-mono);color:#fff;background:radial-gradient(circle at 35% 30%,color-mix(in srgb,var(--c) 70%,#fff),var(--c) 45%,color-mix(in srgb,var(--c) 45%,#000));opacity:.45;box-shadow:inset 0 -2px 0 #0006}
+.chips button[aria-pressed="true"]{opacity:1;box-shadow:0 0 0 2px #fff,0 0 14px var(--c);text-shadow:0 1px 2px #000a}
+.sm{--k:8px;--hc:var(--holo2);width:64px;cursor:pointer;font:400 .66rem var(--f-sign);color:#fff;display:grid;place-content:center;gap:2px}
+.sm small{font:400 .5rem var(--f-mono);color:var(--holo2);letter-spacing:.06em}
+.spinrow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px}
+.total{--hc:var(--gold);padding:6px 10px;display:grid;align-content:center;gap:3px}
+.total b{font:700 1.2rem/1 var(--f-mono);color:#fff;text-shadow:0 0 10px var(--gold)}
+.spin{--k:12px;--hc:var(--win);width:150px;height:54px;cursor:pointer;font:400 1.3rem/1 var(--f-sign);color:#fff;text-shadow:0 0 12px var(--win)}
+.spin[aria-disabled="true"]{--hc:#7a8aa0;color:#9aa6c8;text-shadow:none}
+.spin:not([aria-disabled="true"]){animation:sglow .8s ease-in-out infinite alternate}
+@keyframes sglow{to{box-shadow:inset 0 0 0 1px var(--win),inset 0 0 30px #7dff9a55,0 0 14px #7dff9a66}}
+.sheet{position:fixed;inset:0;z-index:100;display:grid;place-items:center;background:#000c;padding:16px}
+.card{--k:14px;max-width:360px;max-height:86dvh;overflow:auto;padding:18px;font:500 .88rem/1.45 var(--f-tech);background:#06131fee}
+.card h2{margin:0 0 8px;font:400 1.15rem var(--f-sign);color:var(--holo);text-shadow:0 0 10px var(--holo)}
+.card table{width:100%;border-collapse:collapse;margin:8px 0;font:400 .8rem var(--f-mono)}.card td{padding:3px 0;border-bottom:1px solid #ffffff14}.card td:last-child{text-align:right}
+.card .dbg{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+.card .dbg button{--k:6px;font:600 .72rem var(--f-mono);padding:7px 10px;cursor:pointer;color:var(--holo)}
+.say{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+</style>
+
+<div class="app" id="app">
+  <header class="hud">
+    <div class="coins holo"><i aria-hidden="true"></i><b id="credits">500</b></div>
+    <div class="title" aria-label="Wheel of Worlds">WHEEL<span>of</span>WORLDS</div>
+    <div class="icons">
+      <button class="icon holo" id="snd" aria-pressed="true" aria-label="Sound"><svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="on" d="M17 9a4 4 0 0 1 0 6"/><path class="off" d="M17 9l4 6M21 9l-4 6"/></svg></button>
+      <button class="icon holo" id="info" aria-label="How to play"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg></button>
+    </div>
+  </header>
+  <section class="fieldbox holo" id="fieldbox">
+    <canvas id="cv" aria-label="The Wheel of Worlds"></canvas>
+    <canvas id="fx" aria-hidden="true"></canvas>
+    <div class="boot" id="boot">Setting up the wheel…</div>
+    <div class="flash" id="flash"></div>
+    <div class="hist" id="hist" aria-label="Last results"></div>
+    <div class="ride" id="ride">BETS RIDE ×2</div>
+    <div class="banner" id="banner"></div>
+    <div class="bub" id="dealer"><b>ZIB</b><span></span></div>
+    <p class="say" id="say" aria-live="polite"></p>
+  </section>
+  <section class="controls">
+    <div class="crew" id="crew" aria-label="Other players"></div>
+    <div class="worlds" id="worlds"></div>
+    <div class="row">
+      <div class="chips holo" id="chips"><span class="lbl">Chip</span></div>
+      <button class="sm holo" id="clear">CLEAR<small>take back</small></button>
+      <button class="sm holo" id="rebet">REBET<small>same again</small></button>
+    </div>
+    <div class="spinrow">
+      <div class="total holo"><span class="lbl">On the table</span><b id="total">0</b></div>
+      <button class="spin holo" id="spin" aria-disabled="true">SPIN</button>
+    </div>
+  </section>
+</div>
+<div class="sheet" id="sheet" hidden><div class="card holo" role="dialog" aria-label="How to play">
+  <h2>How to play</h2>
+  <p>Pick a chip, then tap the worlds you want to bet on (tap again to add more). Press <b>SPIN</b>. If the wheel stops on a world you backed, you get your bet × that world's number.</p>
+  <table id="paytable"></table>
+  <p><b>Planetary alignment:</b> before every spin a scanner picks one world and boosts it (×2 to ×10). If that world comes up, its payout is multiplied by the boost.</p>
+  <p><b>Wormhole:</b> nobody wins or loses yet. Every bet rides again on a free spin, paying double. Two wormholes in a row: ×4.</p>
+  <p><b>Black hole:</b> swallows every bet on the table.</p>
+  <p>Over a long time the wheel pays back about 96% of what goes in.</p>
+  <div class="dbg"><button class="holo" id="fearth">Debug: next is Earth</button><button class="holo" id="fworm">Debug: next is a wormhole</button><button class="holo" id="close">Close</button></div>
+</div></div>
+
+<script>
+const ART = /*{{ART}}*/;
+/*{{ENGINE}}*/
+/*{{SOUND}}*/
+/*{{MODEL}}*/
+document.documentElement.style.setProperty("--bar", `url(${ART.bar})`);
+const $ = id => document.getElementById(id);
+const WCOL = { moon: "#9aa6c8", red: "#ff6a4a", ice: "#5fe8ff", gas: "#ffa83a", ring: "#b48cff", earth: "#4fe08a", worm: "#ff4fae", hole: "#5a4a7a" };
+let chip = 5, busy = false, ready = false, roundT = 0;
+try { const c = +localStorage.getItem("alien-casino-wheel-chip"); if (CHIPS.includes(c)) chip = c; } catch (e) {}
+
+// ---- the 3D view: the wheel model (the same one on the casino floor) ----
+const cv = $("cv"), renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true });
+renderer.setPixelRatio(Math.min(2, devicePixelRatio || 1)); renderer.outputEncoding = THREE.sRGBEncoding; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = .95;
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x07040f);
+const cam = new THREE.PerspectiveCamera(40, 1, .1, 60);
+scene.add(new THREE.HemisphereLight(0xc8b8ff, 0x1a1030, .5));
+const key = new THREE.DirectionalLight(0xfff2dc, 1.1); key.position.set(1.5, 4, 4); key.castShadow = true; key.shadow.mapSize.set(1024, 1024); Object.assign(key.shadow.camera, { left: -2, right: 2, top: 4, bottom: -1, near: 1, far: 12 }); scene.add(key);
+const glowL = new THREE.PointLight(0xff4fae, .8, 6, 2); glowL.position.set(-2, 2, 1.5); const glowR = new THREE.PointLight(0x4fe6ff, .8, 6, 2); glowR.position.set(2, 2, 1.5); scene.add(glowL, glowR);
+const winLight = new THREE.PointLight(0xffc845, 0, 4, 2); scene.add(winLight);
+const W3 = buildWheel(THREE, { layout: LAYOUT, worlds: WORLDS, art: { planets: ART.planets || {} } }); scene.add(W3.root);
+{ const floor = new THREE.Mesh(new THREE.CircleGeometry(6, 64), new THREE.MeshStandardMaterial({ color: 0x120c26, roughness: .7, metalness: .2 })); floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+  const g = new THREE.BufferGeometry(), p = []; for (let i = 0; i < 500; i++) { const a = Math.random() * 6.28, r = 10 + Math.random() * 20; p.push(Math.cos(a) * r, Math.random() * 18 - 2, -8 - Math.random() * 15); }
+  g.setAttribute("position", new THREE.Float32BufferAttribute(p, 3)); scene.add(new THREE.Points(g, new THREE.PointsMaterial({ color: 0xffffff, size: .06, transparent: true, opacity: .7 }))); }
+let angle = 0; W3.setAngle(0);
+W3.pegClick(() => SFX.tick());
+
+// fit the camera so the whole wheel and its sign are on screen, whatever the phone's shape
+const fx = $("fx"), fg = fx.getContext("2d"); let VW = 1, VH = 1;
+const FIT = [[0, W3.CY + W3.R + .52, 0], [0, W3.CY - W3.R - .08, 0], [-W3.R - .16, W3.CY, 0], [W3.R + .16, W3.CY, 0]], tmpV = new THREE.Vector3();
+function size() { const r = $("fieldbox").getBoundingClientRect(); VW = r.width; VH = r.height; renderer.setSize(VW, VH, false); const dpr = Math.min(2, devicePixelRatio || 1); fx.width = VW * dpr; fx.height = VH * dpr; fg.setTransform(dpr, 0, 0, dpr, 0, 0);
+  cam.aspect = VW / VH; cam.fov = 38; cam.updateProjectionMatrix(); const ty = W3.CY + .22; let lo = 1, hi = 20;
+  for (let i = 0; i < 26; i++) { const d = (lo + hi) / 2; cam.position.set(0, ty - .25, d); cam.lookAt(0, ty, 0); cam.updateMatrixWorld(); if (FIT.every(p => { tmpV.set(...p).project(cam); return Math.abs(tmpV.x) < .98 && Math.abs(tmpV.y) < .92; })) hi = d; else lo = d; }
+  cam.position.set(0, ty - .25, hi); cam.lookAt(0, ty, 0); cam.updateMatrixWorld(); baseCam = cam.position.clone(); }
+let baseCam = new THREE.Vector3();
+
+// ---- sparkles over the 3D view ----
+const sparks = [], floats = [];
+const toScreen = (x, y, z) => { tmpV.set(x, y, z).project(cam); return [(tmpV.x + 1) / 2 * VW, (1 - tmpV.y) / 2 * VH]; };
+function drawFx(dt) { fg.clearRect(0, 0, VW, VH);
+  for (let i = sparks.length - 1; i >= 0; i--) { const s = sparks[i]; s.t += dt; if (s.t > s.life) { sparks.splice(i, 1); continue; } s.x += s.vx * dt; s.y += s.vy * dt; s.vy += 300 * dt; fg.globalAlpha = 1 - s.t / s.life; fg.fillStyle = s.col; fg.beginPath(); fg.arc(s.x, s.y, s.r, 0, 7); fg.fill(); }
+  for (let i = floats.length - 1; i >= 0; i--) { const f = floats[i]; f.t += dt; if (f.t > 1.6) { floats.splice(i, 1); continue; } fg.globalAlpha = Math.min(1, 3 - f.t * 1.9); fg.font = '700 26px "Share Tech Mono",monospace'; fg.textAlign = "center"; fg.fillStyle = f.col; fg.shadowColor = f.col; fg.shadowBlur = 12; fg.fillText(f.txt, f.x, f.y - f.t * 40); fg.shadowBlur = 0; }
+  fg.globalAlpha = 1; }
+const burst = (x, y, cols, n, sp = 1) => { for (let i = 0; i < n; i++) { const a = Math.random() * 6.28, v = (80 + Math.random() * 220) * sp; sparks.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 140, r: 1.5 + Math.random() * 3, col: cols[i % cols.length], t: 0, life: .7 + Math.random() * .6 }); } };
+
+// ---- the betting tiles ----
+const tiles = {};
+const planetIcon = (k, px) => { const c = document.createElement("canvas"); c.width = c.height = px * 2; buildWheel.drawPlanet(c.getContext("2d"), k, px, px, px * .62, null); return c; };
+WORLDS.forEach(w => { const b = document.createElement("button"); b.className = "world holo"; b.style.setProperty("--wc", WCOL[w.id]); b.setAttribute("aria-label", `${w.name}, pays ${w.mult} times`);
+  b.append(planetIcon(w.id, 34)); b.insertAdjacentHTML("beforeend", `<b>×${w.mult}</b><small>${w.name}</small><span class="chip"></span><span class="bst"></span>`);
+  b.onclick = () => bet(w.id); $("worlds").append(b); tiles[w.id] = b; });
+CHIPS.forEach(c => { const b = document.createElement("button"); b.textContent = c; b.dataset.v = c; b.style.setProperty("--c", { 1: "#c8d0e0", 5: "#ff5fae", 25: "#3fd17a", 100: "#5fa8ff" }[c]); b.onclick = () => { chip = c; try { localStorage.setItem("alien-casino-wheel-chip", c); } catch (e) {} SFX.chip(); paint(); }; $("chips").append(b); });
+function bet(id) { if (busy || !ready) return; Sound.unlock(); Music.start(); if (!placeBet(id, chip)) { say(credits < chip ? "Not enough bars for that chip." : `The table limit is ${MAXBET} a spin.`); return; } SFX.chip(); paint();
+  const r = tiles[id].getBoundingClientRect(), f = $("fieldbox").getBoundingClientRect(); }
+$("clear").onclick = () => { if (busy) return; if (clearBets()) SFX.chip(); paint(); };
+$("rebet").onclick = () => { if (busy) return; Sound.unlock(); if (rebet()) SFX.chip(); else say(total() ? "Bets are already down." : "Nothing to repeat yet."); paint(); };
+function paint() { $("credits").textContent = credits; $("total").textContent = total();
+  WORLDS.forEach(w => { const t = tiles[w.id]; t.querySelector(".chip").textContent = bets[w.id] || ""; const hot = boost && boost.world === w.id; t.classList.toggle("boosted", !!hot); t.querySelector(".bst").textContent = ""; t.querySelector("small").textContent = hot ? "×" + boost.mult + " BOOST" : w.name; t.querySelector("small").style.color = hot ? "var(--gold)" : ""; t.setAttribute("aria-disabled", String(busy)); });
+  document.querySelectorAll("#chips button").forEach(b => b.setAttribute("aria-pressed", String(+b.dataset.v === chip)));
+  $("spin").setAttribute("aria-disabled", String(busy || !total())); $("ride").classList.toggle("on", ride > 1); $("ride").textContent = `BETS RIDE ×${ride}`; }
+function say(t) { if (!t) return; $("say").textContent = t; const d = $("dealer"); d.querySelector("span").textContent = t; d.classList.remove("show"); void d.offsetWidth; d.classList.add("show"); clearTimeout(say.t); say.t = setTimeout(() => d.classList.remove("show"), 1800 + t.length * 40); }
+function banner(big, small, col) { const b = $("banner"); b.innerHTML = `${big}<small>${small || ""}</small>`; b.style.setProperty("--bc", col); b.classList.remove("show"); void b.offsetWidth; b.classList.add("show"); }
+function flash(cls) { const f = $("flash"); f.className = "flash"; void f.offsetWidth; f.className = "flash " + cls; }
+function addHist(k) { const c = planetIcon(k, 18); c.title = byId[k].name; $("hist").prepend(c); while ($("hist").children.length > 8) $("hist").lastChild.remove(); }
+
+// ---- the other players: a few aliens bet each round, just for company ----
+const CREW = [{ name: "ZORP", col: "#b45cff", style: "safe" }, { name: "GLIM", col: "#ff8a3a", style: "wild" }, { name: "VEXA", col: "#8dff6a", style: "mid" }, { name: "KRILL", col: "#3fe6c8", style: "safe" }, { name: "BLORB", col: "#ff5fae", style: "wild" }, { name: "NIX", col: "#ffe14a", style: "mid" }];
+let crewBets = [];
+function crewBet() { $("crew").innerHTML = ""; crewBets = [];
+  const pool = { safe: ["moon", "moon", "red"], mid: ["red", "ice", "gas"], wild: ["ring", "earth", "gas", "ice"] };
+  for (const c of CREW) { if (Math.random() < .35) continue; let w = pool[c.style][Math.floor(Math.random() * pool[c.style].length)]; if (boost && Math.random() < .3) w = boost.world;
+    const amt = [5, 10, 25, 50][Math.floor(Math.random() * 4)], el = document.createElement("span"); el.style.setProperty("--mc", c.col); el.append(planetIcon(w, 7)); el.insertAdjacentHTML("beforeend", `${c.name} ${amt}`); $("crew").append(el); crewBets.push({ c, w, amt, el }); } }
+function crewSettle(seg, mult) { let best = null; for (const b of crewBets) { const won = b.w === seg; b.el.classList.add(won ? "won" : "lost"); if (won && (!best || b.amt > best.amt)) best = b; }
+  if (best) setTimeout(() => say(`${best.c.name} wins ${best.amt * mult}! "${["Ha! Pay up!", "The stars love me!", "Knew it!"][Math.floor(Math.random() * 3)]}"`), 1200); }
+
+// ---- a round: alignment scan → bets → spin → result ----
+function startRound() { busy = true; const b = newRound(); W3.drawFace(null); paint(); crewBet();
+  const idx = LAYOUT.map((k, i) => k === b.world ? i : -1).filter(i => i >= 0), near = idx.reduce((m, i) => { const d = Math.abs(((i * W3.step - angle) % (Math.PI * 2) + Math.PI * 3) % (Math.PI * 2) - Math.PI); return d < m.d ? { i, d } : m; }, { i: idx[0], d: 9 }).i;
+  W3.scan(near); SFX.scan();
+  setTimeout(() => { W3.drawFace(b); SFX.boost(b.mult); banner("ALIGNMENT!", `${byId[b.world].name} ×${b.mult} boost`, "#ffc845"); busy = false; paint(); }, 1700); }
+let spinAnim = null;
+function doSpin() { if (busy || !total()) return; Sound.unlock(); Music.start(); const res = spin(); if (!res) return; busy = true; paint(); go(res); }
+function go(res) { const S = W3.S, st = W3.step, off = (Math.random() - .5) * .76 * st, base = res.index * st + off, diff = (((angle - base) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+  const to = angle - diff - Math.PI * 2 * (4 + Math.floor(Math.random() * 2)), dur = 6.2 + Math.random() * 1.2;
+  spinAnim = { from: angle, to, t: 0, dur, res }; SFX.whoosh(); say(["Round and round…", "Come on, come on…", "Where will it land?"][Math.floor(Math.random() * 3)]); }
+const ease = u => 1 - Math.pow(1 - u, 4);
+function landed(res) { const k = res.seg, w = byId[k]; addHist(k);
+  const [sx, sy] = toScreen(0, W3.CY + W3.R - .2, .1);
+  if (res.wormhole) { flash("worm"); SFX.worm(); banner("WORMHOLE!", `free spin · bets ride ×${res.ride}`, "#ff4fae"); say("Into the wormhole! Your bets go round again, paying double!"); paint();
+    burst(sx, sy, ["#ff4fae", "#b48cff", "#4fe6ff", "#fff"], 50, 1.3); setTimeout(() => { go(spin()); }, 2300); return; }
+  crewSettle(k, w.mult || 0);
+  if (res.paid) { const x = res.wins[0]; W3.update(0, 0, "win"); winLight.intensity = 3; winLight.position.set(0, W3.CY + W3.R, 1.2); setTimeout(() => winLight.intensity = 0, 2400);
+    banner(res.paid >= 200 ? "HUGE WIN!" : "WIN!", `+${res.paid}${x.boost > 1 ? ` · boosted ×${x.boost}` : ""}${res.ride > 1 ? ` · wormhole ×${res.ride}` : ""}`, WCOL[k]);
+    floats.push({ x: sx, y: sy + 30, t: 0, txt: "+" + res.paid, col: "#7dff9a" }); burst(sx, sy, [WCOL[k], "#ffc845", "#fff"], res.paid >= 200 ? 120 : 50); SFX.win(res.paid >= 200); tiles[k].classList.remove("hit"); void tiles[k].offsetWidth; tiles[k].classList.add("hit");
+    say(k === "earth" ? "EARTH! A little closer to home!" : `${w.name}! Nice call!`); }
+  else if (k === "hole") { flash("hole"); SFX.hole(); banner("BLACK HOLE", "it swallowed every bet", "#8a7aa8"); say("The black hole eats everything. Ouch."); }
+  else { SFX.lose(); banner(w.name.toUpperCase(), "no bets on it", WCOL[k]); say(`${w.name}. Not this time.`); }
+  paint(); setTimeout(() => { W3.update(0, 0, "chase"); startRound(); }, 2800); }
+$("spin").onclick = doSpin;
+
+// ---- the loop ----
+let last = performance.now();
+function frame(now) { const dt = Math.min(.1, (now - last) / 1000); last = now;
+  if (spinAnim) { const a = spinAnim; a.t += dt; const u = Math.min(1, a.t / a.dur); angle = a.from + (a.to - a.from) * ease(u); W3.setAngle(angle); if (u >= 1) { spinAnim = null; landed(a.res); } }
+  W3.update(now / 1000, dt, spinAnim ? "spin" : undefined);
+  renderer.render(scene, cam); drawFx(dt); requestAnimationFrame(frame); }
+
+// ---- sound ----
+const SFX = {
+  chip() { Sound.tone(2200, .03, { type: "triangle", vol: .05 }); Sound.tone(3000, .02, { type: "sine", vol: .03, at: .02 }); },
+  tick() { Sound.tone(1700 + Math.random() * 200, .018, { type: "square", vol: .03 }); },
+  scan() { Sound.tone(300, 1.5, { type: "sawtooth", vol: .03, slide: 4, lp: 1800 }); },
+  boost(m) { Sound.arp(m >= 5 ? [12, 16, 19, 24, 28, 31] : [12, 16, 19, 24], .07, { type: "triangle", vol: .08, dur: .2 }); },
+  whoosh() { Sound.noise(1.2, { vol: .06, type: "bandpass", freq: 800, sweep: .4 }); },
+  worm() { Sound.tone(900, 1.4, { type: "sine", vol: .1, slide: .15 }); Sound.arp([24, 19, 16, 12, 24, 28, 31], .08, { type: "triangle", vol: .06, dur: .2, at: .6 }); },
+  hole() { Sound.tone(120, 1.2, { type: "sine", vol: .2, slide: .4 }); Sound.noise(.9, { vol: .06, type: "lowpass", freq: 400 }); },
+  lose() { Sound.tone(Sound.note(-5), .18, { type: "triangle", vol: .05 }); Sound.tone(Sound.note(-8), .25, { type: "triangle", vol: .05, at: .16 }); },
+  win(big) { Sound.arp(big ? [12, 16, 19, 24, 28, 31, 36, 40] : [12, 16, 19, 24], .07, { type: "triangle", vol: .1, dur: .25 }); for (let i = 0; i < (big ? 14 : 6); i++) Sound.tone(1800 + Math.random() * 900, .06, { type: "triangle", vol: .04, at: .3 + i * .07 }); } };
+const Music = (() => { let timer = null, stp = 0, nextT = 0; const CH = [[0, 4, 7, 11], [5, 9, 12, 16], [2, 5, 9, 12], [7, 11, 14, 17]];
+  function tick() { if (!Sound.ready()) return; const now = Sound.now(), sd = 60 / 100 / 2; if (nextT < now - .25) nextT = now + .05;
+    while (nextT < now + .12) { const at = nextT - now, k = stp % 16, ch = CH[Math.floor(stp / 16) % 4];
+      if (Sound.on && Sound.musicOn) { const Mu = { bus: "music" };
+        if (k === 0) ch.forEach(n => Sound.tone(Sound.note(n), sd * 15, { ...Mu, at, type: "sine", vol: .012, attack: .3 }));
+        if (k % 4 === 0) Sound.tone(Sound.note(ch[0] - 12), sd * 1.4, { ...Mu, at, type: "triangle", vol: .035, lp: 600 });
+        if (k % 2 === 1) Sound.tone(Sound.note(ch[(k >> 1) % 4] + 12), sd * .6, { ...Mu, at, type: "sine", vol: .01 }); }
+      stp++; nextT += sd; } }
+  return { start() { if (!timer) { nextT = (Sound.now() || 0) + .1; timer = setInterval(tick, 25); } } }; })();
+
+// ---- wiring ----
+$("snd").addEventListener("click", () => { Sound.on = !Sound.on; $("snd").setAttribute("aria-pressed", String(Sound.on)); });
+$("info").addEventListener("click", () => { $("paytable").innerHTML = `<tr><td>World</td><td>Pays</td></tr>` + WORLDS.map(w => `<tr><td>${w.name}</td><td>× ${w.mult}</td></tr>`).join("") + `<tr><td>Wormhole</td><td>free spin, ×2</td></tr><tr><td>Black hole</td><td>loses</td></tr>`; $("sheet").hidden = false; });
+$("close").addEventListener("click", () => $("sheet").hidden = true);
+$("sheet").addEventListener("click", e => { if (e.target.id === "sheet") $("sheet").hidden = true; });
+$("fearth").addEventListener("click", () => { FORCE.seg = "earth"; $("sheet").hidden = true; });
+$("fworm").addEventListener("click", () => { FORCE.seg = "worm"; $("sheet").hidden = true; });
+document.addEventListener("pointerdown", () => Sound.unlock(), { once: true });
+addEventListener("resize", size);
+size(); paint(); requestAnimationFrame(t => { last = t; frame(t); });
+$("boot").hidden = true; ready = true; setTimeout(() => { startRound(); say("Welcome to the Wheel of Worlds! Pick a chip and tap a world."); }, 500); window.__ready = true;
+</script>

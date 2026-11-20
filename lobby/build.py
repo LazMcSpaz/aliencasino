@@ -14,15 +14,19 @@ tex = {
   "moons": {"face": d(C/"tex_face_happy.webp")},
   "warp": {k: d(C/f"warp_{k}.webp") for k in ["pad", "clouds", "orbit", "nebula", "boom"]},
 }
-models = "\n".join((M/f).read_text() for f in ["model.js", "pyramid_model.js", "gravity_model.js", "moons_model.js", "warp_model.js", "pusher_model.js"])
+models = "\n".join((M/f).read_text() for f in ["model.js", "pyramid_model.js", "gravity_model.js", "moons_model.js", "warp_model.js", "pusher_model.js", "wheel_model.js"])
 art = {"bar": d(here/"../slot/icons3/bar1.a.webp")}
+# the wheel's layout and worlds come straight from its game engine, so the floor's wheel matches the game's
+import subprocess as _sp
+wheel_cfg = json.loads(_sp.run(["node", "-e", 'const E=require(process.argv[1]); console.log(JSON.stringify({layout:E.LAYOUT, worlds:E.WORLDS}))', str((here/"../wheel/part_engine.js").resolve())], capture_output=True, text=True, check=True).stdout)
+tex["wheel"] = wheel_cfg
 s = (here/"lobby.src.html").read_text().replace("/*{{ART}}*/", json.dumps(art)).replace("/*{{MODELS}}*/", models + "\n" + (here/"part_extras.js").read_text()).replace("/*{{MUSIC}}*/", (here/"part_music.js").read_text()).replace("/*{{WALK}}*/", (here/"part_walk.js").read_text()).replace("/*{{TEX}}*/", json.dumps(tex))
 (here/"lobby.html").write_text(s); print("lobby.html", len(s)//1024, "KB")
 # the CC0 models go out as base64 text next to the page (the artifact host doesn't serve .glb files)
 for glb in sorted((here/"assets").glob("*.glb")):
     glb.with_suffix(".b64.txt").write_text(base64.b64encode(glb.read_bytes()).decode())
 g = here/"games"; g.mkdir(exist_ok=True)
-for name, src in [("slot", "slot/slot.html"), ("pyramid", "pyramid/pyramid.html"), ("asteroid", "asteroid/asteroid.html"), ("gravity", "gravity/gravity.html"), ("moons", "moons/moons.html"), ("warp", "warp/warp.html"), ("pusher", "pusher/pusher.html")]:
+for name, src in [("slot", "slot/slot.html"), ("pyramid", "pyramid/pyramid.html"), ("asteroid", "asteroid/asteroid.html"), ("gravity", "gravity/gravity.html"), ("moons", "moons/moons.html"), ("warp", "warp/warp.html"), ("pusher", "pusher/pusher.html"), ("wheel", "wheel/wheel.html")]:
     shutil.copy(here/".."/src, g/f"{name}.html")
 print("games:", ", ".join(sorted(p.name for p in g.iterdir())))
 # safety net: refuse to ship a page whose script doesn't even parse (a stray comment once broke the whole lobby)
