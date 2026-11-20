@@ -50,7 +50,7 @@ lobby/       the Alien Casino floor: walk it in first person (or switch to the b
   part_walk.js     first-person walking: swipe up to walk, sideways to turn, release to stop; hologram controls; collisions
   part_extras.js   the front lounge (DJ stage, dance floor, booths), jackpot board, screens, plants, planets, and the alien patrons
   part_music.js    lounge music made live in the browser (no audio files)
-  assets/          CC0 models by Quaternius (quaternius.com: Ultimate Space Kit, Ultimate Modular Sci-Fi), unpacked from Draco and trimmed
+  assets/          CC0 models by Quaternius (quaternius.com: Ultimate Space Kit, Ultimate Modular Sci-Fi, Cute Animated Monsters), unpacked from Draco and trimmed
   tools/shot.js, tools/views.js   screenshots (serve lobby/ over http first)
 
 model3d/     the walking slot-machine robot
