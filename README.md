@@ -128,3 +128,6 @@ Run these from `slot/`:
 web/         the offline web app (iPhone: open https://lazmcspaz.github.io/aliencasino/ in Safari → Share → Add to Home Screen)
   build_site.py   packs the lobby + games with the 3D engine, physics and fonts inside (vendor/, fonts/: OFL fonts), adds a service worker,
                   manifest and icon, writes site/. Publish: push site/ to the gh-pages branch (GitHub Pages, branch gh-pages, root)
+
+lobby/part_menu.js   the title menu shown first: Enter the Casino (loads the 3D floor), Quick Play (any game, no casino), Daily Reward (7-day streak),
+                     Daily Spin (one free prize spin a day), Store (bar packs, test mode: nothing is charged). tools/menutest.js clicks through it.
