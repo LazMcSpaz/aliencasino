@@ -8777,7 +8777,8 @@ $("home").onclick=e=>{ e.stopPropagation(); casinoOn=false; MENU.show(); };
 document.documentElement.style.setProperty("--barimg",`url(${ART.bar})`);
 // The front of the app: a title menu shown before the 3D casino loads, with Quick Play (open any game straight away, no casino),
 // a Daily Reward (a 7-day login streak), a Daily Spin (one free prize-wheel spin a day) and a Store (bar packs; test mode until the app-store version).
-// May use: GAMES, openGame, window.__alienWallet, Music, enterCasino (all from lobby.src.html). Must not: touch the 3D scene.
+// The backdrop is a living space scene drawn on a canvas: drifting stars, nebulae, a ringed planet, and the casino ship hovering with its tractor beam.
+// May use: GAMES, openGame, window.__alienWallet, Music, enterCasino, ART (all from lobby.src.html). Must not: touch the 3D scene.
 const MENU = (() => {
   const W = window.__alienWallet, KEY = "alien-casino-daily";
   const today = () => new Date().toLocaleDateString("en-CA");                       // YYYY-MM-DD in the player's own time zone
@@ -8785,100 +8786,190 @@ const MENU = (() => {
   const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { return {}; } };
   const save = d => { try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) {} };
   const REWARDS = [100, 150, 200, 300, 400, 500, 1000];                              // day 1…7 of a streak; day 7 is the big one, then it starts over
-  // the daily spin's prizes and how often each comes up (chances add to 1); about 290 bars on average
-  const SPIN = [[100, .26, "#5fe8ff"], [50, .2, "#9aa6c8"], [250, .16, "#b48cff"], [150, .2, "#ff5fae"], [500, .1, "#7dff9a"], [100, 0, "#5fe8ff"], [1000, .06, "#ffc845"], [2500, .02, "#ff7a3a"]];
-  SPIN[5][1] = 0; // (a second 100 segment for looks; the first one carries its chance)
-  const PACKS = [{ bars: 1000, price: "$0.99" }, { bars: 5500, price: "$4.99", tag: "+10%" }, { bars: 12000, price: "$9.99", tag: "+20%" }, { bars: 30000, price: "$19.99", tag: "BEST VALUE" }, { bars: 80000, price: "$49.99", tag: "+60%" }];
+  // the daily spin's prizes, how often each comes up (chances add to 1; about 270 bars on average), and their colours
+  const SPIN = [[100, .26, "#3fb8ff"], [50, .2, "#7a86a8"], [250, .16, "#9a52ff"], [150, .2, "#ff4fae"], [500, .1, "#3fd17a"], [100, 0, "#3fb8ff"], [1000, .06, "#ffb020"], [2500, .02, "#ff6a3a"]];
+  const PACKS = [{ bars: 1000, price: "$0.99", n: 1, sub: "STARTER" }, { bars: 5500, price: "$4.99", n: 2, sub: "+10% BONUS" }, { bars: 12000, price: "$9.99", n: 3, sub: "+20% BONUS" },
+    { bars: 30000, price: "$19.99", n: 5, sub: "+50% BONUS", best: true }, { bars: 80000, price: "$49.99", n: 7, sub: "+60% BONUS" }];
   const ICON = { slot: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M9 5v14M15 5v14"/><circle cx="6" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18" cy="12" r="1.3"/>',
     pyramid: '<path d="M12 3l9 17H3z"/><path d="M7.5 11.5h9M5 16h14"/>', asteroid: '<path d="M5 9l4-5 7 1 4 6-2 7-7 2-5-4z"/><circle cx="10" cy="10" r="1.4"/><circle cx="14" cy="15" r="1.1"/>',
     gravity: '<path d="M12 12m-1 0a1 1 0 1 0 2 0a3 3 0 1 0-6 0a5 5 0 1 0 10 0a7 7 0 1 0-14 0a9 9 0 1 0 18 0"/>', moons: '<circle cx="8" cy="12" r="5"/><circle cx="17" cy="9" r="3"/>',
     warp: '<path d="M12 2c3 3 4 7 3 12h-6C8 9 9 5 12 2z"/><path d="M9 14l-3 4h4M15 14l3 4h-4M11 18l1 4 1-4"/>', wheel: '<circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6L5.6 18.4"/><circle cx="12" cy="12" r="2"/>',
     pusher: '<rect x="3" y="14" width="18" height="6" rx="1"/><path d="M5 14l2-4h4l1 4M12 14l2-3h4l1 3"/>' };
   const css = `
-.mn{position:fixed;inset:0;z-index:40;overflow:hidden;background:radial-gradient(120% 70% at 50% 25%,#2a1460 0%,#07040f 70%);display:grid;grid-template-rows:auto 1fr auto;
+.mn{position:fixed;inset:0;z-index:40;overflow:hidden;background:#05030c;display:grid;grid-template-rows:auto 1fr auto;
   padding:calc(14px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));box-sizing:border-box}
-.mn .stars{position:absolute;inset:-50%;pointer-events:none;background-image:radial-gradient(1.5px 1.5px at 20% 30%,#fff,transparent),radial-gradient(1px 1px at 70% 60%,#fff,transparent),radial-gradient(1.2px 1.2px at 40% 80%,#cfe,transparent),radial-gradient(1px 1px at 85% 20%,#fff,transparent),radial-gradient(1.4px 1.4px at 10% 70%,#fde,transparent);background-size:220px 220px;animation:mnstar 90s linear infinite;opacity:.8}
-@keyframes mnstar{to{transform:rotate(360deg)}}
-.mn > *{position:relative}
-.mn .top{display:flex;justify-content:space-between;align-items:center}
-.mn .bal{display:flex;align-items:center;gap:7px;padding:6px 12px 6px 8px;font:700 1.05rem var(--f-mono)}
-.mn .bal i{width:26px;height:18px;background:var(--barimg) center/contain no-repeat;filter:drop-shadow(0 0 4px #ffc84588)}
-.mn .body{display:grid;align-content:center;justify-items:center;gap:12px;min-height:0;overflow:auto}
-.mn .logo{text-align:center;margin:0 0 6px}
-.mn .logo b{display:block;font:400 3rem/1 "Monoton",var(--f-sign);color:#f2e6ff;text-shadow:0 0 6px #fff,0 0 18px #b48cff,0 0 40px #8a4dff;animation:mnflick 6s infinite}
-.mn .logo i{display:block;margin-top:-6px;font:400 2.4rem/1 "Yellowtail",cursive;color:#ffe9b0;text-shadow:0 0 14px #ffc845}
-@keyframes mnflick{0%,92%,100%{opacity:1}93%{opacity:.4}95%{opacity:1}97%{opacity:.6}}
-.mn .big{--k:14px;--hc:var(--gold);width:min(86vw,330px);padding:16px;font:400 1.2rem/1 var(--f-sign);color:#fff;text-shadow:0 0 12px var(--gold);cursor:pointer;animation:mnpulse 1.4s ease-in-out infinite alternate}
-.mn .big small{display:block;margin-top:5px;font:400 .58rem var(--f-mono);letter-spacing:.14em;color:#ffe9b0;text-shadow:none}
-@keyframes mnpulse{to{box-shadow:inset 0 0 0 1px var(--gold),inset 0 0 30px #ffc84555,0 0 18px #ffc84566}}
-.mn .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:min(86vw,330px)}
-.mn .tile{--k:12px;padding:14px 8px;cursor:pointer;display:grid;justify-items:center;gap:6px;font:400 .82rem var(--f-sign);color:#fff}
-.mn .tile svg{width:28px;height:28px;fill:none;stroke:var(--hc);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 5px var(--hc))}
-.mn .tile small{font:400 .54rem var(--f-mono);letter-spacing:.08em;color:var(--dim)}
-.mn .dot{position:absolute;top:7px;right:9px;min-width:9px;height:9px;border-radius:9px;background:#ff4d6d;box-shadow:0 0 8px #ff4d6d;animation:mnpulse2 .8s ease-in-out infinite alternate}
-@keyframes mnpulse2{to{transform:scale(1.4)}}
-.mn .foot{text-align:center;font:400 .56rem var(--f-mono);letter-spacing:.16em;color:var(--dim)}
+.mn canvas.sky{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.mn::after{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(120% 80% at 50% 50%,transparent 55%,#000a)}
+.mn > :not(canvas){position:relative;z-index:1}
+.mn .top{display:flex;justify-content:space-between;align-items:center;min-height:44px}
+.mn .bal{--k:9px;--hc:var(--gold);display:flex;align-items:center;gap:8px;padding:7px 13px 7px 9px;font:700 1.05rem var(--f-mono);color:#fff;text-shadow:0 0 8px #ffc84588}
+.mn .bal i{width:28px;height:19px;background:var(--barimg) center/contain no-repeat;filter:drop-shadow(0 0 5px #ffc845aa)}
+.mn .bal.bump{animation:mnbump .5s ease-out}
+@keyframes mnbump{30%{transform:scale(1.15);filter:brightness(1.6)}}
+.mn .body{display:grid;align-content:center;justify-items:center;gap:14px;min-height:0;overflow:auto;padding:4px 0}
+.mn .page{display:grid;justify-items:center;gap:14px;width:100%;animation:mnin .45s cubic-bezier(.2,.9,.3,1) both}
+@keyframes mnin{from{opacity:0;transform:translateY(14px) scale(.98)}}
+.mn .logo{position:relative;text-align:center;margin:4px 0 10px;animation:mnfloat 5s ease-in-out infinite}
+@keyframes mnfloat{50%{transform:translateY(-6px)}}
+.mn .logo b{display:block;font:400 3.4rem/1 "Monoton",var(--f-sign);letter-spacing:.02em;color:#fbf4ff;text-shadow:0 0 4px #fff,0 0 14px #c89cff,0 0 34px #8a4dff,0 0 70px #6a2dff;animation:mnflick 7s infinite}
+.mn .logo i{display:block;margin-top:-10px;font:400 2.7rem/1 "Yellowtail",cursive;color:#fff1d0;text-shadow:0 0 6px #fff4,0 0 16px #ffc845,0 0 36px #ff8a3a}
+.mn .logo::after{content:"";display:block;margin:10px auto 0;width:70%;height:3px;border-radius:3px;background:linear-gradient(90deg,transparent,#5fe8ff,#ff4fae,transparent);box-shadow:0 0 12px #5fe8ff}
+@keyframes mnflick{0%,90%,100%{opacity:1}91%{opacity:.35}92.5%{opacity:1}94%{opacity:.55}95%{opacity:1}}
+.mn .tag{font:400 .6rem var(--f-mono);letter-spacing:.28em;color:#c8b8ff;text-transform:uppercase;margin-top:-6px}
+.mn .big{--k:16px;--hc:var(--gold);position:relative;overflow:hidden;width:min(88vw,340px);padding:17px 16px 15px;font:400 1.25rem/1 var(--f-sign);color:#fff;text-shadow:0 0 12px var(--gold);cursor:pointer;
+  background:linear-gradient(180deg,#ffc84540,#ff8a3a1c),#120a26e6;animation:mnpulse 1.6s ease-in-out infinite alternate}
+.mn .big::before{content:"";position:absolute;top:0;bottom:0;width:40%;left:-60%;background:linear-gradient(100deg,transparent,#fff5,transparent);animation:mnshine 3.2s ease-in-out infinite}
+@keyframes mnshine{0%,55%{left:-60%}100%{left:130%}}
+.mn .big small{display:block;margin-top:6px;font:400 .58rem var(--f-mono);letter-spacing:.16em;color:#ffe9b0;text-shadow:none}
+@keyframes mnpulse{to{box-shadow:inset 0 0 0 1px var(--hc),inset 0 0 34px color-mix(in srgb,var(--hc) 35%,transparent),0 0 22px color-mix(in srgb,var(--hc) 40%,transparent)}}
+.mn .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:min(88vw,340px)}
+.mn .tile{--k:13px;position:relative;padding:14px 8px 12px;cursor:pointer;display:grid;justify-items:center;gap:7px;font:400 .82rem var(--f-sign);color:#fff;transition:transform .15s}
+.mn .tile:active,.mn .gcard:active,.mm .pack:active,.mn .big:active{transform:scale(.96)}
+.mn .tile .ic{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle at 35% 30%,color-mix(in srgb,var(--hc) 45%,transparent),color-mix(in srgb,var(--hc) 8%,transparent) 70%);box-shadow:0 0 0 1px color-mix(in srgb,var(--hc) 60%,transparent),0 0 18px color-mix(in srgb,var(--hc) 35%,transparent)}
+.mn .tile svg{width:24px;height:24px;fill:none;stroke:#fff;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 5px var(--hc))}
+.mn .tile small{font:400 .55rem var(--f-mono);letter-spacing:.08em;color:var(--dim)}
+.mn .tile.ready small{color:#fff;text-shadow:0 0 8px var(--hc)}
+.mn .tile.ready .ic{animation:mnring 1.2s ease-in-out infinite}
+@keyframes mnring{50%{box-shadow:0 0 0 1px var(--hc),0 0 0 7px color-mix(in srgb,var(--hc) 18%,transparent),0 0 26px var(--hc)}}
+.mn .dot{position:absolute;top:8px;right:10px;padding:2px 6px;border-radius:9px;background:#ff4d6d;color:#fff;font:700 .5rem var(--f-mono);letter-spacing:.06em;box-shadow:0 0 10px #ff4d6d;animation:mnpulse2 .8s ease-in-out infinite alternate}
+@keyframes mnpulse2{to{transform:scale(1.12)}}
+.mn .foot{text-align:center;font:400 .56rem var(--f-mono);letter-spacing:.18em;color:#8a7fb0}
 .mn .head{display:flex;align-items:center;gap:10px}
-.mn .back{--k:8px;width:40px;height:40px;cursor:pointer;display:grid;place-items:center;padding:0}
+.mn .back{--k:8px;width:42px;height:42px;cursor:pointer;display:grid;place-items:center;padding:0}
 .mn .back svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
-.mn h2{margin:0;font:400 1.15rem var(--f-sign);color:#fff;text-shadow:0 0 10px var(--holo2)}
-.mn .games{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%;max-width:420px;align-self:start;padding-top:12px}
-.mn .gcard{--k:12px;--hc:var(--gc);padding:12px 10px;cursor:pointer;display:grid;grid-template-columns:auto 1fr;gap:4px 10px;align-items:center;text-align:left}
-.mn .gcard svg{grid-row:1/3;width:30px;height:30px;fill:none;stroke:var(--gc);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 5px var(--gc))}
-.mn .gcard b{font:400 .78rem/1.1 var(--f-sign);color:#fff}.mn .gcard small{font:400 .56rem/1.2 var(--f-mono);color:var(--dim)}
-.mm{position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:#000b;padding:16px}
-.mm .box{--k:16px;box-sizing:border-box;width:min(100%,370px);max-height:90dvh;overflow:auto;padding:18px 16px;background:#090a1cf2;display:grid;gap:12px;justify-items:center;text-align:center}
-.mm h3{margin:0;font:400 1.25rem var(--f-sign);color:#fff;text-shadow:0 0 12px var(--hc)}
-.mm p{margin:0;font:500 .85rem/1.4 var(--f-tech);color:var(--dim)}
-.mm .days{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;width:100%}
-.mm .day{--k:8px;--hc:#5a5280;padding:8px 2px;display:grid;gap:4px;justify-items:center;font:400 .5rem var(--f-mono);letter-spacing:.1em;color:var(--dim)}
-.mm .day b{font:700 .9rem var(--f-mono);color:#fff}.mm .day i{width:22px;height:15px;background:var(--barimg) center/contain no-repeat}
-.mm .day.got{--hc:#7dff9a;opacity:.6}.mm .day.now{--hc:var(--gold);animation:mnpulse 1s ease-in-out infinite alternate}.mm .day.big{grid-column:span 2}
-.mm .go{--k:12px;--hc:var(--gold);width:100%;padding:14px;cursor:pointer;font:400 1.05rem var(--f-sign);color:#fff;text-shadow:0 0 10px var(--gold)}
-.mm .go[disabled]{--hc:#5a5280;color:var(--dim);text-shadow:none;cursor:default}
-.mm .x{--k:8px;--hc:#7a7aa0;padding:9px 18px;cursor:pointer;font:400 .72rem var(--f-sign);color:#fff}
-.mm canvas.sp{width:min(78vw,300px);height:min(78vw,300px)}
+.mn h2{margin:0;font:400 1.2rem var(--f-sign);color:#fff;text-shadow:0 0 12px var(--holo2)}
+.mn .games{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%;max-width:440px;padding-top:6px}
+.mn .gcard{--k:14px;--hc:var(--gc);position:relative;overflow:hidden;aspect-ratio:1/.92;padding:12px;cursor:pointer;display:grid;align-content:end;justify-items:start;gap:3px;text-align:left;transition:transform .15s;
+  background:radial-gradient(90% 70% at 70% 25%,color-mix(in srgb,var(--gc) 38%,transparent),transparent 70%),linear-gradient(180deg,#0c0a22e6,#06051ae6);animation:mnin .45s cubic-bezier(.2,.9,.3,1) both}
+.mn .gcard .art{position:absolute;right:-12%;top:-10%;width:78%;height:78%;fill:none;stroke:var(--gc);stroke-width:1.1;stroke-linecap:round;stroke-linejoin:round;opacity:.5;filter:drop-shadow(0 0 10px var(--gc));animation:mndrift 6s ease-in-out infinite alternate}
+.mn .gcard:nth-child(2n) .art{animation-delay:-3s}
+@keyframes mndrift{to{transform:rotate(-8deg) scale(1.06)}}
+.mn .gcard .ico{width:30px;height:30px;fill:none;stroke:#fff;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 6px var(--gc));margin-bottom:4px}
+.mn .gcard b{font:400 .86rem/1.1 var(--f-sign);color:#fff;text-shadow:0 0 10px color-mix(in srgb,var(--gc) 70%,transparent);padding-right:30px}
+.mn .gcard small{font:400 .56rem/1.2 var(--f-mono);letter-spacing:.06em;color:#b8b0d8;padding-right:30px}
+.mn .gcard .play{position:absolute;right:10px;bottom:10px;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:var(--gc);box-shadow:0 0 12px var(--gc)}
+.mn .gcard .play svg{width:11px;height:11px;fill:#0a0618}
+.mm{position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:radial-gradient(circle,#0a0420c0,#000e);padding:16px;animation:mmfade .25s both}
+@keyframes mmfade{from{opacity:0}}
+.mm .box{--k:18px;position:relative;box-sizing:border-box;width:min(100%,372px);max-height:90dvh;overflow:auto;padding:22px 16px 16px;background:linear-gradient(180deg,color-mix(in srgb,var(--hc) 16%,#0a0a1e),#08081af5);display:grid;gap:12px;justify-items:center;text-align:center;animation:mmpop .4s cubic-bezier(.2,1.4,.4,1) both}
+@keyframes mmpop{from{opacity:0;transform:scale(.85) translateY(10px)}}
+.mm .box::before{content:"";position:absolute;left:18%;right:18%;top:0;height:3px;background:linear-gradient(90deg,transparent,var(--hc),transparent);box-shadow:0 0 14px var(--hc)}
+.mm h3{margin:0;font:400 1.35rem var(--f-sign);color:#fff;text-shadow:0 0 14px var(--hc)}
+.mm p{margin:0;font:500 .85rem/1.4 var(--f-tech);color:#b8b0d8}
+.mm .days{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;width:100%}
+.mm .day{--k:9px;--hc:#4a4270;position:relative;padding:9px 2px 8px;display:grid;gap:4px;justify-items:center;font:400 .5rem var(--f-mono);letter-spacing:.12em;color:#8a80b0}
+.mm .day b{font:700 .92rem var(--f-mono);color:#fff}.mm .day i{width:24px;height:16px;background:var(--barimg) center/contain no-repeat}
+.mm .day.got{--hc:#3fd17a}
+.mm .day.got::after{content:"";position:absolute;inset:0;z-index:3;background:#05101099 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 12l5 5 9-10' fill='none' stroke='%237dff9a' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/26px no-repeat}
+.mm .day.now{--hc:var(--gold);animation:mnpulse 1s ease-in-out infinite alternate;transform:scale(1.05)}
+.mm .day.big{grid-column:span 2}.mm .day.big i{width:40px;height:26px;filter:drop-shadow(0 0 8px #ffc845)}
+.mm .go{--k:13px;--hc:var(--gold);position:relative;overflow:hidden;width:100%;padding:15px;cursor:pointer;font:400 1.1rem var(--f-sign);color:#fff;text-shadow:0 0 10px var(--hc);background:linear-gradient(180deg,color-mix(in srgb,var(--hc) 35%,transparent),color-mix(in srgb,var(--hc) 10%,transparent)),#0c0a20}
+.mm .go:not([disabled])::before{content:"";position:absolute;top:0;bottom:0;width:40%;left:-60%;background:linear-gradient(100deg,transparent,#fff5,transparent);animation:mnshine 2.6s ease-in-out infinite}
+.mm .go[disabled]{--hc:#4a4270;color:#8a80b0;text-shadow:none;cursor:default}
+.mm .x{--k:8px;--hc:#6a6a90;padding:9px 20px;cursor:pointer;font:400 .72rem var(--f-sign);color:#fff}
+.mm canvas.sp{width:min(80vw,310px);height:min(80vw,310px)}
 .mm .packs{display:grid;gap:8px;width:100%}
-.mm .pack{--k:12px;--hc:var(--gold);display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:12px;cursor:pointer;text-align:left}
-.mm .pack i{width:42px;height:28px;background:var(--barimg) center/contain no-repeat;filter:drop-shadow(0 0 6px #ffc84588)}
-.mm .pack b{font:700 1.05rem var(--f-mono);color:#fff}.mm .pack em{display:block;font:400 .52rem var(--f-mono);font-style:normal;letter-spacing:.1em;color:var(--gold)}
-.mm .pack span{font:400 .85rem var(--f-sign);color:#fff;padding:7px 10px;background:#ffc84522;border:1px solid var(--gold);border-radius:8px}
-.mm .note{font:400 .58rem/1.5 var(--f-mono);letter-spacing:.06em;color:#ff9ad6}
-.mm .won{font:400 2.2rem/1 var(--f-sign);color:#fff;text-shadow:0 0 18px var(--gold)}
+.mm .pack{--k:13px;--hc:#c8a040;position:relative;display:grid;grid-template-columns:62px 1fr auto;gap:10px;align-items:center;padding:12px 12px 12px 10px;cursor:pointer;text-align:left;transition:transform .15s}
+.mm .pack.best{--hc:var(--gold);background:linear-gradient(90deg,#ffc84533,#ff8a3a18),#0c0a20;animation:mnpulse 1.2s ease-in-out infinite alternate}
+.mm .pile{position:relative;width:62px;height:40px}
+.mm .pile i{position:absolute;width:34px;height:22px;background:var(--barimg) center/contain no-repeat;filter:drop-shadow(0 2px 3px #000a) drop-shadow(0 0 4px #ffc84566)}
+.mm .pack b{font:700 1.08rem var(--f-mono);color:#fff}.mm .pack em{display:block;font:400 .54rem var(--f-mono);font-style:normal;letter-spacing:.12em;color:var(--gold)}
+.mm .pack span{font:400 .86rem var(--f-sign);color:#1a1030;padding:8px 11px;background:linear-gradient(180deg,#ffe08a,#ffb020);border-radius:9px;box-shadow:0 0 12px #ffc84566,inset 0 -2px 0 #0003}
+.mm .pack span.ribbon{position:absolute;top:0;right:14px;padding:2px 8px;background:#ff4d6d;color:#fff;font:700 .5rem var(--f-mono);letter-spacing:.12em;border-radius:0 0 6px 6px;box-shadow:0 0 10px #ff4d6d}
+.mm .note{font:400 .58rem/1.55 var(--f-mono);letter-spacing:.05em;color:#ff9ad6;padding:8px 10px;border:1px dashed #ff9ad666;border-radius:8px}
+.mm .won{font:400 2.6rem/1 var(--f-sign);color:#fff;text-shadow:0 0 20px var(--gold),0 0 4px #fff}
+.mm .won i{display:inline-block;width:46px;height:30px;margin-right:8px;vertical-align:-4px;background:var(--barimg) center/contain no-repeat;filter:drop-shadow(0 0 8px #ffc845)}
+.mm canvas.conf{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:2}
 .mn-home{--k:7px}`;
   const st = document.createElement("style"); st.textContent = css; document.head.appendChild(st);
-  const el = document.createElement("div"); el.className = "mn"; el.innerHTML = '<div class="stars"></div><div class="top"></div><div class="body"></div><div class="foot"></div>'; document.body.appendChild(el);
+  const el = document.createElement("div"); el.className = "mn"; el.innerHTML = '<canvas class="sky" aria-hidden="true"></canvas><div class="top"></div><div class="body"></div><div class="foot"></div>'; document.body.appendChild(el);
   const top = el.querySelector(".top"), body = el.querySelector(".body"), foot = el.querySelector(".foot");
-  const svg = (p, vb = "0 0 24 24") => `<svg viewBox="${vb}" aria-hidden="true">${p}</svg>`;
-  const BACK = svg('<path d="M15 5l-7 7 7 7"/>');
+  const svg = (p, cls = "") => `<svg viewBox="0 0 24 24" class="${cls}" aria-hidden="true">${p}</svg>`;
+  const BACK = svg('<path d="M15 5l-7 7 7 7"/>'), PLAY = '<svg viewBox="0 0 10 10"><path d="M2 1l7 4-7 4z"/></svg>';
   let open = true, screen = "home";
-  const bal = () => `<div class="bal holo"><i></i><span>${W.get().toLocaleString()}</span></div>`;
+  const $m = id => document.getElementById(id);
+
+  // ---- sound: little synth chimes (on when the music is on) ----
+  let ac = null;
+  function tone(f, d, { type = "triangle", vol = .06, at = 0 } = {}) { if (typeof Music !== "undefined" && !Music.wanted) return;
+    try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); if (ac.state === "suspended") ac.resume(); const t = ac.currentTime + at, o = ac.createOscillator(), g = ac.createGain();
+      o.type = type; o.frequency.setValueAtTime(f, t); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + .01); g.gain.exponentialRampToValueAtTime(.0001, t + d);
+      o.connect(g).connect(ac.destination); o.start(t); o.stop(t + d + .02); } catch (e) {} }
+  const SFX = { tap: () => tone(1400, .05, { vol: .04 }), open: () => { tone(660, .12, { vol: .04 }); tone(990, .16, { vol: .04, at: .06 }); },
+    tick: () => tone(1800 + Math.random() * 300, .02, { type: "square", vol: .02 }),
+    win: big => { [523, 659, 784, 1047, big ? 1319 : 0, big ? 1568 : 0].filter(Boolean).forEach((f, i) => tone(f, .25, { vol: .07, at: i * .08 })); for (let i = 0; i < 8; i++) tone(2000 + Math.random() * 1500, .05, { vol: .025, at: .3 + i * .06 }); },
+    coin: () => tone(1900 + Math.random() * 500, .06, { vol: .03 }) };
+
+  // ---- the backdrop: stars drifting toward you, nebula glows, a ringed planet, and the casino ship hovering with its beam ----
+  const sky = el.querySelector("canvas.sky"), sg = sky.getContext("2d"); let SW = 1, SH = 1, stars = [];
+  function skySize() { const d = Math.min(2, devicePixelRatio || 1); SW = el.clientWidth || innerWidth; SH = el.clientHeight || innerHeight; sky.width = SW * d; sky.height = SH * d; sg.setTransform(d, 0, 0, d, 0, 0);
+    stars = Array.from({ length: 170 }, () => ({ x: (Math.random() - .5) * 2, y: (Math.random() - .5) * 2, z: Math.random(), tw: Math.random() * 6 })); }
+  addEventListener("resize", skySize);
+  function drawSky(t) {
+    const g = sg, cx = SW / 2, cy = SH * .42;
+    const bg = g.createLinearGradient(0, 0, 0, SH); bg.addColorStop(0, "#0a0420"); bg.addColorStop(.55, "#160a3a"); bg.addColorStop(1, "#05030c"); g.fillStyle = bg; g.fillRect(0, 0, SW, SH);
+    for (const [x, y, r, c, ph] of [[.2, .25, .55, "120,40,200", 0], [.85, .6, .5, "30,120,200", 2], [.4, .85, .45, "200,40,120", 4]]) {
+      const k = .85 + .15 * Math.sin(t * .2 + ph), gr = g.createRadialGradient(x * SW, y * SH, 0, x * SW, y * SH, r * Math.max(SW, SH) * k);
+      gr.addColorStop(0, `rgba(${c},.32)`); gr.addColorStop(1, `rgba(${c},0)`); g.fillStyle = gr; g.fillRect(0, 0, SW, SH); }
+    for (const s of stars) { s.z -= .0009; if (s.z <= .02) { s.z = 1; s.x = (Math.random() - .5) * 2; s.y = (Math.random() - .5) * 2; }
+      const px = cx + s.x / s.z * SW * .35, py = cy + s.y / s.z * SH * .35; if (px < 0 || px > SW || py < 0 || py > SH) continue;
+      const r = Math.max(.4, (1 - s.z) * 2.1), a = Math.min(1, (1 - s.z) * 1.6) * (.65 + .35 * Math.sin(t * 3 + s.tw)); g.fillStyle = `rgba(255,255,255,${a})`; g.beginPath(); g.arc(px, py, r, 0, 7); g.fill(); }
+    // a ringed planet low on the left
+    const px = SW * .12, py = SH * .8, pr = Math.min(SW, SH) * .26;
+    g.save(); g.translate(px, py); g.rotate(-.35);
+    const ring = front => { g.save(); g.scale(1, .26); g.beginPath(); g.arc(0, 0, pr * 1.75, front ? 0 : Math.PI, front ? Math.PI : 2 * Math.PI); g.lineWidth = pr * .16; g.strokeStyle = "rgba(255,200,120,.45)"; g.stroke(); g.lineWidth = pr * .05; g.strokeStyle = "rgba(255,230,180,.6)"; g.stroke(); g.restore(); };
+    ring(false); const pg = g.createRadialGradient(-pr * .4, -pr * .45, pr * .1, 0, 0, pr); pg.addColorStop(0, "#ff9ad0"); pg.addColorStop(.55, "#8a2a9a"); pg.addColorStop(1, "#1a0630"); g.fillStyle = pg; g.beginPath(); g.arc(0, 0, pr, 0, 7); g.fill();
+    g.save(); g.beginPath(); g.arc(0, 0, pr, 0, 7); g.clip(); for (let i = -4; i <= 4; i++) { g.fillStyle = i % 2 ? "rgba(255,255,255,.05)" : "rgba(40,0,60,.12)"; g.fillRect(-pr, i * pr * .22, pr * 2, pr * .11); } g.restore(); ring(true); g.restore();
+    // the casino ship, hovering upper right, lights chasing round its rim, a soft tractor beam
+    const ux = SW * .8 + Math.sin(t * .5) * 8, uy = SH * .17 + Math.sin(t * .9) * 6, ur = Math.min(SW * .17, 78);
+    const bm = g.createLinearGradient(0, uy, 0, uy + SH * .35); bm.addColorStop(0, `rgba(125,255,200,${.22 + .08 * Math.sin(t * 2)})`); bm.addColorStop(1, "rgba(125,255,200,0)");
+    g.fillStyle = bm; g.beginPath(); g.moveTo(ux - ur * .35, uy + ur * .12); g.lineTo(ux + ur * .35, uy + ur * .12); g.lineTo(ux + ur * 1.1, uy + SH * .35); g.lineTo(ux - ur * 1.1, uy + SH * .35); g.closePath(); g.fill();
+    const dm = g.createRadialGradient(ux - ur * .15, uy - ur * .35, 2, ux, uy - ur * .2, ur * .5); dm.addColorStop(0, "#d8fbff"); dm.addColorStop(1, "#2a7aa8"); g.fillStyle = dm; g.beginPath(); g.ellipse(ux, uy - ur * .12, ur * .42, ur * .38, 0, Math.PI, 2 * Math.PI); g.fill();
+    const hb = g.createLinearGradient(0, uy - ur * .2, 0, uy + ur * .2); hb.addColorStop(0, "#c8cce0"); hb.addColorStop(.5, "#5a587a"); hb.addColorStop(1, "#1a1830"); g.fillStyle = hb; g.beginPath(); g.ellipse(ux, uy, ur, ur * .24, 0, 0, 7); g.fill();
+    for (let i = 0; i < 9; i++) { const a = i / 9 * Math.PI * 2 + t * 1.6, lx = ux + Math.cos(a) * ur * .82, ly = uy + Math.sin(a) * ur * .17; if (Math.sin(a) < -.2) continue;
+      const c = ["#ff4fae", "#ffc845", "#5fe8ff"][i % 3]; g.fillStyle = c; g.shadowColor = c; g.shadowBlur = 10; g.beginPath(); g.arc(lx, ly, 2.6, 0, 7); g.fill(); } g.shadowBlur = 0; }
+  let raf = 0; const loop = now => { if (!open) { raf = 0; return; } if (!playingGame()) drawSky(now / 1000); raf = requestAnimationFrame(loop); };
+  const playingGame = () => { const gm = document.getElementById("game"); return gm && !gm.hidden; };   // don't draw the sky behind an open game
+  const startSky = () => { skySize(); if (!raf) raf = requestAnimationFrame(loop); };
+
+  const bal = () => `<div class="bal holo" id="mnBal"><i></i><span>${W.get().toLocaleString()}</span></div>`;
   const nextIn = () => { const n = new Date(); n.setHours(24, 0, 0, 0); const m = Math.ceil((n - new Date()) / 6e4); return `${Math.floor(m / 60)}h ${m % 60}m`; };
   const rewardReady = () => load().claim !== today(), spinReady = () => load().spin !== today();
   function streakDay() { const d = load(); if (!d.claim) return 0; const gap = dayDiff(d.claim, today()); return gap === 0 ? (d.streak - 1) % 7 : gap === 1 ? d.streak % 7 : 0; }   // which day (0…6) is up next
   // ---- the home screen ----
   function home() { screen = "home"; body.style.alignContent = "";
     top.innerHTML = bal() + `<span></span>`;
-    body.innerHTML = `<div class="logo"><b>ALIEN</b><i>Casino</i></div>
+    const tile = (id, col, icon, name, sub, ready, badge) => `<button class="tile holo ${ready ? "ready" : ""}" id="${id}" style="--hc:${col}"><span class="ic">${svg(icon)}</span>${name}<small>${sub}</small>${ready && badge ? `<span class="dot">${badge}</span>` : ""}</button>`;
+    body.innerHTML = `<div class="page"><div class="logo"><b>ALIEN</b><i>Casino</i></div><div class="tag">win your way home</div>
       <button class="big holo" id="mnEnter">ENTER THE CASINO<small>walk the floor &middot; 3D</small></button>
       <div class="grid2">
-        <button class="tile holo" id="mnQuick" style="--hc:#5fe8ff">${svg('<path d="M5 3l14 9-14 9z"/>')}QUICK PLAY<small>straight to a game</small></button>
-        <button class="tile holo" id="mnSpin" style="--hc:#ff5fae">${svg('<circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18"/><path d="M12 1l2 3h-4z"/>')}DAILY SPIN<small>${spinReady() ? "ready!" : "next in " + nextIn()}</small>${spinReady() ? '<span class="dot"></span>' : ""}</button>
-        <button class="tile holo" id="mnDaily" style="--hc:#7dff9a">${svg('<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M9 15l2 2 4-4"/>')}DAILY REWARD<small>${rewardReady() ? "claim now!" : "next in " + nextIn()}</small>${rewardReady() ? '<span class="dot"></span>' : ""}</button>
-        <button class="tile holo" id="mnStore" style="--hc:#ffc845">${svg('<path d="M4 8h16l-1.5 12h-13z"/><path d="M8 8V6a4 4 0 0 1 8 0v2"/>')}STORE<small>get more bars</small></button>
-      </div>`;
+        ${tile("mnQuick", "#5fe8ff", '<path d="M7 4l12 8-12 8z"/>', "QUICK PLAY", "straight to a game", false)}
+        ${tile("mnSpin", "#ff4fae", '<circle cx="12" cy="13" r="8"/><path d="M12 5v16M4 13h16M6.3 7.3l11.4 11.4M17.7 7.3L6.3 18.7"/><path d="M12 1l2 3h-4z"/>', "DAILY SPIN", spinReady() ? "free spin ready!" : "next in " + nextIn(), spinReady(), "FREE")}
+        ${tile("mnDaily", "#7dff9a", '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M9 15l2 2 4-4"/>', "DAILY REWARD", rewardReady() ? "claim it now!" : "next in " + nextIn(), rewardReady(), "NEW")}
+        ${tile("mnStore", "#ffc845", '<path d="M4 8h16l-1.5 12h-13z"/><path d="M8 8V6a4 4 0 0 1 8 0v2"/>', "STORE", "get more bars", false)}
+      </div></div>`;
     foot.textContent = "A TRAVELLING CASINO · SOMEWHERE PAST JUPITER";
-    $m("mnEnter").onclick = () => { hide(); enterCasino(); }; $m("mnQuick").onclick = quick; $m("mnSpin").onclick = dailySpin; $m("mnDaily").onclick = dailyReward; $m("mnStore").onclick = store; }
+    $m("mnEnter").onclick = () => { SFX.open(); hide(); enterCasino(); }; $m("mnQuick").onclick = () => { SFX.tap(); quick(); }; $m("mnSpin").onclick = dailySpin; $m("mnDaily").onclick = dailyReward; $m("mnStore").onclick = store; }
   // ---- quick play: every game as a card; opens it straight away ----
   function quick() { screen = "quick"; body.style.alignContent = "start";
     top.innerHTML = `<div class="head"><button class="back holo" id="mnBack" aria-label="Back">${BACK}</button><h2>QUICK PLAY</h2></div>` + bal();
-    body.innerHTML = `<div class="games">${GAMES.map(g => `<button class="gcard holo" data-id="${g.id}" style="--gc:${g.col}">${svg(ICON[g.id] || ICON.slot)}<b>${g.name}</b><small>${g.kind}</small></button>`).join("")}</div>`;
+    body.innerHTML = `<div class="games">${GAMES.map((g, i) => `<button class="gcard holo" data-id="${g.id}" style="--gc:${g.col};animation-delay:${i * .05}s">${svg(ICON[g.id] || ICON.slot, "art")}${svg(ICON[g.id] || ICON.slot, "ico")}<b>${g.name}</b><small>${g.kind}</small><span class="play">${PLAY}</span></button>`).join("")}</div>`;
     foot.textContent = "";
-    $m("mnBack").onclick = home; body.querySelectorAll(".gcard").forEach(b => b.onclick = () => openGame(GAMES.find(g => g.id === b.dataset.id), null)); }
-  const $m = id => document.getElementById(id);
-  function modal(hc, html) { const m = document.createElement("div"); m.className = "mm"; m.innerHTML = `<div class="box holo" style="--hc:${hc}">${html}</div>`; document.body.appendChild(m);
-    m.addEventListener("click", e => { if (e.target === m) close(); }); const close = () => { m.remove(); refresh(); }; return { m, close, q: s => m.querySelector(s) }; }
-  function award(n) { W.set(W.get() + n); refresh(); }
+    $m("mnBack").onclick = () => { SFX.tap(); home(); }; body.querySelectorAll(".gcard").forEach(b => b.onclick = () => { SFX.open(); openGame(GAMES.find(g => g.id === b.dataset.id), null); }); }
+  function modal(hc, html) { SFX.open(); const m = document.createElement("div"); m.className = "mm"; m.innerHTML = `<div class="box holo" style="--hc:${hc}">${html}</div>`; document.body.appendChild(m);
+    m.addEventListener("click", e => { if (e.target === m && !m.dataset.busy) close(); }); const close = () => { m.remove(); refresh(); }; return { m, close, q: s => m.querySelector(s) }; }
+  // confetti and gold bars raining over a pop-up
+  function confetti(m, big) { const c = document.createElement("canvas"); c.className = "conf"; m.appendChild(c); const d = Math.min(2, devicePixelRatio || 1), w = innerWidth, h = innerHeight; c.width = w * d; c.height = h * d; const g = c.getContext("2d"); g.scale(d, d);
+    const bar = new Image(); bar.src = ART.bar; const cols = ["#ffc845", "#ff4fae", "#5fe8ff", "#7dff9a", "#b48cff"];
+    const ps = Array.from({ length: big ? 140 : 80 }, (_, i) => ({ x: w / 2 + (Math.random() - .5) * 60, y: h * .42, vx: (Math.random() - .5) * 520, vy: -250 - Math.random() * 520, r: Math.random() * 6, s: 4 + Math.random() * 5, c: cols[i % 5], bar: i % 6 === 0, life: 1.8 + Math.random() }));
+    let last = performance.now(), t = 0; (function f(now) { const dt = Math.min(.05, (now - last) / 1000); last = now; t += dt; g.clearRect(0, 0, w, h);
+      for (const p of ps) { p.vy += 700 * dt; p.vx *= .99; p.x += p.vx * dt; p.y += p.vy * dt; p.r += dt * 6; const a = Math.max(0, 1 - t / p.life); if (!a) continue; g.globalAlpha = a; g.save(); g.translate(p.x, p.y); g.rotate(p.r);
+        if (p.bar && bar.complete) g.drawImage(bar, -14, -9, 28, 18); else { g.fillStyle = p.c; g.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2); } g.restore(); }
+      g.globalAlpha = 1; if (t < 3 && c.isConnected) requestAnimationFrame(f); else c.remove(); })(last); }
+  // count a number up on screen, with coin ticks
+  function countUp(node, n) { const t0 = performance.now(), dur = Math.min(1400, 500 + n / 3); let lastTick = 0;
+    (function f(now) { const u = Math.min(1, (now - t0) / dur), v = Math.round(n * (1 - Math.pow(1 - u, 3))); node.innerHTML = `<i></i>+${v.toLocaleString()}`; if (now - lastTick > 70 && u < 1) { lastTick = now; SFX.coin(); } if (u < 1) requestAnimationFrame(f); })(t0); }
+  function award(n) { W.set(W.get() + n); const b = $m("mnBal"); if (b) { b.querySelector("span").textContent = W.get().toLocaleString(); b.classList.remove("bump"); void b.offsetWidth; b.classList.add("bump"); } }
   // ---- daily reward: a 7-day streak; miss a day and it starts again from day 1 ----
   function dailyReward() { const ready = rewardReady(), day = streakDay();
     const md = modal("#7dff9a", `<h3>DAILY REWARD</h3><p>${ready ? "Come back every day: the rewards grow, and day 7 is a big one." : "Already claimed today. Next reward in " + nextIn() + "."}</p>
@@ -8886,45 +8977,65 @@ const MENU = (() => {
       <button class="go holo" id="mmClaim" ${ready ? "" : "disabled"}>${ready ? "CLAIM " + REWARDS[day].toLocaleString() : "COME BACK TOMORROW"}</button><button class="x holo" id="mmX">CLOSE</button>`);
     md.q("#mmX").onclick = md.close;
     md.q("#mmClaim").onclick = () => { if (!rewardReady()) return; const d = load(), gap = d.claim ? dayDiff(d.claim, today()) : 9; d.streak = gap === 1 ? (d.streak || 0) + 1 : 1; d.claim = today(); save(d);
-      const n = REWARDS[(d.streak - 1) % 7]; award(n); md.q(".box").innerHTML = `<h3>DAY ${((d.streak - 1) % 7) + 1}</h3><div class="won">+${n.toLocaleString()}</div><p>bars added. See you tomorrow!</p><button class="x holo" id="mmX2">NICE</button>`; md.q("#mmX2").onclick = md.close; }; }
+      const n = REWARDS[(d.streak - 1) % 7], dn = ((d.streak - 1) % 7) + 1; award(n); SFX.win(dn === 7); confetti(md.m, dn === 7);
+      md.q(".box").innerHTML = `<h3>DAY ${dn}${dn === 7 ? " — JACKPOT!" : ""}</h3><div class="won" id="mmWon"></div><p>bars added. See you tomorrow!</p><button class="go holo" id="mmX2">NICE!</button>`; countUp(md.q("#mmWon"), n); md.q("#mmX2").onclick = md.close; }; }
   // ---- daily spin: one free spin of a prize wheel a day ----
   function dailySpin() { const ready = spinReady();
-    const md = modal("#ff5fae", `<h3>DAILY SPIN</h3><canvas class="sp" width="600" height="600"></canvas><p id="mmMsg">${ready ? "One free spin every day." : "Already spun today. Next spin in " + nextIn() + "."}</p>
-      <button class="go holo" id="mmGo" style="--hc:#ff5fae" ${ready ? "" : "disabled"}>${ready ? "SPIN!" : "COME BACK TOMORROW"}</button><button class="x holo" id="mmX">CLOSE</button>`);
-    const cv = md.q("canvas"), g = cv.getContext("2d"), N = SPIN.length, seg = Math.PI * 2 / N; let ang = 0, busy = false;
-    function draw(tick) { g.clearRect(0, 0, 600, 600); g.save(); g.translate(300, 310); g.rotate(ang);
-      for (let i = 0; i < N; i++) { const [v, , c] = SPIN[i], a0 = -Math.PI / 2 - seg / 2 + i * seg; const gr = g.createRadialGradient(0, 0, 40, 0, 0, 250); gr.addColorStop(0, "#120a2c"); gr.addColorStop(1, c);
-        g.fillStyle = gr; g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, 250, a0, a0 + seg); g.closePath(); g.fill(); g.strokeStyle = "#ffc845"; g.lineWidth = 4; g.stroke();
-        g.save(); g.rotate(a0 + seg / 2 + Math.PI / 2); g.fillStyle = "#fff"; g.shadowColor = "#000"; g.shadowBlur = 8; g.textAlign = "center"; g.font = '400 44px "Bungee",Impact,sans-serif'; g.fillText(v >= 1000 ? (v / 1000) + "K" : v, 0, -170); g.restore(); }
-      g.beginPath(); g.arc(0, 0, 250, 0, 7); g.lineWidth = 12; g.strokeStyle = "#cfd3e6"; g.stroke();
-      for (let i = 0; i < N * 2; i++) { const a = i / (N * 2) * Math.PI * 2; g.fillStyle = (i + (tick || 0)) % 2 ? "#ffc845" : "#ff5fae"; g.beginPath(); g.arc(Math.cos(a) * 262, Math.sin(a) * 262, 7, 0, 7); g.fill(); }
-      g.restore(); g.save(); g.translate(300, 310); const hub = g.createRadialGradient(-10, -10, 4, 0, 0, 46); hub.addColorStop(0, "#c8fbff"); hub.addColorStop(1, "#1a6aff"); g.fillStyle = hub; g.beginPath(); g.arc(0, 0, 44, 0, 7); g.fill(); g.restore();
-      g.fillStyle = "#ffc845"; g.shadowColor = "#ffc845"; g.shadowBlur = 14; g.beginPath(); g.moveTo(300, 92); g.lineTo(282, 40); g.lineTo(318, 40); g.closePath(); g.fill(); g.shadowBlur = 0; }
-    draw(0);
+    const md = modal("#ff4fae", `<h3>DAILY SPIN</h3><canvas class="sp" width="640" height="640"></canvas><p id="mmMsg">${ready ? "One free spin every day." : "Already spun today. Next spin in " + nextIn() + "."}</p>
+      <button class="go holo" id="mmGo" style="--hc:#ff4fae" ${ready ? "" : "disabled"}>${ready ? "SPIN!" : "COME BACK TOMORROW"}</button><button class="x holo" id="mmX">CLOSE</button>`);
+    const cv = md.q("canvas"), g = cv.getContext("2d"), N = SPIN.length, seg = Math.PI * 2 / N, C = 320, R = 262; let ang = 0, busy = false, flap = 0, glowK = 0, winK = -1, spinning = false;
+    const bar = new Image(); bar.src = ART.bar;
+    function draw(t) { g.clearRect(0, 0, 640, 640);
+      const halo = g.createRadialGradient(C, C + 6, R * .9, C, C + 6, R * 1.22); halo.addColorStop(0, `rgba(255,79,174,${.25 + glowK * .4})`); halo.addColorStop(1, "rgba(255,79,174,0)"); g.fillStyle = halo; g.fillRect(0, 0, 640, 640);
+      g.save(); g.translate(C, C + 6); g.rotate(ang);
+      for (let i = 0; i < N; i++) { const [v, , c] = SPIN[i], a0 = -Math.PI / 2 - seg / 2 + i * seg, hot = winK === i && Math.floor(t * 6) % 2 === 0;
+        const gr = g.createRadialGradient(0, 0, 50, 0, 0, R); gr.addColorStop(0, "#0e0824"); gr.addColorStop(.35, c); gr.addColorStop(1, hot ? "#fff" : c);
+        g.fillStyle = gr; g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, R, a0, a0 + seg); g.closePath(); g.fill();
+        g.save(); g.clip(); g.fillStyle = "rgba(255,255,255,.12)"; g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, R, a0, a0 + seg * .45); g.closePath(); g.fill(); g.restore();
+        g.strokeStyle = "#ffd76a"; g.lineWidth = 4; g.beginPath(); g.moveTo(0, 0); g.lineTo(Math.cos(a0) * R, Math.sin(a0) * R); g.stroke();
+        g.save(); g.rotate(a0 + seg / 2 + Math.PI / 2); g.textAlign = "center"; g.textBaseline = "middle"; g.shadowColor = "#000a"; g.shadowBlur = 10;
+        if (bar.complete && bar.naturalWidth) g.drawImage(bar, -26, -R + 34, 52, 34);
+        g.fillStyle = "#fff"; g.font = '400 46px "Bungee",Impact,sans-serif'; g.fillText(v >= 1000 ? (v / 1000) + "K" : v, 0, -R + 112); g.restore(); }
+      g.restore();
+      // chrome rim with chasing bulbs, then the hub
+      g.beginPath(); g.arc(C, C + 6, R + 6, 0, 7); g.lineWidth = 16; const rim = g.createLinearGradient(0, C - R, 0, C + R); rim.addColorStop(0, "#eef0ff"); rim.addColorStop(.5, "#7a78a0"); rim.addColorStop(1, "#d8dae8"); g.strokeStyle = rim; g.stroke();
+      for (let i = 0; i < 24; i++) { const a = i / 24 * Math.PI * 2, on = (i + Math.floor(t * (spinning ? 16 : 5))) % 3 === 0, c = on ? ["#ffc845", "#ff4fae", "#5fe8ff"][i % 3] : "#3a2a5a";
+        g.fillStyle = c; g.shadowColor = c; g.shadowBlur = on ? 14 : 0; g.beginPath(); g.arc(C + Math.cos(a) * (R + 6), C + 6 + Math.sin(a) * (R + 6), 6.5, 0, 7); g.fill(); } g.shadowBlur = 0;
+      const hub = g.createRadialGradient(C - 14, C - 8, 4, C, C + 6, 54); hub.addColorStop(0, "#e6fdff"); hub.addColorStop(.5, "#3a9aff"); hub.addColorStop(1, "#102a6a"); g.fillStyle = hub; g.beginPath(); g.arc(C, C + 6, 52, 0, 7); g.fill();
+      g.lineWidth = 6; g.strokeStyle = "#d8dae8"; g.stroke(); g.fillStyle = "#fff"; g.font = '400 22px "Bungee",Impact,sans-serif'; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("FREE", C, C + 7);
+      // the pointer: a gold flapper that kicks as the pegs go by
+      g.save(); g.translate(C, 30); g.rotate(flap); g.fillStyle = "#ffc845"; g.shadowColor = "#ffc845"; g.shadowBlur = 16; g.beginPath(); g.moveTo(0, 50); g.lineTo(-20, 0); g.quadraticCurveTo(0, -14, 20, 0); g.closePath(); g.fill(); g.shadowBlur = 0;
+      g.fillStyle = "#fff8"; g.beginPath(); g.arc(-4, 6, 5, 0, 7); g.fill(); g.restore(); }
+    (function idle(now) { if (!md.m.isConnected) return; if (!spinning) { glowK *= .95; draw(now / 1000); } requestAnimationFrame(idle); })(performance.now());
     md.q("#mmX").onclick = () => { if (!busy) md.close(); };
-    md.q("#mmGo").onclick = () => { if (busy || !spinReady()) return; busy = true; md.q("#mmGo").disabled = true;
+    md.q("#mmGo").onclick = () => { if (busy || !spinReady()) return; busy = true; spinning = true; md.m.dataset.busy = 1; md.q("#mmGo").disabled = true;
       let r = Math.random(), k = 0; for (let i = 0; i < N; i++) { if (r < SPIN[i][1]) { k = i; break; } r -= SPIN[i][1]; }
       const d = load(); d.spin = today(); save(d);                                 // spent the moment it starts, so closing the app mid-spin can't reroll it
-      const from = ang, start = performance.now(), dur = 5200;
+      const from = ang, start = performance.now(), dur = 5600;                     // land segment k under the pointer (the wheel turns clockwise) after six turns
       const end = from - (((from + k * seg) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2) - Math.PI * 2 * 6 + (Math.random() - .5) * seg * .7;
-      (function step(now) { const u = Math.min(1, (now - start) / dur), e = 1 - Math.pow(1 - u, 4); ang = from + (end - from) * e; draw(Math.floor(now / 120));
+      let lastPeg = Math.floor((from + seg / 2) / seg), fv = 0;
+      (function step(now) { const u = Math.min(1, (now - start) / dur), e = 1 - Math.pow(1 - u, 4); ang = from + (end - from) * e; glowK = Math.min(1, glowK + .05);
+        const pg = Math.floor((ang + seg / 2) / seg); if (pg !== lastPeg) { lastPeg = pg; fv = -.5; SFX.tick(); } flap += (fv - flap) * .5; fv *= .8; draw(now / 1000);
         if (u < 1) return requestAnimationFrame(step);
-        const v = SPIN[k][0]; award(v); md.q("#mmMsg").innerHTML = `<span class="won">+${v.toLocaleString()}</span>`; md.q("#mmGo").textContent = "COME BACK TOMORROW"; busy = false; })(start); }; }
+        spinning = false; flap = 0; winK = k; const v = SPIN[k][0]; award(v); SFX.win(v >= 1000); confetti(md.m, v >= 1000);
+        md.q("#mmMsg").innerHTML = `<span class="won" id="mmWon"></span>`; countUp(md.q("#mmWon"), v); md.q("#mmGo").textContent = "COME BACK TOMORROW"; busy = false; delete md.m.dataset.busy; })(start); }; }
   // ---- the store: bar packs. Test mode: nothing is charged; real purchases come with the app-store version ----
-  function store() { const md = modal("#ffc845", `<h3>STORE</h3><p>Top up your gold bars.</p><div class="packs">${PACKS.map((p, i) => `<button class="pack holo" data-i="${i}"><i></i><div><b>${p.bars.toLocaleString()}</b>${p.tag ? `<em>${p.tag}</em>` : ""}</div><span>${p.price}</span></button>`).join("")}</div>
+  const PILE = [[14, 18], [0, 18], [28, 18], [7, 9], [21, 9], [14, 0], [28, 2]];       // where each bar sits in a pack's little pile (up to 7)
+  const pile = n => `<div class="pile">${PILE.slice(0, n).map(([x, y]) => `<i style="left:${x}px;top:${y}px"></i>`).join("")}</div>`;
+  function store() { const md = modal("#ffc845", `<h3>STORE</h3><p>Top up your gold bars.</p><div class="packs">${PACKS.map((p, i) => `<button class="pack holo ${p.best ? "best" : ""}" data-i="${i}">${p.best ? '<span class="ribbon">BEST VALUE</span>' : ""}${pile(p.n)}<div><b>${p.bars.toLocaleString()}</b><em>${p.sub}</em></div><span>${p.price}</span></button>`).join("")}</div>
       <p class="note">TEST MODE &mdash; NO MONEY IS CHARGED. Tapping a pack just adds the bars, so we can try the flow. Real purchases come with the App Store / Google Play version.</p><button class="x holo" id="mmX">CLOSE</button>`);
     md.q("#mmX").onclick = md.close;
-    md.m.querySelectorAll(".pack").forEach(b => b.onclick = () => { const p = PACKS[+b.dataset.i];
-      md.q(".box").innerHTML = `<h3>${p.bars.toLocaleString()} BARS</h3><p>${p.price} &middot; test mode, nothing is charged</p><button class="go holo" id="mmBuy">CONFIRM</button><button class="x holo" id="mmNo">CANCEL</button>`;
+    md.m.querySelectorAll(".pack").forEach(b => b.onclick = () => { const p = PACKS[+b.dataset.i]; SFX.tap();
+      md.q(".box").innerHTML = `<h3>${p.bars.toLocaleString()} BARS</h3>${pile(p.n)}<p>${p.price} &middot; test mode, nothing is charged</p><button class="go holo" id="mmBuy">CONFIRM</button><button class="x holo" id="mmNo">CANCEL</button>`;
       md.q("#mmNo").onclick = () => { md.close(); store(); };
-      md.q("#mmBuy").onclick = () => { award(p.bars); md.q(".box").innerHTML = `<h3>THANK YOU!</h3><div class="won">+${p.bars.toLocaleString()}</div><p>bars added</p><button class="x holo" id="mmOk">DONE</button>`; md.q("#mmOk").onclick = md.close; }; }); }
+      md.q("#mmBuy").onclick = () => { award(p.bars); SFX.win(p.bars >= 30000); confetti(md.m, p.bars >= 30000); md.q(".box").innerHTML = `<h3>THANK YOU!</h3><div class="won" id="mmWon"></div><p>bars added</p><button class="go holo" id="mmOk">DONE</button>`; countUp(md.q("#mmWon"), p.bars); md.q("#mmOk").onclick = md.close; }; }); }
   function refresh() { if (!open) return; if (screen === "home") home(); else { const b = top.querySelector(".bal span"); if (b) b.textContent = W.get().toLocaleString(); } }
-  function show() { open = true; el.hidden = false; home(); }
+  function show() { open = true; el.hidden = false; home(); startSky(); }
   function hide() { open = false; el.hidden = true; }
   addEventListener("storage", refresh);
-  home();
+  home(); startSky();
   // the first time each day, the reward pops up by itself
-  if (rewardReady()) setTimeout(() => { if (open && screen === "home" && !document.querySelector(".mm")) dailyReward(); }, 700);
+  if (rewardReady()) setTimeout(() => { if (open && screen === "home" && !document.querySelector(".mm")) dailyReward(); }, 900);
   return { show, hide, refresh, get open() { return open; }, store };
 })();
 
