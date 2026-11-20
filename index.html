@@ -8770,4 +8770,13 @@ addEventListener("error",e=>{ $("lmsg").textContent="SOMETHING WENT WRONG: "+(e.
   $("lmsg").textContent="UNPACKING THE CASINO"; await new Promise(r=>requestAnimationFrame(()=>setTimeout(r,0)));
   try{ await buildFloor(); }catch(e){ $("lmsg").textContent="SOMETHING WENT WRONG: "+e.message; $("loading").classList.remove("done"); } })();
 </script>
-<script>if("serviceWorker" in navigator) addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));</script></body></html>
+<div id="offl" style="position:fixed;z-index:50;left:50%;bottom:calc(64px + env(safe-area-inset-bottom,0px));translate:-50% 0;padding:6px 12px;border-radius:20px;background:#06131fe6;border:1px solid #5fe8ff;color:#e6fbff;font:600 12px system-ui,sans-serif;box-shadow:0 0 12px #5fe8ff55;transition:opacity .6s;pointer-events:none" hidden></div>
+<script>(() => { const el = document.getElementById("offl"); let hideT;
+  const show = (t, ok) => { el.hidden = false; el.style.opacity = 1; el.style.borderColor = ok ? "#7dff9a" : "#5fe8ff"; el.textContent = t; clearTimeout(hideT); if (ok) hideT = setTimeout(() => { el.style.opacity = 0; }, 3500); };
+  if (!("serviceWorker" in navigator)) return;
+  try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) {}
+  navigator.serviceWorker.addEventListener("message", e => { const d = e.data || {}; if (d.type !== "offline") return;
+    if (d.done && !d.missing) show("✓ Saved — works offline", true); else if (d.done) show(`Offline copy incomplete (${d.missing} missing) — reopen with internet`); else show(`Saving for offline… ${d.have}/${d.total}`); });
+  const ask = () => navigator.serviceWorker.ready.then(r => r.active && r.active.postMessage("status")).catch(() => {});
+  addEventListener("load", () => navigator.serviceWorker.register("sw.js").then(ask).catch(() => show("Offline saving isn't available here")));
+  navigator.serviceWorker.addEventListener("controllerchange", ask); })();</script></body></html>
