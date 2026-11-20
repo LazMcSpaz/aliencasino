@@ -1,6 +1,6 @@
 // The front of the app: a title menu shown before the 3D casino loads, with Quick Play (open any game straight away, no casino),
 // a Daily Reward (a 7-day login streak), a Daily Spin (one free prize-wheel spin a day) and a Store (bar packs; test mode until the app-store version).
-// The backdrop is a living space scene drawn on a canvas: drifting stars, nebulae, a ringed planet, and the casino ship hovering with its tractor beam.
+// The backdrop is a quiet canvas: a deep gradient, slow nebula glows and drifting stars (no drawn pictures).
 // May use: GAMES, openGame, window.__alienWallet, Music, enterCasino, ART (all from lobby.src.html). Must not: touch the 3D scene.
 const MENU = (() => {
   const W = window.__alienWallet, KEY = "alien-casino-daily";
@@ -103,6 +103,46 @@ const MENU = (() => {
 .mm .won{font:400 2.6rem/1 var(--f-sign);color:#fff;text-shadow:0 0 20px var(--gold),0 0 4px #fff}
 .mm .won i{display:inline-block;width:46px;height:30px;margin-right:8px;vertical-align:-4px;background:var(--barimg) center/contain no-repeat;filter:drop-shadow(0 0 8px #ffc845)}
 .mm canvas.conf{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:2}
+.mm .box.glass{clip-path:none;border-radius:28px;background:linear-gradient(180deg,#141028,#0a0816);box-shadow:inset 0 0 0 1px #2e2752,inset 0 0 50px #000,0 0 70px -24px var(--hc),0 20px 50px #000a;padding:18px 14px 16px}
+.mm .box.glass::before{display:none}
+.mm .box.glass::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;opacity:.3;background:repeating-linear-gradient(0deg,#ffffff06 0 1px,transparent 1px 3px)}
+.mm .nt{position:relative;line-height:1;text-align:center;margin:-2px 0 -4px}
+.mm .nt i{display:block;font:400 1.9rem/1 "Yellowtail",cursive;color:#fff3c8;text-shadow:0 0 4px #fff8,0 0 12px #ffd23f,0 0 26px #ff8a3a;margin-bottom:-8px;transform:rotate(-6deg) translateX(-34px)}
+.mm .nt b{display:block;font:400 2.6rem/1 "Monoton",var(--f-sign);color:#f4ffe6;text-shadow:0 0 3px #fff,0 0 10px #b8ff3d,0 0 26px #7dff3a,0 0 48px #3d9a00;letter-spacing:.04em}
+.mm .wheelwrap{position:relative;width:min(84vw,320px);aspect-ratio:680/700}
+.mm .wheelwrap canvas.sp{width:100%;height:100%}
+.mm .rd{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;width:100%;margin-top:-4px}
+.mm .rdb{border-radius:14px;padding:8px 6px;background:#000;box-shadow:inset 0 0 0 1px #2e2752,inset 0 0 18px #000;display:grid;gap:3px;justify-items:center}
+.mm .rdb small{font:700 .52rem var(--f-tech);letter-spacing:.18em;color:#9a92c7}
+.mm .rdb b{font:700 1.02rem var(--f-tech);color:#f1edff;letter-spacing:.04em;white-space:nowrap}
+.mm .rdb b i{display:inline-block;width:20px;height:13px;margin-right:4px;vertical-align:-1px;background:var(--barimg) center/contain no-repeat}
+.mm .rdb.hit{box-shadow:inset 0 0 0 1.5px #b8ff3d,inset 0 0 22px #b8ff3d33,0 0 18px -4px #b8ff3d}.mm .rdb.hit b{color:#e9ffd0;text-shadow:0 0 10px #b8ff3d}
+.mm .spinbtn{position:relative;display:grid;place-items:center}
+.mm .spinbtn::before{content:"";position:absolute;width:150%;height:150%;border-radius:50%;pointer-events:none;background:radial-gradient(closest-side,#b8ff3d70,transparent);animation:mmbreathe 2.4s ease-in-out infinite}
+.mm .spinbtn:has(.bigspin:disabled)::before{opacity:0;animation:none}
+.mm .spinbtn.on::before{opacity:1;animation:mmbreathe .5s ease-in-out infinite}
+@keyframes mmbreathe{50%{opacity:.35}}
+.mm .bigspin{position:relative;z-index:1;width:96px;height:96px;border-radius:50%;border:0;cursor:pointer;font:700 1.1rem/1.05 var(--f-tech);letter-spacing:.14em;color:#112000;
+  background:radial-gradient(circle at 35% 30%,#eaffb8,#b8ff3d 45%,#5f9a00);box-shadow:0 6px 0 #3d6400,inset 0 -6px 14px #0004,inset 0 4px 10px #fff8,0 0 0 5px #0c0a1a,0 0 0 6px #2e2752,0 0 34px -6px #b8ff3d;transition:transform .08s,box-shadow .08s,filter .2s}
+.mm .bigspin small{display:block;font:700 .62rem var(--f-tech);letter-spacing:.08em;opacity:.75}
+.mm .bigspin:active:not(:disabled){transform:translateY(5px);box-shadow:0 1px 0 #3d6400,inset 0 -6px 14px #0004,inset 0 4px 10px #fff8,0 0 0 5px #0c0a1a,0 0 0 6px #2e2752}
+.mm .bigspin:disabled{filter:grayscale(.85) brightness(.5);cursor:default}
+.mm .spinbtn.on .bigspin{filter:none;animation:mmspinpulse .4s ease-in-out infinite alternate}
+@keyframes mmspinpulse{to{box-shadow:0 6px 0 #3d6400,inset 0 -6px 14px #0004,inset 0 4px 10px #fff8,0 0 0 5px #0c0a1a,0 0 0 6px #b8ff3d,0 0 44px 0 #b8ff3d}}
+.mm .msg{min-height:1.2em;font:600 .82rem var(--f-tech);color:#9a92c7}
+.mm .box.glass .x{clip-path:none;border:0;border-radius:999px;padding:8px 20px;background:#1d1838;box-shadow:inset 0 0 0 1px #2e2752;font:700 .7rem var(--f-tech);letter-spacing:.14em;color:#9a92c7}
+.mm .box.glass .day{clip-path:none;border-radius:12px;background:#000;box-shadow:inset 0 0 0 1px #2e2752,inset 0 0 14px #000}
+.mm .box.glass .day::after{border-radius:inherit}
+.mm .box.glass .day.got{box-shadow:inset 0 0 0 1px #3fd17a88}
+.mm .box.glass .day.now{box-shadow:inset 0 0 0 1.5px #ffd23f,inset 0 0 18px #ffd23f33,0 0 16px -4px #ffd23f;animation:none;transform:none}
+.mm .box.glass .go{clip-path:none;border:0;border-radius:999px;padding:14px;color:#2a1600;text-shadow:none;font:700 1rem var(--f-tech);letter-spacing:.14em;
+  background:radial-gradient(120% 140% at 35% 20%,#fff3c0,#ffd23f 45%,#c88a00);box-shadow:0 5px 0 #7a5400,inset 0 -5px 12px #0003,inset 0 3px 8px #fff8,0 0 30px -8px #ffd23f}
+.mm .box.glass .go:active:not([disabled]){transform:translateY(4px);box-shadow:0 1px 0 #7a5400,inset 0 -5px 12px #0003,inset 0 3px 8px #fff8}
+.mm .box.glass .go[disabled]{filter:grayscale(.9) brightness(.5)}
+.mm .box.glass .go::before{display:none}
+.mm .box.glass .pack{clip-path:none;border:0;border-radius:16px;background:#000;box-shadow:inset 0 0 0 1px #2e2752,inset 0 0 18px #000}
+.mm .box.glass .pack.best{box-shadow:inset 0 0 0 1.5px #ffd23f,inset 0 0 22px #ffd23f22,0 0 18px -6px #ffd23f;animation:none}
+.mm .box.glass .note{border-radius:12px}
 .mn-home{--k:7px}`;
   const st = document.createElement("style"); st.textContent = css; document.head.appendChild(st);
   const el = document.createElement("div"); el.className = "mn"; el.innerHTML = '<canvas class="sky" aria-hidden="true"></canvas><div class="top"></div><div class="body"></div><div class="foot"></div>'; document.body.appendChild(el);
@@ -123,7 +163,7 @@ const MENU = (() => {
     win: big => { [523, 659, 784, 1047, big ? 1319 : 0, big ? 1568 : 0].filter(Boolean).forEach((f, i) => tone(f, .25, { vol: .07, at: i * .08 })); for (let i = 0; i < 8; i++) tone(2000 + Math.random() * 1500, .05, { vol: .025, at: .3 + i * .06 }); },
     coin: () => tone(1900 + Math.random() * 500, .06, { vol: .03 }) };
 
-  // ---- the backdrop: stars drifting toward you, nebula glows, a ringed planet, and the casino ship hovering with its beam ----
+  // ---- the backdrop: stars drifting toward you over slow nebula glows ----
   const sky = el.querySelector("canvas.sky"), sg = sky.getContext("2d"); let SW = 1, SH = 1, stars = [];
   function skySize() { const d = Math.min(2, devicePixelRatio || 1); SW = el.clientWidth || innerWidth; SH = el.clientHeight || innerHeight; sky.width = SW * d; sky.height = SH * d; sg.setTransform(d, 0, 0, d, 0, 0);
     stars = Array.from({ length: 170 }, () => ({ x: (Math.random() - .5) * 2, y: (Math.random() - .5) * 2, z: Math.random(), tw: Math.random() * 6 })); }
@@ -137,20 +177,7 @@ const MENU = (() => {
     for (const s of stars) { s.z -= .0009; if (s.z <= .02) { s.z = 1; s.x = (Math.random() - .5) * 2; s.y = (Math.random() - .5) * 2; }
       const px = cx + s.x / s.z * SW * .35, py = cy + s.y / s.z * SH * .35; if (px < 0 || px > SW || py < 0 || py > SH) continue;
       const r = Math.max(.4, (1 - s.z) * 2.1), a = Math.min(1, (1 - s.z) * 1.6) * (.65 + .35 * Math.sin(t * 3 + s.tw)); g.fillStyle = `rgba(255,255,255,${a})`; g.beginPath(); g.arc(px, py, r, 0, 7); g.fill(); }
-    // a ringed planet low on the left
-    const px = SW * .12, py = SH * .8, pr = Math.min(SW, SH) * .26;
-    g.save(); g.translate(px, py); g.rotate(-.35);
-    const ring = front => { g.save(); g.scale(1, .26); g.beginPath(); g.arc(0, 0, pr * 1.75, front ? 0 : Math.PI, front ? Math.PI : 2 * Math.PI); g.lineWidth = pr * .16; g.strokeStyle = "rgba(255,200,120,.45)"; g.stroke(); g.lineWidth = pr * .05; g.strokeStyle = "rgba(255,230,180,.6)"; g.stroke(); g.restore(); };
-    ring(false); const pg = g.createRadialGradient(-pr * .4, -pr * .45, pr * .1, 0, 0, pr); pg.addColorStop(0, "#ff9ad0"); pg.addColorStop(.55, "#8a2a9a"); pg.addColorStop(1, "#1a0630"); g.fillStyle = pg; g.beginPath(); g.arc(0, 0, pr, 0, 7); g.fill();
-    g.save(); g.beginPath(); g.arc(0, 0, pr, 0, 7); g.clip(); for (let i = -4; i <= 4; i++) { g.fillStyle = i % 2 ? "rgba(255,255,255,.05)" : "rgba(40,0,60,.12)"; g.fillRect(-pr, i * pr * .22, pr * 2, pr * .11); } g.restore(); ring(true); g.restore();
-    // the casino ship, hovering upper right, lights chasing round its rim, a soft tractor beam
-    const ux = SW * .8 + Math.sin(t * .5) * 8, uy = SH * .17 + Math.sin(t * .9) * 6, ur = Math.min(SW * .17, 78);
-    const bm = g.createLinearGradient(0, uy, 0, uy + SH * .35); bm.addColorStop(0, `rgba(125,255,200,${.22 + .08 * Math.sin(t * 2)})`); bm.addColorStop(1, "rgba(125,255,200,0)");
-    g.fillStyle = bm; g.beginPath(); g.moveTo(ux - ur * .35, uy + ur * .12); g.lineTo(ux + ur * .35, uy + ur * .12); g.lineTo(ux + ur * 1.1, uy + SH * .35); g.lineTo(ux - ur * 1.1, uy + SH * .35); g.closePath(); g.fill();
-    const dm = g.createRadialGradient(ux - ur * .15, uy - ur * .35, 2, ux, uy - ur * .2, ur * .5); dm.addColorStop(0, "#d8fbff"); dm.addColorStop(1, "#2a7aa8"); g.fillStyle = dm; g.beginPath(); g.ellipse(ux, uy - ur * .12, ur * .42, ur * .38, 0, Math.PI, 2 * Math.PI); g.fill();
-    const hb = g.createLinearGradient(0, uy - ur * .2, 0, uy + ur * .2); hb.addColorStop(0, "#c8cce0"); hb.addColorStop(.5, "#5a587a"); hb.addColorStop(1, "#1a1830"); g.fillStyle = hb; g.beginPath(); g.ellipse(ux, uy, ur, ur * .24, 0, 0, 7); g.fill();
-    for (let i = 0; i < 9; i++) { const a = i / 9 * Math.PI * 2 + t * 1.6, lx = ux + Math.cos(a) * ur * .82, ly = uy + Math.sin(a) * ur * .17; if (Math.sin(a) < -.2) continue;
-      const c = ["#ff4fae", "#ffc845", "#5fe8ff"][i % 3]; g.fillStyle = c; g.shadowColor = c; g.shadowBlur = 10; g.beginPath(); g.arc(lx, ly, 2.6, 0, 7); g.fill(); } g.shadowBlur = 0; }
+  }
   let raf = 0; const loop = now => { if (!open) { raf = 0; return; } if (!playingGame()) drawSky(now / 1000); raf = requestAnimationFrame(loop); };
   const playingGame = () => { const gm = document.getElementById("game"); return gm && !gm.hidden; };   // don't draw the sky behind an open game
   const startSky = () => { skySize(); if (!raf) raf = requestAnimationFrame(loop); };
@@ -179,7 +206,7 @@ const MENU = (() => {
     body.innerHTML = `<div class="games">${GAMES.map((g, i) => `<button class="gcard holo" data-id="${g.id}" style="--gc:${g.col};animation-delay:${i * .05}s">${svg(ICON[g.id] || ICON.slot, "art")}${svg(ICON[g.id] || ICON.slot, "ico")}<b>${g.name}</b><small>${g.kind}</small><span class="play">${PLAY}</span></button>`).join("")}</div>`;
     foot.textContent = "";
     $m("mnBack").onclick = () => { SFX.tap(); home(); }; body.querySelectorAll(".gcard").forEach(b => b.onclick = () => { SFX.open(); openGame(GAMES.find(g => g.id === b.dataset.id), null); }); }
-  function modal(hc, html) { SFX.open(); const m = document.createElement("div"); m.className = "mm"; m.innerHTML = `<div class="box holo" style="--hc:${hc}">${html}</div>`; document.body.appendChild(m);
+  function modal(hc, html) { SFX.open(); const m = document.createElement("div"); m.className = "mm"; m.innerHTML = `<div class="box glass" style="--hc:${hc}">${html}</div>`; document.body.appendChild(m);
     m.addEventListener("click", e => { if (e.target === m && !m.dataset.busy) close(); }); const close = () => { m.remove(); refresh(); }; return { m, close, q: s => m.querySelector(s) }; }
   // confetti and gold bars raining over a pop-up
   function confetti(m, big) { const c = document.createElement("canvas"); c.className = "conf"; m.appendChild(c); const d = Math.min(2, devicePixelRatio || 1), w = innerWidth, h = innerHeight; c.width = w * d; c.height = h * d; const g = c.getContext("2d"); g.scale(d, d);
@@ -196,62 +223,98 @@ const MENU = (() => {
   // ---- daily reward: a 7-day streak; miss a day and it starts again from day 1 ----
   function dailyReward() { const ready = rewardReady(), day = streakDay();
     const md = modal("#7dff9a", `<h3>DAILY REWARD</h3><p>${ready ? "Come back every day: the rewards grow, and day 7 is a big one." : "Already claimed today. Next reward in " + nextIn() + "."}</p>
-      <div class="days">${REWARDS.map((r, i) => `<div class="day holo ${i < day || (!ready && i === day) ? "got" : ""} ${ready && i === day ? "now" : ""} ${i === 6 ? "big" : ""}">DAY ${i + 1}<i></i><b>${r.toLocaleString()}</b></div>`).join("")}</div>
-      <button class="go holo" id="mmClaim" ${ready ? "" : "disabled"}>${ready ? "CLAIM " + REWARDS[day].toLocaleString() : "COME BACK TOMORROW"}</button><button class="x holo" id="mmX">CLOSE</button>`);
+      <div class="days">${REWARDS.map((r, i) => `<div class="day ${i < day || (!ready && i === day) ? "got" : ""} ${ready && i === day ? "now" : ""} ${i === 6 ? "big" : ""}">DAY ${i + 1}<i></i><b>${r.toLocaleString()}</b></div>`).join("")}</div>
+      <button class="go" id="mmClaim" ${ready ? "" : "disabled"}>${ready ? "CLAIM " + REWARDS[day].toLocaleString() : "COME BACK TOMORROW"}</button><button class="x" id="mmX">CLOSE</button>`);
     md.q("#mmX").onclick = md.close;
     md.q("#mmClaim").onclick = () => { if (!rewardReady()) return; const d = load(), gap = d.claim ? dayDiff(d.claim, today()) : 9; d.streak = gap === 1 ? (d.streak || 0) + 1 : 1; d.claim = today(); save(d);
       const n = REWARDS[(d.streak - 1) % 7], dn = ((d.streak - 1) % 7) + 1; award(n); SFX.win(dn === 7); confetti(md.m, dn === 7);
-      md.q(".box").innerHTML = `<h3>DAY ${dn}${dn === 7 ? " — JACKPOT!" : ""}</h3><div class="won" id="mmWon"></div><p>bars added. See you tomorrow!</p><button class="go holo" id="mmX2">NICE!</button>`; countUp(md.q("#mmWon"), n); md.q("#mmX2").onclick = md.close; }; }
-  // ---- daily spin: one free spin of a prize wheel a day ----
-  function dailySpin() { const ready = spinReady();
-    const md = modal("#ff4fae", `<h3>DAILY SPIN</h3><canvas class="sp" width="640" height="640"></canvas><p id="mmMsg">${ready ? "One free spin every day." : "Already spun today. Next spin in " + nextIn() + "."}</p>
-      <button class="go holo" id="mmGo" style="--hc:#ff4fae" ${ready ? "" : "disabled"}>${ready ? "SPIN!" : "COME BACK TOMORROW"}</button><button class="x holo" id="mmX">CLOSE</button>`);
-    const cv = md.q("canvas"), g = cv.getContext("2d"), N = SPIN.length, seg = Math.PI * 2 / N, C = 320, R = 262; let ang = 0, busy = false, flap = 0, glowK = 0, winK = -1, spinning = false;
+      md.q(".box").innerHTML = `<h3>DAY ${dn}${dn === 7 ? " — JACKPOT!" : ""}</h3><div class="won" id="mmWon"></div><p>bars added. See you tomorrow!</p><button class="go" id="mmX2">NICE!</button>`; countUp(md.q("#mmWon"), n); md.q("#mmX2").onclick = md.close; }; }
+  // ---- daily spin: one free spin of a prize wheel a day. Built like Gravity Well's bowl (a lit, riveted metal lip; inset enamel segments
+  //      with recessed edges; light falling across from the top-left) with the slot machine's glossy SPIN button and readouts ----
+  const shade = (hex, k) => { const n = parseInt(hex.slice(1), 16), c = v => Math.max(0, Math.min(255, Math.round(v * k))); return `rgb(${c(n >> 16)},${c((n >> 8) & 255)},${c(n & 255)})`; };
+  function dailySpin() { const ready = spinReady(); SFX.open();
+    const m = document.createElement("div"); m.className = "mm"; document.body.appendChild(m);
+    m.innerHTML = `<div class="box glass" style="--hc:#b8ff3d"><div class="nt"><i>Daily</i><b>SPIN</b></div>
+      <div class="wheelwrap"><canvas class="sp" width="680" height="700"></canvas></div>
+      <div class="rd"><div class="rdb"><small>PRIZES</small><b>UP TO 2,500</b></div><div class="spinbtn"><button class="bigspin" id="mmGo" ${ready ? "" : "disabled"}>${ready ? "SPIN<small>FREE</small>" : "DONE<small>today</small>"}</button></div><div class="rdb"><small>WON</small><b id="mmWon">${ready ? "&ndash;" : "&ndash;"}</b></div></div>
+      <p class="msg" id="mmMsg">${ready ? "One free spin every day." : "Already spun today. Next spin in " + nextIn() + "."}</p><button class="x" id="mmX">CLOSE</button></div>`;
+    const close = () => { m.remove(); refresh(); }; m.addEventListener("click", e => { if (e.target === m && !m.dataset.busy) close(); });
+    const q = sel => m.querySelector(sel), cv = q("canvas"), g = cv.getContext("2d"), N = SPIN.length, seg = Math.PI * 2 / N;
+    const CX = 340, CY = 360, RO = 318, RL = 270, RS = 256, RH = 84;                  // outer lip, lip's inner edge, segments' outer edge, hub
+    let ang = 0, busy = false, flap = 0, winK = -1, spinning = false, lit = 0;
     const bar = new Image(); bar.src = ART.bar;
-    function draw(t) { g.clearRect(0, 0, 640, 640);
-      const halo = g.createRadialGradient(C, C + 6, R * .9, C, C + 6, R * 1.22); halo.addColorStop(0, `rgba(255,79,174,${.25 + glowK * .4})`); halo.addColorStop(1, "rgba(255,79,174,0)"); g.fillStyle = halo; g.fillRect(0, 0, 640, 640);
-      g.save(); g.translate(C, C + 6); g.rotate(ang);
-      for (let i = 0; i < N; i++) { const [v, , c] = SPIN[i], a0 = -Math.PI / 2 - seg / 2 + i * seg, hot = winK === i && Math.floor(t * 6) % 2 === 0;
-        const gr = g.createRadialGradient(0, 0, 50, 0, 0, R); gr.addColorStop(0, "#0e0824"); gr.addColorStop(.35, c); gr.addColorStop(1, hot ? "#fff" : c);
-        g.fillStyle = gr; g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, R, a0, a0 + seg); g.closePath(); g.fill();
-        g.save(); g.clip(); g.fillStyle = "rgba(255,255,255,.12)"; g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, R, a0, a0 + seg * .45); g.closePath(); g.fill(); g.restore();
-        g.strokeStyle = "#ffd76a"; g.lineWidth = 4; g.beginPath(); g.moveTo(0, 0); g.lineTo(Math.cos(a0) * R, Math.sin(a0) * R); g.stroke();
-        g.save(); g.rotate(a0 + seg / 2 + Math.PI / 2); g.textAlign = "center"; g.textBaseline = "middle"; g.shadowColor = "#000a"; g.shadowBlur = 10;
-        if (bar.complete && bar.naturalWidth) g.drawImage(bar, -26, -R + 34, 52, 34);
-        g.fillStyle = "#fff"; g.font = '400 46px "Bungee",Impact,sans-serif'; g.fillText(v >= 1000 ? (v / 1000) + "K" : v, 0, -R + 112); g.restore(); }
+    const band = (r0, r1, a0, a1) => { g.beginPath(); g.arc(CX, CY, r0, a0, a1); g.arc(CX, CY, r1, a1, a0, true); g.closePath(); };
+    function draw(t) { g.clearRect(0, 0, 680, 700);
+      // the lip: brushed metal lit from the top-left, a specular streak, rivets and LEDs set into it
+      g.save(); g.shadowColor = "#000"; g.shadowBlur = 26; g.shadowOffsetY = 10;
+      const metal = g.createLinearGradient(CX - RO, CY - RO, CX + RO, CY + RO); metal.addColorStop(0, "#a8a5bc"); metal.addColorStop(.45, "#4c495e"); metal.addColorStop(1, "#1a1826");
+      g.fillStyle = metal; g.beginPath(); g.arc(CX, CY, RO, 0, 7); g.fill(); g.restore();
+      const brush = g.createRadialGradient(CX, CY, RL, CX, CY, RO); brush.addColorStop(0, "#00000070"); brush.addColorStop(.3, "#ffffff14"); brush.addColorStop(.75, "#00000010"); brush.addColorStop(1, "#00000090");
+      g.fillStyle = brush; g.beginPath(); g.arc(CX, CY, RO, 0, 7); g.fill();
+      g.save(); g.strokeStyle = "#ffffff80"; g.lineWidth = 3; g.lineCap = "round"; g.beginPath(); g.arc(CX, CY, RO - 7, Math.PI * 1.05, Math.PI * 1.45); g.stroke(); g.restore();
+      for (let k = 0; k < 32; k++) { const a = (k + .5) / 32 * Math.PI * 2, rr = (RO + RL) / 2, x = CX + Math.cos(a) * rr, y = CY + Math.sin(a) * rr;
+        if (k % 2) { g.fillStyle = "#1a1824"; g.beginPath(); g.arc(x, y + 1.2, 6, 0, 7); g.fill(); g.fillStyle = "#c4c1d4"; g.beginPath(); g.arc(x, y, 4.6, 0, 7); g.fill(); continue; }
+        const i = k / 2, on = winK >= 0 ? Math.floor(t * 6) % 2 === 0 : spinning ? (i + Math.floor(t * 18)) % 4 === 0 : (i + Math.floor(t * 3)) % 8 === 0, c = ["#b8ff3d", "#ffd23f", "#ff5fae", "#4fd8ff"][i % 4];
+        g.fillStyle = "#0a0816"; g.beginPath(); g.arc(x, y, 9, 0, 7); g.fill();
+        const led = g.createRadialGradient(x - 2, y - 2, 1, x, y, 7.5); led.addColorStop(0, on ? "#fff" : "#4a4466"); led.addColorStop(.5, on ? c : "#2a2640"); led.addColorStop(1, on ? shade(c, .5) : "#16142a");
+        g.fillStyle = led; g.beginPath(); g.arc(x, y, 7, 0, 7); g.fill(); if (on) { g.save(); g.globalAlpha = .5; g.shadowColor = c; g.shadowBlur = 18; g.fill(); g.restore(); } }
+      // the drop from the lip to the face
+      const wall = g.createRadialGradient(CX, CY, RS, CX, CY, RL); wall.addColorStop(0, "#07060d"); wall.addColorStop(1, "#3a3650");
+      g.fillStyle = wall; g.beginPath(); g.arc(CX, CY, RL, 0, 7); g.arc(CX, CY, RS, 0, 7, true); g.fill();
+      // the face: inset enamel segments, turning with the wheel
+      g.save(); g.translate(CX, CY); g.rotate(ang); g.translate(-CX, -CY);
+      for (let i = 0; i < N; i++) { const [v, , col] = SPIN[i], a0 = -Math.PI / 2 - seg / 2 + i * seg, a1 = a0 + seg, alt = i % 2 ? .78 : 1, hot = winK === i;
+        const gr = g.createRadialGradient(CX, CY, RH, CX, CY, RS); gr.addColorStop(0, shade(col, .32 * alt)); gr.addColorStop(.55, shade(col, .78 * alt)); gr.addColorStop(1, shade(col, 1.02 * alt));
+        g.fillStyle = gr; band(RS, RH, a0, a1); g.fill();
+        if (hot) { g.fillStyle = `rgba(255,255,255,${.3 + .25 * Math.sin(t * 10)})`; band(RS, RH, a0, a1); g.fill(); }
+        g.strokeStyle = "#0a0818aa"; g.lineWidth = 3; band(RS, RH, a0, a1); g.stroke();                                   // recessed edge
+        g.strokeStyle = shade(col, 1.35); g.globalAlpha = .55; g.lineWidth = 1.2; band(RS - 3, RH + 3, a0 + .012, a1 - .012); g.stroke(); g.globalAlpha = 1;   // its inner highlight
+        const am = a0 + seg / 2; g.save(); g.translate(CX + Math.cos(am) * (RS - 72), CY + Math.sin(am) * (RS - 72)); g.rotate(am + Math.PI / 2);
+        g.textAlign = "center"; g.textBaseline = "middle"; const txt = v.toLocaleString(); g.font = `700 ${txt.length > 3 ? 38 : 50}px "Chakra Petch",system-ui,sans-serif`;
+        g.fillStyle = "#ffffff40"; g.fillText(txt, 0, 2); g.fillStyle = "#0d0b1ce6"; g.fillText(txt, 0, 0);                  // engraved: a light lower edge under dark ink
+        g.restore(); }
       g.restore();
-      // chrome rim with chasing bulbs, then the hub
-      g.beginPath(); g.arc(C, C + 6, R + 6, 0, 7); g.lineWidth = 16; const rim = g.createLinearGradient(0, C - R, 0, C + R); rim.addColorStop(0, "#eef0ff"); rim.addColorStop(.5, "#7a78a0"); rim.addColorStop(1, "#d8dae8"); g.strokeStyle = rim; g.stroke();
-      for (let i = 0; i < 24; i++) { const a = i / 24 * Math.PI * 2, on = (i + Math.floor(t * (spinning ? 16 : 5))) % 3 === 0, c = on ? ["#ffc845", "#ff4fae", "#5fe8ff"][i % 3] : "#3a2a5a";
-        g.fillStyle = c; g.shadowColor = c; g.shadowBlur = on ? 14 : 0; g.beginPath(); g.arc(C + Math.cos(a) * (R + 6), C + 6 + Math.sin(a) * (R + 6), 6.5, 0, 7); g.fill(); } g.shadowBlur = 0;
-      const hub = g.createRadialGradient(C - 14, C - 8, 4, C, C + 6, 54); hub.addColorStop(0, "#e6fdff"); hub.addColorStop(.5, "#3a9aff"); hub.addColorStop(1, "#102a6a"); g.fillStyle = hub; g.beginPath(); g.arc(C, C + 6, 52, 0, 7); g.fill();
-      g.lineWidth = 6; g.strokeStyle = "#d8dae8"; g.stroke(); g.fillStyle = "#fff"; g.font = '400 22px "Bungee",Impact,sans-serif'; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("FREE", C, C + 7);
-      // the pointer: a gold flapper that kicks as the pegs go by
-      g.save(); g.translate(C, 30); g.rotate(flap); g.fillStyle = "#ffc845"; g.shadowColor = "#ffc845"; g.shadowBlur = 16; g.beginPath(); g.moveTo(0, 50); g.lineTo(-20, 0); g.quadraticCurveTo(0, -14, 20, 0); g.closePath(); g.fill(); g.shadowBlur = 0;
-      g.fillStyle = "#fff8"; g.beginPath(); g.arc(-4, 6, 5, 0, 7); g.fill(); g.restore(); }
-    (function idle(now) { if (!md.m.isConnected) return; if (!spinning) { glowK *= .95; draw(now / 1000); } requestAnimationFrame(idle); })(performance.now());
-    md.q("#mmX").onclick = () => { if (!busy) md.close(); };
-    md.q("#mmGo").onclick = () => { if (busy || !spinReady()) return; busy = true; spinning = true; md.m.dataset.busy = 1; md.q("#mmGo").disabled = true;
+      // the step down into the face casts a shadow; light falls across from the top-left
+      const sh = g.createRadialGradient(CX, CY, RS - 34, CX, CY, RS); sh.addColorStop(0, "#0000"); sh.addColorStop(1, "#000a"); g.fillStyle = sh; g.beginPath(); g.arc(CX, CY, RS, 0, 7); g.arc(CX, CY, RS - 34, 0, 7, true); g.fill();
+      g.save(); g.beginPath(); g.arc(CX, CY, RS, 0, 7); g.clip(); const lt = g.createLinearGradient(CX - RS, CY - RS, CX + RS, CY + RS); lt.addColorStop(0, "#ffffff22"); lt.addColorStop(.5, "#00000000"); lt.addColorStop(1, "#00000055"); g.fillStyle = lt; g.fillRect(0, 0, 680, 700); g.restore();
+      // the hub: a machined collar round a dark glass dome with a lime LED ring
+      const col2 = g.createLinearGradient(CX - RH, CY - RH, CX + RH, CY + RH); col2.addColorStop(0, "#b4b1c6"); col2.addColorStop(.5, "#4c495e"); col2.addColorStop(1, "#1a1826");
+      g.save(); g.shadowColor = "#000"; g.shadowBlur = 16; g.fillStyle = col2; g.beginPath(); g.arc(CX, CY, RH, 0, 7); g.fill(); g.restore();
+      const dome = g.createRadialGradient(CX - 18, CY - 22, 4, CX, CY, RH - 12); dome.addColorStop(0, "#3a3460"); dome.addColorStop(.6, "#0e0c1e"); dome.addColorStop(1, "#05040c");
+      g.fillStyle = dome; g.beginPath(); g.arc(CX, CY, RH - 12, 0, 7); g.fill();
+      g.save(); g.strokeStyle = "#b8ff3d"; g.lineWidth = 3; g.shadowColor = "#b8ff3d"; g.shadowBlur = 14 + 8 * (spinning ? 1 : Math.sin(t * 2.4) * .5 + .5); g.beginPath(); g.arc(CX, CY, RH - 20, 0, 7); g.stroke(); g.restore();
+      g.fillStyle = "#ffffff30"; g.beginPath(); g.ellipse(CX - 16, CY - 26, 26, 12, -.5, 0, 7); g.fill();
+      g.fillStyle = "#e9ffd0"; g.font = '400 24px "Bungee",Impact,sans-serif'; g.textAlign = "center"; g.textBaseline = "middle"; g.shadowColor = "#b8ff3d"; g.shadowBlur = 12; g.fillText("FREE", CX, CY + 2); g.shadowBlur = 0;
+      // the pointer: a machined tab over the top of the lip with a lime LED, kicking as the pegs pass
+      g.save(); g.translate(CX, CY - RO + 14); g.rotate(flap);
+      const pm = g.createLinearGradient(-30, -20, 30, 50); pm.addColorStop(0, "#d8d6e6"); pm.addColorStop(.5, "#6a677e"); pm.addColorStop(1, "#2a2838");
+      g.shadowColor = "#000"; g.shadowBlur = 12; g.shadowOffsetY = 4; g.fillStyle = pm; g.beginPath(); g.moveTo(0, 62); g.lineTo(-26, 4); g.quadraticCurveTo(-28, -18, 0, -20); g.quadraticCurveTo(28, -18, 26, 4); g.closePath(); g.fill();
+      g.shadowBlur = 0; g.shadowOffsetY = 0; g.strokeStyle = "#ffffff60"; g.lineWidth = 2; g.beginPath(); g.moveTo(-22, 2); g.quadraticCurveTo(-24, -14, 0, -16); g.stroke();
+      const pl = g.createRadialGradient(-3, -3, 1, 0, 0, 10); pl.addColorStop(0, "#fff"); pl.addColorStop(.45, "#b8ff3d"); pl.addColorStop(1, "#3d6400"); g.fillStyle = pl; g.shadowColor = "#b8ff3d"; g.shadowBlur = 16; g.beginPath(); g.arc(0, 2, 9, 0, 7); g.fill(); g.restore(); }
+    (function idle(now) { if (!m.isConnected) return; if (!spinning) draw(now / 1000); requestAnimationFrame(idle); })(performance.now());
+    q("#mmX").onclick = () => { if (!busy) close(); };
+    q("#mmGo").onclick = () => { if (busy || !spinReady()) return; busy = true; spinning = true; m.dataset.busy = 1; q("#mmGo").disabled = true; q(".spinbtn").classList.add("on");
       let r = Math.random(), k = 0; for (let i = 0; i < N; i++) { if (r < SPIN[i][1]) { k = i; break; } r -= SPIN[i][1]; }
       const d = load(); d.spin = today(); save(d);                                 // spent the moment it starts, so closing the app mid-spin can't reroll it
       const from = ang, start = performance.now(), dur = 5600;                     // land segment k under the pointer (the wheel turns clockwise) after six turns
       const end = from - (((from + k * seg) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2) - Math.PI * 2 * 6 + (Math.random() - .5) * seg * .7;
-      let lastPeg = Math.floor((from + seg / 2) / seg), fv = 0;
-      (function step(now) { const u = Math.min(1, (now - start) / dur), e = 1 - Math.pow(1 - u, 4); ang = from + (end - from) * e; glowK = Math.min(1, glowK + .05);
-        const pg = Math.floor((ang + seg / 2) / seg); if (pg !== lastPeg) { lastPeg = pg; fv = -.5; SFX.tick(); } flap += (fv - flap) * .5; fv *= .8; draw(now / 1000);
+      let lastPeg = Math.floor((from + seg / 2) / seg), fv = 0; q("#mmMsg").textContent = "Round and round…";
+      (function step(now) { const u = Math.min(1, (now - start) / dur), e = 1 - Math.pow(1 - u, 4); ang = from + (end - from) * e;
+        const pg = Math.floor((ang + seg / 2) / seg); if (pg !== lastPeg) { lastPeg = pg; fv = -.45; SFX.tick(); } flap += (fv - flap) * .5; fv *= .8; draw(now / 1000);
         if (u < 1) return requestAnimationFrame(step);
-        spinning = false; flap = 0; winK = k; const v = SPIN[k][0]; award(v); SFX.win(v >= 1000); confetti(md.m, v >= 1000);
-        md.q("#mmMsg").innerHTML = `<span class="won" id="mmWon"></span>`; countUp(md.q("#mmWon"), v); md.q("#mmGo").textContent = "COME BACK TOMORROW"; busy = false; delete md.m.dataset.busy; })(start); }; }
+        spinning = false; flap = 0; winK = k; const v = SPIN[k][0]; award(v); SFX.win(v >= 1000); confetti(m, v >= 1000); q(".spinbtn").classList.remove("on");
+        countUp(q("#mmWon"), v); q("#mmWon").parentElement.classList.add("hit"); q("#mmMsg").textContent = v >= 1000 ? "Huge! Come back tomorrow for another." : "Nice! Come back tomorrow for another.";
+        q("#mmGo").innerHTML = "DONE<small>today</small>"; busy = false; delete m.dataset.busy; })(start); }; }
   // ---- the store: bar packs. Test mode: nothing is charged; real purchases come with the app-store version ----
   const PILE = [[14, 18], [0, 18], [28, 18], [7, 9], [21, 9], [14, 0], [28, 2]];       // where each bar sits in a pack's little pile (up to 7)
   const pile = n => `<div class="pile">${PILE.slice(0, n).map(([x, y]) => `<i style="left:${x}px;top:${y}px"></i>`).join("")}</div>`;
-  function store() { const md = modal("#ffc845", `<h3>STORE</h3><p>Top up your gold bars.</p><div class="packs">${PACKS.map((p, i) => `<button class="pack holo ${p.best ? "best" : ""}" data-i="${i}">${p.best ? '<span class="ribbon">BEST VALUE</span>' : ""}${pile(p.n)}<div><b>${p.bars.toLocaleString()}</b><em>${p.sub}</em></div><span>${p.price}</span></button>`).join("")}</div>
-      <p class="note">TEST MODE &mdash; NO MONEY IS CHARGED. Tapping a pack just adds the bars, so we can try the flow. Real purchases come with the App Store / Google Play version.</p><button class="x holo" id="mmX">CLOSE</button>`);
+  function store() { const md = modal("#ffc845", `<h3>STORE</h3><p>Top up your gold bars.</p><div class="packs">${PACKS.map((p, i) => `<button class="pack ${p.best ? "best" : ""}" data-i="${i}">${p.best ? '<span class="ribbon">BEST VALUE</span>' : ""}${pile(p.n)}<div><b>${p.bars.toLocaleString()}</b><em>${p.sub}</em></div><span>${p.price}</span></button>`).join("")}</div>
+      <p class="note">TEST MODE &mdash; NO MONEY IS CHARGED. Tapping a pack just adds the bars, so we can try the flow. Real purchases come with the App Store / Google Play version.</p><button class="x" id="mmX">CLOSE</button>`);
     md.q("#mmX").onclick = md.close;
     md.m.querySelectorAll(".pack").forEach(b => b.onclick = () => { const p = PACKS[+b.dataset.i]; SFX.tap();
-      md.q(".box").innerHTML = `<h3>${p.bars.toLocaleString()} BARS</h3>${pile(p.n)}<p>${p.price} &middot; test mode, nothing is charged</p><button class="go holo" id="mmBuy">CONFIRM</button><button class="x holo" id="mmNo">CANCEL</button>`;
+      md.q(".box").innerHTML = `<h3>${p.bars.toLocaleString()} BARS</h3>${pile(p.n)}<p>${p.price} &middot; test mode, nothing is charged</p><button class="go" id="mmBuy">CONFIRM</button><button class="x" id="mmNo">CANCEL</button>`;
       md.q("#mmNo").onclick = () => { md.close(); store(); };
-      md.q("#mmBuy").onclick = () => { award(p.bars); SFX.win(p.bars >= 30000); confetti(md.m, p.bars >= 30000); md.q(".box").innerHTML = `<h3>THANK YOU!</h3><div class="won" id="mmWon"></div><p>bars added</p><button class="go holo" id="mmOk">DONE</button>`; countUp(md.q("#mmWon"), p.bars); md.q("#mmOk").onclick = md.close; }; }); }
+      md.q("#mmBuy").onclick = () => { award(p.bars); SFX.win(p.bars >= 30000); confetti(md.m, p.bars >= 30000); md.q(".box").innerHTML = `<h3>THANK YOU!</h3><div class="won" id="mmWon"></div><p>bars added</p><button class="go" id="mmOk">DONE</button>`; countUp(md.q("#mmWon"), p.bars); md.q("#mmOk").onclick = md.close; }; }); }
   function refresh() { if (!open) return; if (screen === "home") home(); else { const b = top.querySelector(".bal span"); if (b) b.textContent = W.get().toLocaleString(); } }
   function show() { open = true; el.hidden = false; home(); startSky(); }
   function hide() { open = false; el.hidden = true; }
