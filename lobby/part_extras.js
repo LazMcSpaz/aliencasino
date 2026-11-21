@@ -32,8 +32,8 @@ const EXTRAS = (() => {
     for (const z of [-1.5, 1.5]) { const s = new THREE.Group(); s.position.set(.65, .35, z); g.add(s); add(s, new THREE.BoxGeometry(.5, 1.5, .55), mat.black, [0, .75, 0]);
       for (const [y, r] of [[1.15, .14], [.55, .2]]) { add(s, new THREE.TorusGeometry(r + .02, .015, 6, 24), mat.violet, [.26, y, 0], [0, Math.PI / 2, 0], false); const c = add(s, new THREE.ConeGeometry(r, .08, 24, 1, true), mat.shell, [.24, y, 0], [0, 0, -Math.PI / 2]); cones.push(c); } }
     // the LED wall behind: an equaliser and rings, redrawn to the beat
-    const [lc, lg] = canvas(512, 300), led = live(lc), panel = add(scene, new THREE.PlaneGeometry(4.6, 2.7), new THREE.MeshBasicMaterial({ map: led }), [-RX + .04, 3.0, 17.5], [0, Math.PI / 2, 0], false);
-    add(scene, new THREE.BoxGeometry(.06, 2.84, 4.74), mat.dark, [-RX + .01, 3.0, 17.5]); add(scene, new THREE.BoxGeometry(.02, 2.86, .03), mat.cyan, [-RX + .05, 3.0, 15.14], [0, 0, 0], false); add(scene, new THREE.BoxGeometry(.02, 2.86, .03), mat.cyan, [-RX + .05, 3.0, 19.86], [0, 0, 0], false);
+    const [lc, lg] = canvas(512, 300), led = live(lc), panel = add(scene, new THREE.PlaneGeometry(4.6, 2.7), new THREE.MeshBasicMaterial({ map: led }), [-RX + .075, 3.0, 17.5], [0, Math.PI / 2, 0], false);
+    add(scene, new THREE.BoxGeometry(.06, 2.84, 4.74), mat.dark, [-RX + .01, 3.0, 17.5]); add(scene, new THREE.BoxGeometry(.02, 2.86, .03), mat.cyan, [-RX + .08, 3.0, 15.14], [0, 0, 0], false); add(scene, new THREE.BoxGeometry(.02, 2.86, .03), mat.cyan, [-RX + .08, 3.0, 19.86], [0, 0, 0], false);
     const light = new THREE.PointLight(0xb48cff, 1.2, 7, 2); light.position.set(-RX + 2.4, 3.6, 17.5); scene.add(light);
     const hues = [300, 190, 270, 330, 170]; let lastDraw = 0, heights = new Array(24).fill(0);
     updates.push(t => { const p = Music.pulse(), bar = Music.bar(); decks.forEach(d => d.rotation.y -= .06); cones.forEach(c => c.scale.set(1, 1 + p * .5, 1));
@@ -72,13 +72,13 @@ const EXTRAS = (() => {
       add(g, curved(.66, 1.02, .36, -A, A, .05), mat.plush, [0, .05, 0]);                         // seat cushion
       add(g, curved(.98, 1.13, .95, -A, A, .04), mat.plush2, [0, .05, 0]);                        // backrest
       add(g, new THREE.TorusGeometry(1.055, .025, 6, 48, 2 * A), mat.gold, [0, 1.06, 0], [Math.PI / 2, 0, -A], false);   // gold piping along the top
-      add(g, new THREE.CylinderGeometry(.42, .42, .04, 28), mat.black, [0, .7, 0]); add(g, new THREE.TorusGeometry(.42, .012, 6, 32), mat.cyan, [0, .71, 0], [Math.PI / 2, 0, 0], false);
-      add(g, new THREE.CylinderGeometry(.05, .14, .68, 12), mat.chrome, [0, .34, 0]);
-      for (const [x, zz, c] of [[-.12, .1, 0xff5fae], [.1, -.14, 0x8dff6a]]) add(g, new THREE.CylinderGeometry(.04, .03, .12, 10), B(c, { transparent: true, opacity: .85 }), [x, .78, zz], [0, 0, 0], false);   // drinks
+      add(g, new THREE.CylinderGeometry(.42, .42, .04, 28), mat.black, [0, .6, 0]); add(g, new THREE.TorusGeometry(.42, .012, 6, 32), mat.cyan, [0, .61, 0], [Math.PI / 2, 0, 0], false);
+      add(g, new THREE.CylinderGeometry(.05, .14, .58, 12), mat.chrome, [0, .29, 0]);
+      for (const [x, zz, c] of [[-.12, .1, 0xff5fae], [.1, -.14, 0x8dff6a]]) add(g, new THREE.CylinderGeometry(.04, .03, .12, 10), B(c, { transparent: true, opacity: .85 }), [x, .68, zz], [0, 0, 0], false);   // drinks
     }
     // cocktail tables to stand at in the lounge: a chrome post, a lit round top
-    for (const [x, z] of TABLES) { const g = grp([x, 0, z]); add(g, new THREE.CylinderGeometry(.05, .2, 1.05, 12), mat.chrome, [0, .525, 0]); add(g, new THREE.CylinderGeometry(.38, .38, .04, 24), mat.black, [0, 1.07, 0]);
-      add(g, new THREE.TorusGeometry(.38, .012, 6, 32), mat.pink, [0, 1.08, 0], [Math.PI / 2, 0, 0], false); add(g, new THREE.CylinderGeometry(.04, .03, .12, 10), B(0x5fe8ff, { transparent: true, opacity: .85 }), [.1, 1.15, .05], [0, 0, 0], false); }
+    for (const [x, z] of TABLES) { const g = grp([x, 0, z]); add(g, new THREE.CylinderGeometry(.05, .2, .72, 12), mat.chrome, [0, .36, 0]); add(g, new THREE.CylinderGeometry(.38, .38, .04, 24), mat.black, [0, .74, 0]);
+      add(g, new THREE.TorusGeometry(.38, .012, 6, 32), mat.pink, [0, .75, 0], [Math.PI / 2, 0, 0], false); add(g, new THREE.CylinderGeometry(.04, .03, .12, 10), B(0x5fe8ff, { transparent: true, opacity: .85 }), [.1, .82, .05], [0, 0, 0], false); }
   }
 
   // ---- the jackpot board on the back wall: a big number that keeps climbing ----
@@ -95,15 +95,30 @@ const EXTRAS = (() => {
       tex.needsUpdate = true; });
   }
 
-  // ---- framed screens showing the games, on the side walls ----
+  // ---- framed screens on the side walls, each playing a looping clip of a game (a sprite sheet of 64 frames, 12 a second) ----
   function screens(TX) {
-    const screen = (img, p, ry, w, h, col) => { if (!img) return; const t = new THREE.Texture(img); t.encoding = THREE.sRGBEncoding; t.needsUpdate = true;
-      const g = grp(p, ry); add(g, new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: t }), [0, 0, .035], [0, 0, 0], false);
-      add(g, new THREE.BoxGeometry(w + .14, h + .14, .05), mat.dark, [0, 0, 0]); const e = B(col); for (const [x, y, ww, hh] of [[0, h / 2 + .07, w + .16, .02], [0, -h / 2 - .07, w + .16, .02], [w / 2 + .07, 0, .02, h + .16], [-w / 2 - .07, 0, .02, h + .16]]) add(g, new THREE.BoxGeometry(ww, hh, .02), e, [x, y, .03], [0, 0, 0], false); };
-    const PY = TX.pyramid && TX.pyramid.screen, AS = TX.asteroid && TX.asteroid.screen, WO = TX.warp && TX.warp.orbit, hw = (im, w) => w * im.height / im.width;
-    if (PY) { screen(PY, [-RX + .04, 3.4, 1.0], Math.PI / 2, 1.8, hw(PY, 1.8), 0xffc845); screen(PY, [RX - .04, 3.7, 1.9], -Math.PI / 2, 1.5, hw(PY, 1.5), 0xffc845); }
-    if (AS) { screen(AS, [-RX + .04, 3.4, 8.2], Math.PI / 2, 1.6, hw(AS, 1.6), 0x5fe8ff); screen(AS, [RX - .04, 3.4, -4.4], -Math.PI / 2, 1.6, hw(AS, 1.6), 0x5fe8ff); screen(AS, [RX - .04, 3.7, 9.1], -Math.PI / 2, 1.3, hw(AS, 1.3), 0x5fe8ff); }
-    if (WO) { screen(WO, [RX - .04, 3.2, 16.5], -Math.PI / 2, 3.0, hw(WO, 3.0), 0xff5fae); screen(WO, [-RX + .04, 3.4, -5.2], Math.PI / 2, 2.4, hw(WO, 2.4), 0xff5fae); }
+    const A = TX.attract || {}, FPS = 12, players = [];
+    const screen = (g, p, ry, H, maxW, col, phase) => { const c = A[g]; if (!c || !c.src) return;
+      const W = Math.min(maxW, H * c.aspect), h = W / c.aspect, img = c.src, sw = img.width, sh = img.height, fw = sw / c.cols, fh = sh / c.rows;
+      const t = new THREE.Texture(img); t.encoding = THREE.sRGBEncoding; t.generateMipmaps = false; t.minFilter = THREE.LinearFilter; t.needsUpdate = true;
+      t.repeat.set((fw - 1) / sw, (fh - 1) / sh);
+      const m = new THREE.MeshBasicMaterial({ map: t, color: 0x000000 }), grpp = grp(p, ry); add(grpp, new THREE.PlaneGeometry(W, h), m, [0, 0, .035], [0, 0, 0], false);
+      add(grpp, new THREE.BoxGeometry(W + .14, h + .14, .05), mat.dark, [0, 0, 0]); const e = B(col);
+      for (const [x, y, ww, hh] of [[0, h / 2 + .07, W + .16, .02], [0, -h / 2 - .07, W + .16, .02], [W / 2 + .07, 0, .02, h + .16], [-W / 2 - .07, 0, .02, h + .16]]) add(grpp, new THREE.BoxGeometry(ww, hh, .02), e, [x, y, .03], [0, 0, 0], false);
+      players.push({ t, m, c, fw, fh, sw, sh, phase, last: -1 }); };
+    // left wall (facing +x), then right wall (facing -x)
+    screen("wheel",    [-RX + .04, 3.4, -5.2], Math.PI / 2, 1.8, 2.4, 0x5fe8ff, 0);
+    screen("slot",     [-RX + .04, 3.5, 1.0],  Math.PI / 2, 1.2, 2.0, 0x8dff6a, 1.7);
+    screen("gravity",  [-RX + .04, 3.4, 8.2],  Math.PI / 2, 1.6, 2.0, 0xb48cff, 3.1);
+    screen("asteroid", [RX - .04, 3.4, -4.4],  -Math.PI / 2, 1.6, 2.0, 0x5fe8ff, .9);
+    screen("pyramid",  [RX - .04, 3.6, 1.9],   -Math.PI / 2, 1.6, 2.0, 0xffc845, 2.4);
+    screen("moons",    [RX - .04, 3.75, 9.3],  -Math.PI / 2, 1.0, 1.5, 0xff5fae, 4.0);
+    screen("warp",     [RX - .04, 3.25, 16.5], -Math.PI / 2, 2.5, 1.4, 0xff5fae, 1.2);
+    // each clip runs once then cuts to black for a beat before it starts again, like a looping display
+    updates.push(t => { for (const s of players) { const len = s.c.n / FPS + .3, k = ((t + s.phase) % len) * FPS, f = Math.min(s.c.n - 1, Math.floor(k));
+      const fade = Math.max(0, Math.min(1, k / 3, (s.c.n - k) / 3)); s.m.color.setScalar(fade);
+      if (f === s.last) continue; s.last = f; const col = f % s.c.cols, row = Math.floor(f / s.c.cols);
+      s.t.offset.set((col * s.fw + .5) / s.sw, 1 - ((row + 1) * s.fh - .5) / s.sh); } });
   }
 
   // ---- planters: a dark pot with a gold rim, a plant goes in later ----

@@ -20,6 +20,8 @@ art = {"bar": d(here/"../slot/icons3/bar1.a.webp")}
 import subprocess as _sp
 wheel_cfg = json.loads(_sp.run(["node", "-e", 'const E=require(process.argv[1]); console.log(JSON.stringify({layout:E.LAYOUT, worlds:E.WORLDS}))', str((here/"../wheel/part_engine.js").resolve())], capture_output=True, text=True, check=True).stdout)
 tex["wheel"] = wheel_cfg
+# looping clips of each game for the wall screens (made by tools/attract.js + tools/attract_pack.py)
+tex["attract"] = {g: dict(m, src=d(here/f"assets/attract_{g}.webp")) for g, m in json.load(open(here/"assets/attract.json")).items()}
 s = (here/"lobby.src.html").read_text().replace("/*{{ART}}*/", json.dumps(art)).replace("/*{{MODELS}}*/", models + "\n" + (here/"part_extras.js").read_text()).replace("/*{{MENU}}*/", (here/"part_menu.js").read_text()).replace("/*{{MUSIC}}*/", (here/"part_music.js").read_text()).replace("/*{{WALK}}*/", (here/"part_walk.js").read_text()).replace("/*{{TEX}}*/", json.dumps(tex))
 (here/"lobby.html").write_text(s); print("lobby.html", len(s)//1024, "KB")
 # the CC0 models go out as base64 text next to the page (the artifact host doesn't serve .glb files)

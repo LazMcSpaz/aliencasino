@@ -1,0 +1,44 @@
+{
+ "slot": {
+  "cols": 8,
+  "rows": 8,
+  "n": 64,
+  "aspect": 1.4444
+ },
+ "pyramid": {
+  "cols": 8,
+  "rows": 8,
+  "n": 64,
+  "aspect": 0.7609
+ },
+ "asteroid": {
+  "cols": 8,
+  "rows": 8,
+  "n": 64,
+  "aspect": 0.961
+ },
+ "gravity": {
+  "cols": 8,
+  "rows": 8,
+  "n": 64,
+  "aspect": 0.925
+ },
+ "moons": {
+  "cols": 8,
+  "rows": 8,
+  "n": 64,
+  "aspect": 1.3
+ },
+ "warp": {
+  "cols": 8,
+  "rows": 8,
+  "n": 64,
+  "aspect": 0.4113
+ },
+ "wheel": {
+  "cols": 8,
+  "rows": 8,
+  "n": 64,
+  "aspect": 1.0
+ }
+}

@@ -198,8 +198,8 @@ const ZF=21, SL=ZF-(ZC-RD/2), SC=(ZF+ZC-RD/2)/2;   // the side walls run on to t
   const dark=new THREE.MeshStandardMaterial({color:0x1c1b22,metalness:.45,roughness:.45}), shell=new THREE.MeshStandardMaterial({color:0x2c2b34,metalness:.55,roughness:.38}),
     gold=new THREE.MeshStandardMaterial({color:0xffc845,metalness:.85,roughness:.28}), top=new THREE.MeshStandardMaterial({color:0x120c22,metalness:.3,roughness:.15}), glowV=new THREE.MeshBasicMaterial({color:0xb48cff}), glowC=new THREE.MeshBasicMaterial({color:0x5fe8ff});
   const box=(w,h,d,m,x,y,z)=>{ const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m); o.position.set(x,y,z); o.castShadow=o.receiveShadow=true; scene.add(o); return o; };
-  box(.7,1.0,len,shell,BX,.5,zc); box(.82,.06,len+.12,top,BX-.04,1.03,zc); box(.84,.02,len+.14,gold,BX-.04,1.0,zc);
-  box(.01,.05,len-.1,glowV,BX-.355,.85,zc).castShadow=false; box(.01,.04,len-.1,glowC,BX-.355,.12,zc).castShadow=false;
+  box(.7,.8,len,shell,BX,.4,zc); box(.82,.06,len+.12,top,BX-.04,.83,zc); box(.84,.02,len+.14,gold,BX-.04,.8,zc);
+  box(.01,.05,len-.1,glowV,BX-.355,.68,zc).castShadow=false; box(.01,.04,len-.1,glowC,BX-.355,.12,zc).castShadow=false;
   box(.3,.05,len+.2,dark,SH+.04,.03,zc);
   for(const y of [1.45,1.9,2.35]){ box(.32,.04,len-.4,dark,SH,y,zc); box(.02,.02,len-.4,glowC,SH-.16,y-.03,zc).castShadow=false; }
   { const geo=new THREE.CylinderGeometry(.04,.045,.26,10), cols=[0xff5fae,0x5fe8ff,0xffc845,0x8dff6a,0xb48cff,0xff8a3a], per=34, n=per*3,
@@ -215,8 +215,8 @@ const ZF=21, SL=ZF-(ZC-RD/2), SC=(ZF+ZC-RD/2)/2;   // the side walls run on to t
 function buildStools(){ const n=STOOLS.length; if(!n) return;
   const seat=new THREE.MeshStandardMaterial({color:0x2a1a4f,metalness:.2,roughness:.5}), metal=new THREE.MeshStandardMaterial({color:0x8d8aa0,metalness:.85,roughness:.3}),
     dark=new THREE.MeshStandardMaterial({color:0x1c1b22,metalness:.45,roughness:.45}), gold=new THREE.MeshStandardMaterial({color:0xffc845,metalness:.85,roughness:.28}), glow=new THREE.MeshBasicMaterial({color:0xb48cff});
-  const parts=[[new THREE.CylinderGeometry(.2,.2,.08,20),seat,.74,0],[new THREE.TorusGeometry(.2,.012,4,24),glow,.74,Math.PI/2],[new THREE.CylinderGeometry(.035,.05,.7,10),metal,.36,0],
-    [new THREE.CylinderGeometry(.22,.25,.03,20),dark,.015,0],[new THREE.TorusGeometry(.16,.012,6,20),gold,.32,Math.PI/2]];
+  const parts=[[new THREE.CylinderGeometry(.2,.2,.08,20),seat,.56,0],[new THREE.TorusGeometry(.2,.012,4,24),glow,.56,Math.PI/2],[new THREE.CylinderGeometry(.035,.05,.53,10),metal,.28,0],
+    [new THREE.CylinderGeometry(.22,.25,.03,20),dark,.015,0],[new THREE.TorusGeometry(.16,.012,6,20),gold,.24,Math.PI/2]];
   const M=new THREE.Matrix4(), q=new THREE.Quaternion(), one=new THREE.Vector3(1,1,1);
   for(const [geo,m,y,rx] of parts){ const im=new THREE.InstancedMesh(geo,m,n); q.setFromEuler(new THREE.Euler(rx,0,0));
     STOOLS.forEach(([x,z],i)=>{ M.compose(new THREE.Vector3(x,y,z),q,one); im.setMatrixAt(i,M); }); im.castShadow=m!==glow; im.receiveShadow=true; scene.add(im); } }
