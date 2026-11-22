@@ -556,7 +556,7 @@ async function doRoll(aim, force){
   { const st=res.outcomes.find(o=>o.spot==="streak" && o.win); if(st){ banner(`STREAK PAYS ×${Math.round(st.win/st.amt)}`, `+${st.win} gold bars`, "var(--gold)"); SFX.fanfare(); } }
   countTo($("win"),0,res.totalWin,600); countTo($("credits"),c0,credits,600);
   if(res.crash && autoRoll) Others.nextShooter();                 // like craps: the shooter keeps the dice until the moons collide
-  await wait(1000); view=null; rolling=false; paint();
+  await wait(1000); await BigWin.show(res.totalWin, res.outcomes.reduce((a,o)=>a+(o.amt||0),0)); view=null; rolling=false; paint();
   betWindow();                                                    // the aliens get a quick window to bet before the next roll
 }
 // between rolls: a betting window; when the aliens are shooting, it ends with their throw
@@ -792,6 +792,7 @@ $("fhit").addEventListener("click",()=>{ $("sheet").hidden=true; if(point===null
 $("fcrash").addEventListener("click",()=>{ FORCE.dice=[4,4]; $("sheet").hidden=true; });
 document.addEventListener("pointerdown",()=>Sound.unlock(),{once:true});
 addEventListener("resize",()=>{ layout(); if(!rolling) rest(); draw(); });
+Refill.start(1, ()=>rolling);   // the shared free refill when the bars run out
 paint(); requestAnimationFrame(()=>{ layout(); rest(); draw(); setTimeout(()=>say("Place a bet, then roll the moons."),400); betWindow(); });
 document.fonts && document.fonts.load('20px "Bungee"').then(()=>draw()).catch(()=>{});
 </script>

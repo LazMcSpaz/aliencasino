@@ -1,6 +1,6 @@
 import base64
 sh=open('shell.html').read()
-eng=open('part_wallet.js').read()+'\n'+open('part_engine.js').read()
+eng=open('part_wallet.js').read()+'\n'+open('part_shared.js').read()+'\n'+open('part_engine.js').read()
 snd=open('part_sound.js').read().replace("    refill(){","    tone, arp, note, thud,\n    refill(){",1)
 ids={"wild":"spiky_fruit","boar":"boar","chicken":"chicken","egg":"egg","drink":"drink","pasta":"pasta","wrap":"wrap","banana3":"banana3","banana2":"banana2","banana1":"banana1","bowl":"goop_bowl","jug":"jug"}
 import json

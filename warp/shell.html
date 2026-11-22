@@ -433,7 +433,7 @@ function doCash(i,m){ const win=cashOut(i,m); if(!win) return; Fx.bail(SLOT_COL[
 async function boom(){ phase="boom"; Engine.off(); const pad=mult<=1; Fx.boom(); SFX.boom(); shake(10,550);
   $("mult").className="mult boom"; $("mult").firstChild.textContent=fmt(mult); $("multSub").textContent = pad ? "drone exploded on the pad" : "drone destroyed";
   crewBoom(); const r=lastR=endRound(); paintHist(); youRow(r); say(line(pad?"pad":"boom")); if(r.slots.some(sl=>sl.bet && !sl.cashed)) SFX.lose(); paint();
-  await wait(3300); betWindow(); }
+  await wait(1200); await BigWin.show(r.slots.reduce((a,sl)=>a+(sl.cashed?sl.cashed.win:0),0), r.slots.reduce((a,sl)=>a+(sl.bet||0),0)); await wait(2100); betWindow(); }
 
 // ---- controls ----
 document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{ sel=+t.dataset.s; Sound.tap(); paint(); });
@@ -487,5 +487,6 @@ $("f3").addEventListener("click",()=>{ FORCE.crash=3; $("sheet").hidden=true; })
 $("f60").addEventListener("click",()=>{ FORCE.crash=60; $("sheet").hidden=true; });
 document.addEventListener("pointerdown",()=>Sound.unlock(),{once:true});
 addEventListener("resize",()=>Fx.size());
+Refill.start(1, ()=>round.slots.some(sl=>sl.bet && !sl.cashed && phase!=="boom"));   // the shared free refill when the bars run out
 paintHist(); paint(); requestAnimationFrame(()=>{ Fx.start(); betWindow(); });
 </script>

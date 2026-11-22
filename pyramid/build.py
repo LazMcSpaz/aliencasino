@@ -10,6 +10,6 @@ art = {"sandstone": b64("art/sandstone.webp", "image/webp"), "bar": b64("../slot
 # shared sound engine (lives in slot/ for now); expose the generic voices the same way slot/build.py does
 snd = (here / "../slot/part_sound.js").read_text().replace("    refill(){", "    tone, arp, note, thud,\n    refill(){", 1)
 s = (here / "shell.html").read_text()
-s = s.replace("/*{{ART}}*/", json.dumps(art)).replace("/*{{MASCOT}}*/", json.dumps(mascot)).replace("/*{{ENGINE}}*/", ((here / "../slot/part_wallet.js").read_text() + "\n" + (here / "part_engine.js").read_text())).replace("/*{{SOUND}}*/", snd)
+s = s.replace("/*{{ART}}*/", json.dumps(art)).replace("/*{{MASCOT}}*/", json.dumps(mascot)).replace("/*{{ENGINE}}*/", (((here / "../slot/part_wallet.js").read_text() + "\n" + (here / "../slot/part_shared.js").read_text()) + "\n" + (here / "part_engine.js").read_text())).replace("/*{{SOUND}}*/", snd)
 (here / "pyramid.html").write_text(s)
 print("pyramid.html", len(s) // 1024, "KB")

@@ -7,18 +7,18 @@ const SYMBOLS = [
   ["chicken", "Alien chicken",  3,  42, 3, 0],
   ["egg",     "Chicken egg",    4,  27, 2, 0],
   ["drink",   "Bubbly drink",   5,  19, 2, 0],
-  ["pasta",   "Space pasta",    6,  13, 1, 0],
-  ["wrap",    "Lettuce wrap",   7,   9, 1, 0],
-  ["banana3", "Triple banana",  5,  15, 1, 1],
-  ["banana2", "Double banana",  7,   8, 1, 1],
-  ["banana1", "Single banana",  9,   5, 0, 1],
-  ["bowl",    "Goop bowl",    2.6,   0, 0, 0],   // SCATTER: 3+ anywhere on screen starts Bowl-nus spins
+  ["pasta",   "Space pasta",    6,  12, 1, 0],
+  ["wrap",    "Lettuce wrap",   7,   8, 1, 0],
+  ["banana3", "Triple banana",  5,  13, 1, 1],
+  ["banana2", "Double banana",  7,   7, 1, 1],
+  ["banana1", "Single banana",  9,   4, 0, 1],
+  ["bowl",    "Goop bowl",    2.2,   0, 0, 0],   // SCATTER: 3+ anywhere on screen starts Bowl-nus spins
   ["jug",     "Goop jug",       0,   0, 0, 0],   // appears only during Bowl-nus spins: each one adds spins
 ];
 const WILD = 0, BOWL = 10, JUG = 11;
 // Bowl-nus spins: free spins at the bet that triggered them, every win multiplied
 // Multiplier booster: during Bowl-nus spins every top-paying symbol (role 1: boar / DJ / Capone) that lands adds +1 to the multiplier, up to multCap
-const BONUS = { spins3:7, spins4:10, mult:2, multSym:1, multCap:5, jugAdds:2, weights:{ bowl:0, jug:0.15, boar:0.6 } };
+const BONUS = { spins3:8, spins4:12, mult:3, multSym:1, multCap:6, jugAdds:2, floor:8, weights:{ bowl:0, jug:0.15, boar:0.6, wild:3, banana1:4 } };   // retuned: bonus rounds pay ~35x the bet on average and never under 8x (floor)
 let bonusMult = BONUS.mult;
 let ANY_LABEL = "Any bananas";   // set per machine
 const ANY_BANANA = 4;   // any mix of three bananas (or wilds) on a line
@@ -191,18 +191,21 @@ function resolveSpin(){
   const wins = evaluate(g).map(w=>({...w, amount:w.amount*mult}));
   const total = wins.reduce((a,w)=>a+w.amount,0);
   const bowls = countOf(g,BOWL), jugs = inBonus ? countOf(g,JUG) : 0;
-  let triggered = 0, added = 0, bonusEnded = false;
+  let triggered = 0, added = 0, bonusEnded = false, topUp = 0;
   credits += total;
   if(inBonus){
     bonusTotal += total;
     if(jugs){ added = jugs*BONUS.jugAdds; bonusLeft += added; }
-    if(bonusLeft===0){ bonusEnded = true; if(bonusTotal >= cost()*STREAK.bigWinX) coolLeft = STREAK.coolSpins; }
+    if(bonusLeft===0){ bonusEnded = true;
+      // guaranteed minimum: a bonus round never pays less than BONUS.floor × the bet — the machine tops it up at the end
+      if(BONUS.floor && bonusTotal < cost()*BONUS.floor){ topUp = cost()*BONUS.floor - bonusTotal; credits += topUp; bonusTotal += topUp; }
+      if(bonusTotal >= cost()*STREAK.bigWinX) coolLeft = STREAK.coolSpins; }
   } else {
     afterSpin(total + (bowls>=3 ? 1 : 0), spent);
     if(bowls>=3){ triggered = bowls>=4 ? BONUS.spins4 : BONUS.spins3; bonusLeft = triggered; bonusTotal = 0; bonusPlayed = 0; bonusMult = BONUS.mult; }
   }
   const spinMood = mood, moodEvent = inBonus ? null : moodTick(total, spent);
-  return { g, wins, total, spent, inBonus, mult, bowls, jugs, triggered, added, bonusEnded, landed, swap, nudge, fake, above, moodEvent, mood:spinMood, boosts, multBefore };
+  return { g, wins, total, spent, inBonus, mult, bowls, jugs, triggered, added, bonusEnded, landed, swap, nudge, fake, above, moodEvent, mood:spinMood, boosts, multBefore, topUp };
 }
 
 // Tease planner: looks at the result before the reels stop and decides how much drama to add

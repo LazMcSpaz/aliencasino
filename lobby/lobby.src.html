@@ -102,7 +102,10 @@ const $=id=>document.getElementById(id);
 
 // ---- the games, and where their machines stand on the floor ----
 const GAMES = [
-  { id:"slot",    name:"The Living Slot", kind:"Slot machine with moods", col:"#ff9a4a", src:"games/slot.html",     desc:"The walking slot robots. Their mood changes the spins. Three themed machines inside." },
+  // the Living Slot robots come as three machines, each its own game on the floor (same robot, different reels, words and bonus)
+  { id:"bite",    machine:"food", name:"Take a Bite",     kind:"Living Slot: alien buffet", col:"#ffb03f", src:"games/slot.html", desc:"A hungry slot robot. Its mood changes the spins. Three goop bowls start Bowl-nus spins." },
+  { id:"zorp",    machine:"club", name:"Club Zorp",       kind:"Living Slot: nightclub", col:"#ff6ad5", src:"games/slot.html", desc:"The party robot. Its mood changes the spins. Three VIA passes open the VIA Lounge spins." },
+  { id:"capone",  machine:"mob",  name:"Al'ien Capone",   kind:"Living Slot: alien mafia", col:"#ff5a3c", src:"games/slot.html", desc:"The mob boss robot. Its mood changes the spins. Three briefcases start Brief-Cash spins." },
   { id:"pyramid", name:"Pyramid Scheme",  kind:"Stacking slot",           col:"#ffc845", src:"games/pyramid.html",  desc:"Stack the blocks higher for bigger pays. Zib brings the golden brick." },
   { id:"asteroid",name:"Asteroid Field",  kind:"Mines",                   col:"#5fe8ff", src:"games/asteroid.html", desc:"Crack asteroids for crystals. Collect before you hit a black hole." },
   { id:"gravity", name:"Gravity Well",    kind:"Spiral roulette",         col:"#b48cff", src:"games/gravity.html",  desc:"A comet spirals down three tiers into a black hole. Bet on where it lands." },
@@ -133,11 +136,12 @@ const PLAN = [
   { game:"asteroid",kind:"bank",  pos:[-4.2,0,11],   rot:0, per:3, va:0 },
   { game:"pyramid", kind:"bank",  pos:[4.2,0,11],    rot:0, per:3, va:0 },
   // the slot alley along the left wall, a stool in front of each robot
-  ...[-3.6,-1.9,-.2,1.5,3.2,4.9,6.6,8.3].map((z,i)=>({ game:"slot", kind:"bot", pos:[-11.3,0,z], rot:Math.PI/2, va:Math.PI/2, stool:true, label:i===3 })),
-  { game:"slot",    kind:"bot",   pos:[11.55,0,5.5], rot:-Math.PI/2, va:-Math.PI/2 },                                   // behind the bar
-  { game:"slot",    kind:"bot",   walk:[[-9,-3.5],[-9,13.2],[-7,13.2],[-7,-3.5]], speed:.45, va:0 },                    // up and down the left walkway
-  { game:"slot",    kind:"bot",   walk:[[7,0],[7,13.2],[9,13.2],[9,0]], speed:.4, va:0 },                               // and the right one, past the bar
-  { game:"slot",    kind:"bot",   pos:[0,0,1.3],     rot:0, va:0, mood:"giddy", usual:.85 } ];   // the giddy one: in the open where the aisles cross, well clear of everything for its waving arms
+  // three banks along the left wall, one per machine, each with its name sign over the middle robot
+  ...[-3.6,-1.9,-.2,1.5,3.2,4.9,6.6,8.3].map((z,i)=>({ game:["bite","bite","bite","zorp","zorp","zorp","capone","capone"][i], kind:"bot", pos:[-11.3,0,z], rot:Math.PI/2, va:Math.PI/2, stool:true, label:i===1||i===4||i===6 })),
+  { game:"zorp",    kind:"bot",   pos:[11.55,0,5.5], rot:-Math.PI/2, va:-Math.PI/2 },                                   // behind the bar
+  { game:"capone",  kind:"bot",   walk:[[-9,-3.5],[-9,13.2],[-7,13.2],[-7,-3.5]], speed:.45, va:0 },                    // up and down the left walkway
+  { game:"bite",    kind:"bot",   walk:[[7,0],[7,13.2],[9,13.2],[9,0]], speed:.4, va:0 },                               // and the right one, past the bar
+  { game:"bite",    kind:"bot",   pos:[0,0,1.3],     rot:0, va:0, mood:"giddy", usual:.85 } ];   // the giddy one: in the open where the aisles cross, well clear of everything for its waving arms
 const STOOLS=[];   // [x, z] of every stool (slots, cabinets, the bar), drawn together at the end
 // ---- renderer, scene, camera ----
 const cv=$("c"), renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true});
@@ -263,8 +267,9 @@ async function buildFloor(){ const TX=await loadAll(TEX_SRC);
         holder.position.set(...p.pos); holder.rotation.y=p.rot; holder.updateMatrixWorld(true);
         for(const row of [1,-1]) for(let i=0;i<p.per;i++){ const v=holder.localToWorld(new THREE.Vector3((i-(p.per-1)/2)*(size.x+gap),0,row*(size.z+.55))); STOOLS.push([v.x,v.z]); } }
       else if(p.kind==="bot"){ const mood=pickMood(p), Mood=mood[0].toUpperCase()+mood.slice(1); p.moodNow=mood;   // remembered so its game opens in the same mood
-        if(!proto["slot_"+mood]){ const m=buildSlotBot(THREE,{mood,tex:TX.slot}); proto["slot_"+mood]=m.root; protoClips.slot=m.clips; }   // one robot per mood: copies share their face
-        const r=proto["slot_"+mood].clone(true); holder.add(r); const mx=new THREE.AnimationMixer(r), cl=protoClips.slot;
+        const key="slot_"+g.machine+"_"+mood;   // one robot per machine and mood: copies share their screens
+        if(!proto[key]){ const m=buildSlotBot(THREE,{mood,tex:Object.assign({},TX.slot,TX.slot.machines[g.machine])}); proto[key]=m.root; protoClips.slot=m.clips; }
+        const r=proto[key].clone(true); holder.add(r); const mx=new THREE.AnimationMixer(r), cl=protoClips.slot;
         if(p.walk){ mx.clipAction(cl.find(c=>c.name==="Walk_"+Mood)||cl[0]).play(); const w={ holder, path:p.walk, seg:0, k:Math.random(), speed:p.speed, paused:false }; walkers.push(w); holder.userData.walker=w; placeWalker(w,0); }
         else { mx.clipAction(cl.find(c=>c.name==="Idle_"+Mood)||cl[0]).play(); holder.position.set(...p.pos); holder.rotation.y=p.rot;
           if(p.stool) STOOLS.push([p.pos[0]+Math.sin(p.rot)*.9, p.pos[2]+Math.cos(p.rot)*.9]); }
@@ -320,9 +325,9 @@ musicBtn.onclick=e=>{ e.stopPropagation(); Music.setWanted(!Music.on); showMusic
 addEventListener("pointerdown",function first(e){ if(e.target===musicBtn) return; removeEventListener("pointerdown",first,true); if(Music.wanted&&!playing){ Music.start(); showMusic(); } },true);
 const cache={}; let playing=false;
 const PREFIX='<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"></head><body>';
-async function openGame(g,spot){ window.__alienLaunch={ mood:(spot&&spot.moodNow)||null };   // the game reads this as it starts (a Living Slot opens in its robot's mood)
+async function openGame(g,spot){ window.__alienLaunch={ mood:(spot&&spot.moodNow)||null, machine:g.machine||null };   // the game reads this as it starts (a Living Slot opens in its robot's mood)
   $("game").style.setProperty("--gc",g.col); $("game").hidden=false; playing=true; Music.stop(.15); showMusic();
-  try{ if(!cache[g.id]){ const r=await fetch(g.src); cache[g.id]=await r.text(); } $("frame").srcdoc=PREFIX+cache[g.id]+"</body></html>"; }
+  try{ if(!cache[g.src]){ const r=await fetch(g.src); cache[g.src]=await r.text(); } $("frame").srcdoc=PREFIX+cache[g.src]+"</body></html>"; }
   catch(e){ $("frame").srcdoc=PREFIX+`<p style="font:16px sans-serif;color:#ccc;padding:24px">Couldn't load ${g.name}.</p>`; } }
 $("gBack").onclick=()=>{ $("frame").srcdoc=""; $("game").hidden=true; playing=false; clock.getDelta(); if(Music.wanted){ Music.start(); showMusic(); } };
 

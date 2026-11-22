@@ -1015,7 +1015,7 @@ function buildPicker(){
 function buildPaytable(){
   const items = SYMBOLS.filter((s,i)=>i!==BOWL && i!==JUG).map((s,i)=>`<div class="payitem${i===WILD?" wild":""}"><i class="s-${s[0]}" role="img" aria-label="${s[1]}"></i><div><b>${s[3]*LINE_COST}</b><span>${i===WILD?"wild · counts as any symbol":s[4]?`2 pay ${s[4]*LINE_COST}`:"3 in a line"}</span></div></div>`).join("");
   $("pay").innerHTML = `<div class="paygrid">${items}</div><div class="anyb"><i class="s-banana1"></i><i class="s-banana2"></i><i class="s-banana3"></i><span>${MACH.anyShort}</span><b>${ANY_BANANA*LINE_COST}</b></div>
-    <div class="payrow"><i class="s-bowl" role="img" aria-label="${SYMBOLS[BOWL][1]}"></i><span><b>${MACH.bonus.a}${MACH.bonus.b}</b> · 3 ${MACH.bonus.scatterPlural} anywhere = ${BONUS.spins3} free spins (4+ = ${BONUS.spins4}). Every win ×${BONUS.mult} — and each ${MACH.names[BONUS.multSym]} that lands adds +1 to the multiplier (up to ×${BONUS.multCap}).</span></div>
+    <div class="payrow"><i class="s-bowl" role="img" aria-label="${SYMBOLS[BOWL][1]}"></i><span><b>${MACH.bonus.a}${MACH.bonus.b}</b> · 3 ${MACH.bonus.scatterPlural} anywhere = ${BONUS.spins3} free spins (4+ = ${BONUS.spins4}). Every win ×${BONUS.mult} — and each ${MACH.names[BONUS.multSym]} that lands adds +1 to the multiplier (up to ×${BONUS.multCap}). Guaranteed to pay at least <b>${BONUS.floor}× your bet</b>.</span></div>
     <div class="payrow"><i class="s-jug" role="img" aria-label="${SYMBOLS[JUG][1]}"></i><span>Shows up only in ${MACH.bonus.short} spins. Each ${MACH.bonus.extName} adds <b>+${BONUS.jugAdds}</b> spins.</span></div>`;
 }
 
@@ -1085,7 +1085,7 @@ function update(){
   $("auto").disabled = inBonus;
   
   if(inBonus) $("bonuscount").textContent = `${bonusPlayed}/${bonusPlayed+bonusLeft}`;
-  const broke = !spinning && credits < LINE_COST; $("spin").hidden=broke; $("refill").hidden=!broke;
+  const broke = !spinning && credits < LINE_COST; $("spin").hidden=broke; $("refill").hidden=true;   // the shared free-refill card takes over when broke
 }
 
 // ---- Bowl-nus takeover: visuals, music, bubbles, wipe ----
@@ -1832,9 +1832,11 @@ function spin(){
       animateNumber($("winv"),0,total,countMs);
       if(!partial) coinBurst(Math.min(90, 6 + Math.round(total/3)));
       setTimeout(()=>setCredits(1100), 500);
-      if(level>=1){ SFX.countUp(countMs); const wp=$("winpop"); wp.classList.toggle("big",level===2); $("winlabel").textContent= level===2?"BIG WIN": r.inBonus ? `WIN ×${r.mult}` : "WIN";
+      const bigShow = level===2 && !r.inBonus;   // the shared full-screen celebration (every game uses it); bonus spins keep the quick pop
+      if(bigShow) BigWin.show(total, r.spent);
+      if(level>=1 && !bigShow){ SFX.countUp(countMs); const wp=$("winpop"); wp.classList.toggle("big",level===2); $("winlabel").textContent= level===2?"BIG WIN": r.inBonus ? `WIN ×${r.mult}` : "WIN";
         wp.classList.add("show"); animateNumber($("winbig"),0,total,countMs); setTimeout(()=>wp.classList.remove("show"), level===2?2600:1500); }
-      if(level===2){ Sound.bigWin(); setTimeout(signature, 400); $("app").classList.add("shake"); setTimeout(()=>$("app").classList.remove("shake"),1000);
+      if(level===2){ if(!bigShow) Sound.bigWin(); setTimeout(signature, 400); $("app").classList.add("shake"); setTimeout(()=>$("app").classList.remove("shake"),1000);
         setFace(resultFace("big", r.mood),{hold:2800,line:sayRand("big")}); pause=2800; if(autoOn && !r.inBonus) setAuto(false); }
       else if(partial){ SFX.plink(); setFace(resultFace("crumbs", r.mood),{hold:1100,line:sayRand(missed?"nearMiss":"crumbs")}); pause=900; }
       else { Sound.win(level); setTimeout(signature, 350); setFace(r.inBonus?"drool":resultFace("win", r.mood),{hold:1600,line:sayRand(missed?"nearMiss":r.inBonus?"bonusSpin":level?"medium":"small")}); pause = level ? 1700 : 1100; }
@@ -1861,7 +1863,7 @@ function spin(){
       SFX.bonusStart();
       await wait(1300);
       await goopWipe(()=>setBonusVisuals(true));
-      await overlay(`<div class="bowlart s-bowl"></div><h2>${MACH.bonus.a}<span>${MACH.bonus.b}</span></h2><p><b>${r.triggered} free spins</b> at ${cost()} a spin · every win ×${BONUS.mult}</p><small>${MACH.bonus.tapIn}</small>`, 3200);
+      await overlay(`<div class="bowlart s-bowl"></div><h2>${MACH.bonus.a}<span>${MACH.bonus.b}</span></h2><p><b>${r.triggered} free spins</b> at ${cost()} a spin · every win ×${BONUS.mult} · pays at least ${cost()*BONUS.floor}</p><small>${MACH.bonus.tapIn}</small>`, 3200);
       autoTimer=setTimeout(spin, 300); return;
     }
     if(r.inBonus){
@@ -1869,7 +1871,8 @@ function spin(){
       await new Promise(res=>setTimeout(res, Math.max(900,pause)));
       SFX.bonusEnd(); Music.stop();
       setFace(bonusTotal>0?"happy":"meh",{hold:2500,line:sayRand("bonusEnd")});
-      await overlay(`<div class="bowlart s-bowl"></div><h2>${MACH.bonus.a}<span>${MACH.bonus.b}</span> DONE</h2><p>${bonusPlayed} ${MACH.bonus.endLine}</p><div class="big">+${bonusTotal}</div><small>Tap to keep playing</small>`, 3200);
+      if(!(bonusTotal >= cost()*10 && await BigWin.show(bonusTotal, cost(), `${MACH.bonus.a}${MACH.bonus.b} total`)))
+      await overlay(`<div class="bowlart s-bowl"></div><h2>${MACH.bonus.a}<span>${MACH.bonus.b}</span> DONE</h2><p>${bonusPlayed} ${MACH.bonus.endLine}</p><div class="big">+${bonusTotal}</div>${r.topUp?`<p>Topped up to the guaranteed ${BONUS.floor}× minimum</p>`:""}<small>Tap to keep playing</small>`, 3200);
       await goopWipe(()=>{ setBonusVisuals(false); bonusMode=false; update(); showIdleLines(); });
       setMood("giddy", 10); applyMoodUI(false); setTimeout(()=>{ setFace(restingFace(),{line:pickLine("afterBonus")}); pingChip(); }, 500);
       if(bonusTotal>0){ coinBurst(Math.min(90, 20+Math.round(bonusTotal/4))); }
@@ -1919,8 +1922,11 @@ applyMachine(startMachine);
 buildRails(); buildPicker(); buildPaytable(); fit(); sizeFx(); sizeBub(); Promise.all([iconsReady, document.fonts ? document.fonts.ready : 0]).then(()=>{ sprCell=0; sizeReelCanvas(); fitTitle(); setTimeout(layoutGoop, 1200); });   // goop flipbook is prepared early, while nothing's happening
 render(); update(); showIdleLines(); paintSound(); paintFast();
 // opened from a robot in the casino: start in that robot's mood (the lobby leaves it in window.__alienLaunch)
-try{ const L=window.parent!==window && window.parent.__alienLaunch; if(L && L.mood && MOOD_LIST.includes(L.mood)) setMood(L.mood); }catch(e){}
+try{ const L=window.parent!==window && window.parent.__alienLaunch; if(L && L.mood && MOOD_LIST.includes(L.mood)) setMood(L.mood);
+  // each machine is its own slot in the casino: open on that one and hide the switcher
+  if(L && L.machine && MACHINES[L.machine]){ applyMachine(L.machine); fitTitle(); $("tabmach").hidden=true; } }catch(e){}
 MOOD_LIST.forEach(m=>{ const b=document.createElement("button"); b.className="mbtn"; b.dataset.m=m; b.textContent="Mood: "+m; b.onclick=()=>{ if(spinning||bonusMode) return; setMood(m); applyMoodUI(true); }; $("dbgmoods").appendChild(b); });
 applyMoodUI(false);
+Refill.start(LINE_COST, ()=>spinning||bonusMode);
 setFace(restingFace(),{line:sayRand("hello")}); blinkLoop(); lookLoop(); poke();
 </script>

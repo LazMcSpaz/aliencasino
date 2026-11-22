@@ -249,12 +249,12 @@ async function crack(i){ if(busy||!game||game.over) return; busy=true; const bef
   const k=game.picks.length, [gk,gc]=GEM_FOR(k); Fx.crack(cx,cy,r.width); b.innerHTML=`<span class="gem" style="background-image:url(${ArtGen.gems[gk]});--gc:${gc}"></span>`;
   const m=current(); const L=Math.min(9,k-1); Fx.burst(cx,cy,gc,10+L*6+Math.min(30,m)); SFX.crystal(k);
   MILES.forEach(([v,name],j)=>{ if(before<v && m>=v){ banner(name, `${fmt(m)} · +${Math.floor(game.bet*m)}`, MCOL[j], j+1); Fx.flash(MCOL[j], .15+j*.06); Fx.rings(cx,cy,MCOL[j],1+j); SFX.milestone(j); if(j>=1) shake(3+j*2,350); } });
-  if(res==="cleared"){ say(line("clear")); banner("FIELD CLEARED", `+${game.win}`, "#ffc845", 6); SFX.collect(true); revealAll(-1); busy=false; paint(); await wait(1600); idleField(); paint(); return; }
+  if(res==="cleared"){ say(line("clear")); banner("FIELD CLEARED", `+${game.win}`, "#ffc845", 6); SFX.collect(true); revealAll(-1); busy=false; paint(); await wait(1600); await BigWin.show(game.win, game.bet); idleField(); paint(); return; }
   if(Math.random()<.35) say(line("safe"));
   await wait(170); busy=false; paint(); }
 function doCollect(){ if(busy||!game||game.over||!game.picks.length) return; const win=collect(); SFX.collect(false); say(`${line("collect")} +${win}`);
   const fb=$("fieldbox").getBoundingClientRect(); game.picks.forEach((i,j)=>{ const r=tiles[i].getBoundingClientRect(); setTimeout(()=>Fx.burst(r.left-fb.left+r.width/2,r.top-fb.top+r.height/2,"#7dff9a",10),j*40); });
-  banner("COLLECTED", `${fmt(multFor(game.holes,game.picks.length))} · +${win}`, "#7dff9a", 2); countUp(win); revealAll(-1); paint(); setTimeout(()=>{ idleField(); paint(); },1400); }
+  banner("COLLECTED", `${fmt(multFor(game.holes,game.picks.length))} · +${win}`, "#7dff9a", 2); countUp(win); revealAll(-1); paint(); setTimeout(()=>{ idleField(); paint(); BigWin.show(win, game.bet); },1400); }
 function revealAll(hit){ tiles.forEach((b,i)=>{ if(b.classList.contains("open")) return; b.classList.add("open","dim");
   b.innerHTML = game.mines.has(i) ? `<span class="hole"></span>` : `<span class="gem" style="background-image:url(${ArtGen.gems.cyan});--gc:#5fe8ff"></span>`; }); }
 function idleField(){ /* the field stays revealed until the next launch, so you can see where the holes were */ }
@@ -329,5 +329,6 @@ $("sheet").addEventListener("click",e=>{ if(e.target.id==="sheet") $("sheet").hi
 $("fcorner").addEventListener("click",()=>{ FORCE.mines=[20,21,22,23,24].slice(0,holes); $("sheet").hidden=true; });
 document.addEventListener("pointerdown",()=>Sound.unlock(),{once:true});
 addEventListener("resize",sizeField);
+Refill.start(1, ()=>busy||!!(game&&!game.over));   // the shared free refill when the bars run out
 dressField(); paint(); requestAnimationFrame(()=>{ sizeField(); Fx.start(); Stars.start(); setTimeout(()=>say("Choose your black holes, then launch."),400); });
 </script>

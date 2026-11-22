@@ -594,7 +594,7 @@ async function doDrop(){
   if(res.top){
     await wait(250); $("band10").classList.add("hit"); stoneEls.forEach(s=>s.el.classList.add("glow")); SFX.capstone();
     banner("CAPSTONE!", `×${BANDS[10].mult} → ${res.paid} gold bars`, "var(--cap)"); countTo($("credits"), credits-res.paid, credits, 1600);
-    say(line("capstone"),"cheer"); setBeam(false); await wait(2600); stoneEls.forEach(s=>s.el.classList.remove("glow")); $("band10").classList.remove("hit");
+    say(line("capstone"),"cheer"); setBeam(false); await wait(1400); await BigWin.show(res.paid, bet); await wait(400); stoneEls.forEach(s=>s.el.classList.remove("glow")); $("band10").classList.remove("hit");
     busy=false; paint(); setControls("play"); return;
   }
   if(res.offer){
@@ -609,7 +609,7 @@ async function doCash(){
   const amt=cashOut(); setControls("busy"); SFX.cash(); stoneEls.forEach(s=>s.el.classList.add("glow"));
   banner("CASHED OUT", `+${amt} gold bars`, "var(--alien)"); say(line("cash"),"wave");
   await wait(500); await collectStones(); countTo($("credits"), credits-amt, credits, 700);
-  await wait(700); paint(); busy=false; setControls("play");
+  await wait(700); await BigWin.show(amt, bet); paint(); busy=false; setControls("play");
 }
 // cash out: every stone lifts off the board and flies into the gold counter, leaving the board clear
 async function collectStones(){ setBeam(false);
@@ -693,4 +693,5 @@ setInterval(()=>{ if(busy || document.hidden || Date.now()-lastAct<25000 || Date
   if(climb && climb.offer) say(line("idleOffer"),"think");
   else if(climb) say(line("idleClimb"),"wink");
   else say(line("idleStart"),"wave"); }, 4000);
+Refill.start(BETS[0], ()=>busy||!!climb);   // the shared free refill when the bars run out
 </script>

@@ -242,7 +242,7 @@ const NAMES = { blue: "BLUE CRYSTAL", violet: "VIOLET CRYSTAL", pink: "PINK CRYS
 function handle(evs) { for (const e of evs) {
     if (e.type === "win") { const [sx, sy] = toScreen(e.x, 0, Math.min(L, e.z)); won += e.val; const gem = e.kind !== "bar";
       floats.push({ x: sx, y: sy - 6, t: 0, txt: "+" + e.val, col: gem ? GEMHEX[e.kind] : "#7dff9a", big: gem }); burst(sx, sy, gem ? GEMHEX[e.kind] : "#ffc845", gem ? 26 : 5); SFX.win(e.kind); popWin();
-      if (gem) { banner(NAMES[e.kind] + "!", e.val ? `+${e.val}` : "bar shower coming", GEMHEX[e.kind]); say(LINES[e.kind]); } }
+      if (gem) { banner(NAMES[e.kind] + "!", e.val ? `+${e.val}` : "bar shower coming", GEMHEX[e.kind]); say(LINES[e.kind]); if (e.val) setTimeout(() => BigWin.show(e.val, 1), 900); } }
     if (e.type === "gutter") { const [sx, sy] = toScreen(e.x, 0, L); burst(sx, sy, "#ff4d6d", 4); SFX.gutter(); }
     if (e.type === "shower") { banner("BAR SHOWER!", `${e.n} free bars incoming`, "#ffffff"); SFX.shower(); showerT = performance.now();
       const f = $("flash"); f.classList.remove("go", "rb"); void f.offsetWidth; f.classList.add("rb"); for (let i = 0; i < 70; i++) { const c = ["#ff5fae", "#ffc845", "#7dff9a", "#5fe8ff", "#b48cff"][i % 5]; sparks.push({ x: Math.random() * VW, y: -10 - Math.random() * 60, vx: (Math.random() - .5) * 60, vy: 80 + Math.random() * 160, r: 2 + Math.random() * 3, col: c, t: 0, life: 1.6 + Math.random() * .8 }); } }
@@ -346,6 +346,6 @@ size(); paint();  requestAnimationFrame(t => { last = t; frame(t); });
 // start the physics engine (a WebAssembly module from the CDN), then the pile you left last time or a fresh one
 (async () => { try { const mod = await import(RAPIER_URL), RAPIER = mod.default || mod; await RAPIER.init(); init(RAPIER);
     let ok = false; try { ok = restore(JSON.parse(localStorage.getItem(SAVE) || "null")); } catch (e) {} if (!ok) seed(1);
-    ready = true; $("boot").hidden = true; paint(); setTimeout(() => say("Tap over the machine to drop a gold bar."), 400); window.__ready = true; }
+    ready = true; $("boot").hidden = true; paint(); Refill.start(1); setTimeout(() => say("Tap over the machine to drop a gold bar."), 400); window.__ready = true; }
   catch (e) { const b = $("boot"); b.classList.add("err"); b.textContent = "The 3D physics couldn't start here (" + (e && e.message || e) + ")."; console.error(e); } })();
 </script>

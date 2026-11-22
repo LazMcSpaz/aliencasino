@@ -6,7 +6,9 @@ import base64, json, pathlib, shutil
 here = pathlib.Path(__file__).parent; M = here / "../model3d"; C = M / "cap"
 d = lambda p: "data:image/webp;base64," + base64.b64encode(pathlib.Path(p).read_bytes()).decode()
 tex = {
-  "slot": {"hud": d(C/"tex_hud.webp"), "glass": d(C/"tex_glass.webp"), "controls": d(C/"tex_controls.webp"), "faces": {m: d(C/f"tex_face_{m}.webp") for m in ["happy", "giddy", "grumpy", "sleepy", "mischievous"]}},
+  "slot": {"hud": d(C/"tex_hud.webp"), "glass": d(C/"tex_glass.webp"), "controls": d(C/"tex_controls.webp"), "faces": {m: d(C/f"tex_face_{m}.webp") for m in ["happy", "giddy", "grumpy", "sleepy", "mischievous"]},
+           # each machine's own sign, reels and buttons (model3d/capture_machines.js), so every robot shows the slot it opens
+           "machines": {m: {k: d(C/f"tex_{k}_{m}.webp") for k in ["hud", "glass", "controls"]} for m in ["food", "club", "mob"]}},
   "pyramid": {"screen": d(C/"pyr_screen.webp"), "rects": json.load(open(C/"pyr_rects.json"))},
   "asteroid": {"screen": d(C/"ast_screen.webp"), "rects": json.load(open(C/"ast_rects.json"))},
   "gravity": {"bowl": d(C/"gw_bowl.webp"), "face": d(C/"tex_face_happy.webp"), "launcher": d(here/"../gravity/art/launcher.webp")},

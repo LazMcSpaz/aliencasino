@@ -237,7 +237,8 @@ function landed(res) { const k = res.seg, w = byId[k]; addHist(k);
     say(k === "earth" ? "EARTH! A little closer to home!" : `${w.name}! Nice call!`); }
   else if (k === "hole") { flash("hole"); SFX.hole(); banner("BLACK HOLE", "it swallowed every bet", "#8a7aa8"); say("The black hole eats everything. Ouch."); }
   else { SFX.lose(); banner(w.name.toUpperCase(), "no bets on it", WCOL[k]); say(`${w.name}. Not this time.`); }
-  paint(); setTimeout(() => { W3.update(0, 0, "chase"); startRound(); }, 2800); }
+  const staked = total(), big = res.paid ? new Promise(r => setTimeout(() => BigWin.show(res.paid, staked).then(r), 1000)) : Promise.resolve();
+  paint(); Promise.all([big, new Promise(r => setTimeout(r, 2800))]).then(() => { W3.update(0, 0, "chase"); startRound(); }); }
 $("spin").onclick = doSpin;
 
 // ---- the loop ----
@@ -278,5 +279,6 @@ $("fworm").addEventListener("click", () => { FORCE.seg = "worm"; $("sheet").hidd
 document.addEventListener("pointerdown", () => Sound.unlock(), { once: true });
 addEventListener("resize", size);
 size(); paint(); requestAnimationFrame(t => { last = t; frame(t); });
+Refill.start(1, () => busy);   // the shared free refill when the bars run out
 $("boot").hidden = true; ready = true; setTimeout(() => { startRound(); say("Welcome to the Wheel of Worlds! Pick a chip and tap a world."); }, 500); window.__ready = true;
 </script>

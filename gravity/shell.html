@@ -520,7 +520,7 @@ async function doSpin(){
   Music.spin(false); $("app").classList.remove("frenzy"); Others.settle(res);
   countTo($("win"),0,won,700); countTo($("credits"),credits-res.totalWin,credits,700);
   say(won>res.staked ? pick(["Ooh, nice landing!","The well provides!","Cosmic!"]) : won>0 ? "Some of it came back." : pick(["The well takes all.","Swallowed whole.","Gravity: undefeated."]));
-  await wait(1400); comets=[]; Others.clear(); spinning=false;
+  await wait(1400); await BigWin.show(res.totalWin, res.staked); comets=[]; Others.clear(); spinning=false;
   const opened=Others.openTable(2500); paint();                            // open the window first, so SPIN never flickers back on
   const tickT=setInterval(paint,200); await opened; clearInterval(tickT); paint();
 }
@@ -597,6 +597,7 @@ $("ffrenzy").addEventListener("click",()=>{ FORCE.frenzy=true; $("sheet").hidden
 document.addEventListener("pointerdown",()=>Sound.unlock(),{once:true});
 addEventListener("resize",layout);
 (function idle(){ if(!spinning) draw(); requestAnimationFrame(idle); })();
+Refill.start(1, ()=>spinning||Others.open);   // the shared free refill when the bars run out
 paint(); requestAnimationFrame(layout);
 document.fonts && document.fonts.load('20px "Bungee"').then(()=>draw()).catch(()=>{});
 </script>
