@@ -115,4 +115,6 @@ function keepClimbing(){ if(climb?.offer) climb.offer = null; }
 function bandValue(r){ return climb && BANDS[r] ? Math.round(BANDS[r].mult * climb.total) : 0; }   // what a band would pay right now
 
 // keep the shared wallet in step with this game's balance (not in Node tests)
+// closing the game mid-climb takes the current cash-out offer, so leaving never throws the climb away
+if (typeof Wallet !== "undefined") Wallet.onLeave(() => { if (climb?.offer) cashOut(); });
 if (typeof Wallet !== "undefined") Wallet.watch(() => credits);

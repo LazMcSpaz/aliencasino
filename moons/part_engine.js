@@ -63,4 +63,10 @@ function roll(force) {                 // force: someone else is shooting, so th
 }
 
 // keep the shared wallet in step with this game's balance (not in Node tests)
+// the table survives closing the game: chips not rolled yet come back, and bets riding on a point are kept for next time
+const TABLE_KEY = "alien-casino-moons-table";
+try { const t = JSON.parse(localStorage.getItem(TABLE_KEY) || "null"); if (t && t.bets && typeof t.bets.with === "number") { point = t.point ?? null; streak = t.streak || 0; bets = t.bets; } } catch (e) {}
+const saveTable = () => { try { localStorage.setItem(TABLE_KEY, JSON.stringify({ point, streak, bets })); } catch (e) {} };
+if (typeof Wallet !== "undefined") Wallet.onLeave(() => { clearBets(); saveTable(); });
+if (typeof window !== "undefined") setInterval(saveTable, 1000);
 if (typeof Wallet !== "undefined") Wallet.watch(() => credits);

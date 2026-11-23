@@ -33,6 +33,8 @@ const next = () => game ? multFor(game.holes, game.picks.length + 1) : 1;
 function collect() { if (!game || game.over || !game.picks.length) return 0; const win = Math.floor(game.bet * current()); credits += win; game.over = "won"; game.win = win; return win; }
 
 // keep the shared wallet in step with this game's balance (not in Node tests)
+// closing the game mid-field collects what the picks have earned so far
+if (typeof Wallet !== "undefined") Wallet.onLeave(() => collect());
 if (typeof Wallet !== "undefined") Wallet.watch(() => credits);
 
 if (typeof module !== "undefined") module.exports = { N, EDGE, HOLE_CHOICES, multFor, start, pick, collect, current, next, FORCE,

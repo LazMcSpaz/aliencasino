@@ -1008,7 +1008,7 @@ function buildPicker(){
     inner+=L.map((row,reel)=>`<circle class="nd" cx="${5+reel*10}" cy="${5+row*10}" r="2.4"/>`).join("");
     svg.innerHTML=inner;
     const s=document.createElement("span"); s.textContent=i+1; b.append(svg,s);
-    b.addEventListener("click",()=>{ if(spinning) return; poke(); lines=i+1; Sound.lines(lines); update(); $("glass").classList.remove("result"); showIdleLines();
+    b.addEventListener("click",()=>{ if(spinning || bonusLeft>0) return; poke();   // the bet is locked during free spins lines=i+1; Sound.lines(lines); update(); $("glass").classList.remove("result"); showIdleLines();
       setFace("happy",{hold:900, line: lines>=4 ? LINES_SAID.lines[1] : lines===1 ? LINES_SAID.lines[2] : LINES_SAID.lines[0]}); });
     $("picker").appendChild(b); });
 }

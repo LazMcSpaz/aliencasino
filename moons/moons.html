@@ -183,21 +183,24 @@ const ART = {"bar": "data:image/webp;base64,UklGRiYuAABXRUJQVlA4WAoAAAAQAAAAxwAA
 // Opened on its own, a game keeps its balance in this browser's storage, so it survives a reload.
 // Each engine does: let credits = Wallet.load(START); … Wallet.watch(() => credits)  (it saves whenever the balance changes).
 const Wallet = (() => {
-  const KEY = "alien-casino-bars", START = 500;
+  const KEY = "alien-casino-bars", START = 500, hooks = [];
   const host = (() => { try { if (window.parent !== window && window.parent.__alienWallet) return window.parent.__alienWallet; } catch (e) {} return null; })();
   const read = () => { if (host) return host.get(); try { const v = localStorage.getItem(KEY); return v === null ? null : Number(v); } catch (e) { return null; } };
   const write = v => { if (host) return host.set(v); try { localStorage.setItem(KEY, String(v)); } catch (e) {} };
   return {
     load() { const v = read(); if (v !== null && Number.isFinite(v) && v >= 0) return Math.floor(v); write(START); return START; },
     watch(get) { let last = get(); const save = () => { const v = get(); if (v !== last && Number.isFinite(v)) { last = v; write(Math.floor(v)); } };
-      setInterval(save, 250); addEventListener("pagehide", save); document.addEventListener("visibilitychange", save); }
+      const leave = () => { for (const f of hooks) try { f(); } catch (e) {} save(); };
+      setInterval(save, 250); addEventListener("pagehide", leave); document.addEventListener("visibilitychange", save); },
+    // onLeave(fn): run fn just before the balance is saved when the player leaves the game (closes it) — e.g. pay out a win still animating
+    onLeave(fn) { hooks.push(fn); }
   };
 })();
 
 // Shared by every game (inlined after the wallet by each game's build.py): the big-win celebration and the free refill.
 // Lives in slot/ with the wallet and sound engine. Uses the game's Sound if it has one, and the game's own `credits`.
 //   BigWin.show(win, bet, pre?) -> Promise   full-screen celebration when win is at least 10x the bet (and 50+ bars); resolves when it's gone
-//   Refill.start(minBet, busy)         watches the balance; when it stays below minBet (and busy() isn't true: a round still in play), offers a free top-up (once every 10 minutes)
+//   Refill.start(minBet, busy)         watches the balance; when it stays below minBet (and busy() isn't true: a round still in play), offers a free top-up (once an hour)
 const Shared = (() => {
   const css = `
 .bw{position:fixed;inset:0;z-index:9000;display:grid;place-items:center;overflow:hidden;cursor:pointer;
@@ -278,16 +281,17 @@ const Shared = (() => {
     return showing;
   }
 
-  // ---- free refill: when the balance runs dry, the house tops you back up (once every 10 minutes) ----
-  const KEY = "alien-casino-refill-at", COOL = 10 * 60 * 1000, TO = 500;
-  const lastAt = () => { try { return Number(localStorage.getItem(KEY)) || 0; } catch (e) { return 0; } };
+  // ---- free refill: when the balance runs dry, the house tops you back up (once an hour) ----
+  const KEY = "alien-casino-refill-at", COOL = 60 * 60 * 1000, TO = 100;
+  // a refill time in the future means the clock was wound back: restart the hour from now, so clock games don't pay
+  const lastAt = () => { try { let at = Number(localStorage.getItem(KEY)) || 0; if (at > Date.now()) { at = Date.now(); localStorage.setItem(KEY, String(at)); } return at; } catch (e) { return 0; } };
   let card = null, dismissedUntilReady = false, minBet = 10, low = 0;
   function offer() {
     if (card) return; style(); card = document.createElement("div"); card.className = "rf";
     card.innerHTML = `<div class="card"><button class="close" aria-label="Close">✕</button><h3>OUT OF BARS</h3><p>The aliens don't want you leaving early. Have some on the house.</p><div class="bars"><i></i><i></i><i></i></div><button class="take"></button><small></small></div>`;
     document.body.appendChild(card); const take = card.querySelector(".take"), note = card.querySelector("small");
     const paintCard = () => { if (!card) return; const left = COOL - (Date.now() - lastAt());
-      if (left <= 0) { take.disabled = false; take.textContent = `TAKE ${TO} FREE BARS`; note.textContent = "A free refill every 10 minutes"; }
+      if (left <= 0) { take.disabled = false; take.textContent = `TAKE ${TO} FREE BARS`; note.textContent = "A free refill once an hour"; }
       else { const m = Math.floor(left / 60000), s = Math.floor(left / 1000) % 60; take.disabled = true; take.textContent = `NEXT REFILL ${m}:${String(s).padStart(2, "0")}`; note.textContent = "Or grab your daily reward from the menu"; } };
     paintCard(); const iv = setInterval(paintCard, 500);
     const shut = () => { clearInterval(iv); if (card) card.remove(); card = null; };
@@ -299,6 +303,19 @@ const Shared = (() => {
     setInterval(() => { if (typeof credits !== "number") return; try { if (busy && busy()) { low = 0; return; } } catch (e) {} if (credits >= minBet) { low = 0; dismissedUntilReady = false; if (card) { card.remove(); card = null; } return; }
       low++; const ready = COOL - (Date.now() - lastAt()) <= 0; if (dismissedUntilReady && ready) dismissedUntilReady = false;
       if (low >= 8 && !card && !dismissedUntilReady && !showing) offer(); }, 500); }   // 4 s of being broke, so a round still paying out can land first
+  // balances of a million or more show short (1.23M) so the header never overflows; games keep writing plain numbers to #credits
+  const compact = () => { const el = document.getElementById("credits"); if (!el) return;
+    const fix = () => { const t = el.textContent.replace(/,/g, ""); if (/^\d{7,}$/.test(t)) { const n = +t; el.textContent = (n >= 1e9 ? (n / 1e9).toFixed(2) + "B" : (n / 1e6).toFixed(n >= 1e8 ? 0 : 2) + "M"); } };
+    new MutationObserver(fix).observe(el, { childList: true, characterData: true, subtree: true }); fix(); };
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", compact); else setTimeout(compact, 0);
+  // opened on its own (not inside the casino app, which has its own), a sideways phone gets the same turn-it-upright card
+  if (window.parent === window) { const add = () => { const st = document.createElement("style"); st.textContent = `/* phones turned sideways: the casino is built upright, so ask to turn back rather than show a squashed layout */
+#rotate{display:none;position:fixed;inset:0;z-index:2147483000;place-items:center;align-content:center;gap:18px;text-align:center;background:#07030f;color:#e8dcff;font:600 1rem/1.4 "Chakra Petch",system-ui,sans-serif;letter-spacing:.04em}
+#rotate i{display:block;width:44px;height:74px;margin:0 auto;border:3px solid #b48cff;border-radius:10px;box-shadow:0 0 18px #8a4dff88,inset 0 0 0 3px #07030f,inset 0 -8px 0 -5px #b48cff;animation:rotPh 2.2s ease-in-out infinite}
+#rotate b{display:block;font:400 1.3rem/1 "Bungee","Chakra Petch",system-ui,sans-serif;color:#ffd56a;margin-bottom:4px}
+@keyframes rotPh{0%,20%{rotate:-90deg}55%,100%{rotate:0deg}}
+@media (orientation:landscape) and (max-height:500px){#rotate{display:grid}}`; document.head.appendChild(st); document.body.insertAdjacentHTML("beforeend", '<div id="rotate" aria-live="polite"><i></i><div><b>TURN IT UPRIGHT</b>The casino is built for holding your phone upright.</div></div>'); };
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", add); else setTimeout(add, 0); }
   return { BigWin: { show }, Refill: { start } };
 })();
 const BigWin = Shared.BigWin, Refill = Shared.Refill;
@@ -368,6 +385,12 @@ function roll(force) {                 // force: someone else is shooting, so th
 }
 
 // keep the shared wallet in step with this game's balance (not in Node tests)
+// the table survives closing the game: chips not rolled yet come back, and bets riding on a point are kept for next time
+const TABLE_KEY = "alien-casino-moons-table";
+try { const t = JSON.parse(localStorage.getItem(TABLE_KEY) || "null"); if (t && t.bets && typeof t.bets.with === "number") { point = t.point ?? null; streak = t.streak || 0; bets = t.bets; } } catch (e) {}
+const saveTable = () => { try { localStorage.setItem(TABLE_KEY, JSON.stringify({ point, streak, bets })); } catch (e) {} };
+if (typeof Wallet !== "undefined") Wallet.onLeave(() => { clearBets(); saveTable(); });
+if (typeof window !== "undefined") setInterval(saveTable, 1000);
 if (typeof Wallet !== "undefined") Wallet.watch(() => credits);
 
 // ---- Sound: all synthesized live with Web Audio, no sound files needed ----

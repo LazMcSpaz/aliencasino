@@ -72,7 +72,7 @@ const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).
 
 let credits = typeof Wallet !== "undefined" ? Wallet.load() : START, lines = 3, spinning = false;
 let lossStreak = 0, coolLeft = 0, lastPity = 0, lastTax = 0;
-let bonusLeft = 0, bonusTotal = 0, bonusPlayed = 0;
+let bonusLeft = 0, bonusTotal = 0, bonusPlayed = 0, bonusLines = 0;   // bonusLines: the bet is locked at what triggered the bonus
 let grid = [[7,1,5],[4,0,8],[3,2,6]]; // grid[reel][row]
 const cost = () => lines * LINE_COST;
 
@@ -161,7 +161,7 @@ function rescore(r, g){
   if(r.inBonus) bonusTotal += total - r.total;
   else {
     const bowls = countOf(g,BOWL); if(total>0) lossStreak = 0;
-    if(bowls>=3 && !r.triggered){ r.triggered = bowls>=4 ? BONUS.spins4 : BONUS.spins3; bonusLeft = r.triggered; bonusTotal = 0; bonusPlayed = 0; bonusMult = BONUS.mult; }
+    if(bowls>=3 && !r.triggered){ r.triggered = bowls>=4 ? BONUS.spins4 : BONUS.spins3; bonusLeft = r.triggered; bonusTotal = 0; bonusPlayed = 0; bonusMult = BONUS.mult; bonusLines = lines; }
     else if(bowls<3 && r.triggered){ bonusLeft = 0; r.triggered = 0; }
     r.bowls = bowls;
   }
@@ -170,7 +170,7 @@ function rescore(r, g){
 
 // One full spin: takes the bet (unless it's a Bowl-nus spin), picks the result, pays out, handles the bonus
 function resolveSpin(){
-  const inBonus = bonusLeft > 0, spent = inBonus ? 0 : cost();
+  const inBonus = bonusLeft > 0; if(inBonus && bonusLines) lines = bonusLines; const spent = inBonus ? 0 : cost();
   let g;
   if(inBonus){ bonusLeft--; bonusPlayed++; g = rollGrid(true); }
   let landed = null, swap = null, nudge = null, fake = false, above = null;
@@ -202,7 +202,7 @@ function resolveSpin(){
       if(bonusTotal >= cost()*STREAK.bigWinX) coolLeft = STREAK.coolSpins; }
   } else {
     afterSpin(total + (bowls>=3 ? 1 : 0), spent);
-    if(bowls>=3){ triggered = bowls>=4 ? BONUS.spins4 : BONUS.spins3; bonusLeft = triggered; bonusTotal = 0; bonusPlayed = 0; bonusMult = BONUS.mult; }
+    if(bowls>=3){ triggered = bowls>=4 ? BONUS.spins4 : BONUS.spins3; bonusLeft = triggered; bonusTotal = 0; bonusPlayed = 0; bonusMult = BONUS.mult; bonusLines = lines; }
   }
   const spinMood = mood, moodEvent = inBonus ? null : moodTick(total, spent);
   return { g, wins, total, spent, inBonus, mult, bowls, jugs, triggered, added, bonusEnded, landed, swap, nudge, fake, above, moodEvent, mood:spinMood, boosts, multBefore, topUp };
@@ -231,4 +231,6 @@ function teaseInfo(g, bonus=false){
 }
 
 // keep the shared wallet in step with this game's balance (not in Node tests)
+// closing the game in the middle of free spins plays the rest out instantly and pays them, so leaving never throws away a bonus
+if (typeof Wallet !== "undefined") Wallet.onLeave(() => { let n = 0; while (bonusLeft > 0 && n++ < 500) resolveSpin(); });
 if (typeof Wallet !== "undefined") Wallet.watch(() => credits);

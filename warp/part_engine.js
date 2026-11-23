@@ -43,6 +43,8 @@ function endRound() {
   round = { slots: round.slots.map(s => ({ bet: 0, auto: s.auto, cashed: null })), crash: null }; return r; }
 
 // keep the shared wallet in step with this game's balance (not in Node tests)
+// closing the game: bets not launched yet come back; launched ones pay only if their auto cash-out target would have hit before the explosion
+if (typeof Wallet !== "undefined") Wallet.onLeave(() => { round.slots.forEach((s, i) => { if (!s.bet || s.cashed) return; if (round.crash === null) cancelBet(i); else if (s.auto && s.auto < round.crash) cashOut(i, s.auto); }); });
 if (typeof Wallet !== "undefined") Wallet.watch(() => credits);
 
 if (typeof module !== "undefined") module.exports = { EDGE, GROWTH, MAX_MULT, multAt, timeFor, crashPoint, placeBet, cancelBet, setAuto, launch, cashOut, blown, endRound, FORCE,

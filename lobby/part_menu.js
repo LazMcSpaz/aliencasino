@@ -269,7 +269,8 @@ const MENU = (() => {
   setInterval(() => { if (!open || screen !== "home") return; el.querySelectorAll("[data-timer]").forEach(t => { if (t.dataset.timer) t.textContent = clock(); });
     if ((rewardReady() && $m("mnDaily") && $m("mnDaily").classList.contains("off")) || (spinReady() && $m("mnSpin") && $m("mnSpin").classList.contains("off"))) home(); }, 1000);   // past midnight: the tiles light up again
   const nextIn = () => { const n = new Date(); n.setHours(24, 0, 0, 0); const m = Math.ceil((n - new Date()) / 6e4); return `${Math.floor(m / 60)}h ${m % 60}m`; };
-  const rewardReady = () => load().claim !== today(), spinReady = () => load().spin !== today();
+  // ready only once the date has moved past the last claim, so winding the phone's clock back and forth can't farm rewards
+  const rewardReady = () => { const c = load().claim; return !c || today() > c; }, spinReady = () => { const c = load().spin; return !c || today() > c; };
   function streakDay() { const d = load(); if (!d.claim) return 0; const gap = dayDiff(d.claim, today()); return gap === 0 ? (d.streak - 1) % 7 : gap === 1 ? d.streak % 7 : 0; }   // which day (0…6) is up next
   // ---- the home screen ----
   function home() { screen = "home"; body.style.alignContent = "";

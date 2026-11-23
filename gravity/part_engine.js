@@ -91,10 +91,15 @@ function spin() {
     balls.push(settleBall(angles)); }
   FORCE.angles = null;
   const frenzyWin = frenzy ? bets.frenzyBet * FRENZY_PAY : 0;          // the pool settles once per spin, not per comet
-  return { frenzy, balls, frenzyWin, staked, totalWin: balls.reduce((a, b) => a + b.win, 0) + frenzyWin };
+  const totalWin = balls.reduce((a, b) => a + b.win, 0) + frenzyWin; pending = totalWin;
+  return { frenzy, balls, frenzyWin, staked, totalWin };
 }
-// the screen calls this as each part of the result is revealed, so credits rise in step with the comet
-function collect(amount) { credits += amount; }
+// the screen calls this as each part of the result is revealed, so credits rise in step with the comet.
+// Anything not yet revealed when the player leaves mid-spin is paid out anyway (settleAll), so closing the game never loses a win.
+let pending = 0;
+function collect(amount) { amount = Math.min(amount, pending); pending -= amount; credits += amount; }
+function settleAll() { credits += pending; pending = 0; }
+if (typeof Wallet !== "undefined") Wallet.onLeave(settleAll);
 
 // keep the shared wallet in step with this game's balance (not in Node tests)
 if (typeof Wallet !== "undefined") Wallet.watch(() => credits);

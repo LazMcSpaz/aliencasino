@@ -19,6 +19,7 @@ header{position:fixed;z-index:5;top:0;left:0;right:0;padding:calc(10px + env(saf
 .logo{position:relative;font:400 1.5rem/1 "Monoton",var(--f-sign);color:#eafcff;text-shadow:0 0 4px #fff,0 0 10px var(--holo2),0 0 24px #8a4dff}
 .logo i{position:absolute;right:-30px;bottom:-14px;font:400 1.15rem "Yellowtail",cursive;font-style:normal;color:#fff0d0;transform:rotate(-8deg);text-shadow:0 0 8px #ffb070,0 0 18px #ff7a3a}
 .coins{--k:7px;display:flex;align-items:center;gap:6px;padding:6px 12px;font:700 1rem var(--f-mono);pointer-events:auto}
+.coins .refill:disabled{opacity:.55;cursor:default}
 .coins .refill{font:700 .75rem var(--f-mono);margin-left:6px;padding:3px 8px;border:0;border-radius:6px;background:#ffc845;color:#1a1030;cursor:pointer}
 .right{display:flex;gap:8px;align-items:center}
 .music{--k:7px;--hc:var(--holo2);width:38px;height:34px;padding:0;display:grid;place-items:center;cursor:pointer;pointer-events:auto;color:var(--dim)}
@@ -72,8 +73,15 @@ nav button[aria-pressed="true"]{--hc:var(--gold);color:#fff;text-shadow:0 0 8px 
 .loading{position:fixed;inset:0;z-index:30;display:grid;place-content:center;gap:10px;text-align:center;background:var(--bg);font:400 .7rem var(--f-mono);letter-spacing:.24em;color:var(--dim);transition:opacity .5s}
 .loading b{font:400 1.8rem/1 "Monoton",var(--f-sign);color:#eafcff;text-shadow:0 0 10px var(--holo2),0 0 24px #8a4dff;letter-spacing:0}
 .loading.done{opacity:0;pointer-events:none}
+/* phones turned sideways: the casino is built upright, so ask to turn back rather than show a squashed layout */
+#rotate{display:none;position:fixed;inset:0;z-index:2147483000;place-items:center;align-content:center;gap:18px;text-align:center;background:#07030f;color:#e8dcff;font:600 1rem/1.4 "Chakra Petch",system-ui,sans-serif;letter-spacing:.04em}
+#rotate i{display:block;width:44px;height:74px;margin:0 auto;border:3px solid #b48cff;border-radius:10px;box-shadow:0 0 18px #8a4dff88,inset 0 0 0 3px #07030f,inset 0 -8px 0 -5px #b48cff;animation:rotPh 2.2s ease-in-out infinite}
+#rotate b{display:block;font:400 1.3rem/1 "Bungee","Chakra Petch",system-ui,sans-serif;color:#ffd56a;margin-bottom:4px}
+@keyframes rotPh{0%,20%{rotate:-90deg}55%,100%{rotate:0deg}}
+@media (orientation:landscape) and (max-height:500px){#rotate{display:grid}}
 </style>
 <canvas id="c" aria-label="The Alien Casino floor"></canvas>
+<div id="rotate" aria-live="polite"><i></i><div><b>TURN IT UPRIGHT</b>The casino is built for holding your phone upright.</div></div>
 <header><div class="logo">ALIEN<i>Casino</i></div><div class="right"><button class="music holo mn-home" id="home" aria-label="Menu"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg></button><button class="music holo" id="view" aria-label="Bird's-eye view"><svg viewBox="0 0 24 24" id="viewIcon"></svg></button><button class="music holo" id="music" aria-label="Music" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></svg></button><div class="coins holo"><i></i><span id="bars">500</span><button class="refill" id="refill" hidden>Refill</button></div></div></header>
 <p class="hint" id="hint">TAP A GAME &middot; DRAG TO LOOK AROUND</p>
 <nav id="nav" aria-label="Games"></nav>
@@ -315,9 +323,14 @@ $("cBack").onclick=unfocus; $("cPlay").onclick=()=>focused&&openGame(focused.g,f
 // ---- the wallet: one balance of gold bars for the whole casino. Games read and save it through window.__alienWallet ----
 const WALLET_KEY="alien-casino-bars", WALLET_START=500, REFILL_BELOW=20;
 let bars=(()=>{ try{ const v=localStorage.getItem(WALLET_KEY); if(v!==null&&Number.isFinite(+v)&&+v>=0) return Math.floor(+v); }catch(e){} return WALLET_START; })();
-function showBars(){ $("bars").textContent=bars.toLocaleString(); $("refill").hidden=bars>=REFILL_BELOW; }
-window.__alienWallet={ get:()=>bars, set:v=>{ bars=Math.max(0,Math.floor(v)); try{ localStorage.setItem(WALLET_KEY,String(bars)); }catch(e){} showBars(); } };
-$("refill").onclick=()=>window.__alienWallet.set(WALLET_START);
+// the header refill follows the same rule as the in-game one (slot/part_shared.js): 100 bars, once an hour
+const REFILL_KEY="alien-casino-refill-at", REFILL_COOL=3600e3, REFILL_TO=100;
+const refillLeft=()=>{ let at=0; try{ at=Number(localStorage.getItem(REFILL_KEY))||0; if(at>Date.now()){ at=Date.now(); localStorage.setItem(REFILL_KEY,String(at)); } }catch(e){} return REFILL_COOL-(Date.now()-at); };
+function showBars(){ $("bars").textContent=bars.toLocaleString(); const r=$("refill"); r.hidden=bars>=REFILL_BELOW; if(r.hidden) return;
+  const left=refillLeft(); r.disabled=left>0; r.textContent=left>0?`REFILL ${Math.floor(left/60000)}:${String(Math.floor(left/1000)%60).padStart(2,"0")}`:`+${REFILL_TO} FREE`; }
+setInterval(()=>{ if(!$("refill").hidden) showBars(); },1000);
+window.__alienWallet={ get:()=>bars, set:v=>{ if(!Number.isFinite(v)) return; bars=Math.max(0,Math.floor(v)); try{ localStorage.setItem(WALLET_KEY,String(bars)); }catch(e){} showBars(); } };
+$("refill").onclick=()=>{ if(refillLeft()>0) return; try{ localStorage.setItem(REFILL_KEY,String(Date.now())); }catch(e){} window.__alienWallet.set(Math.max(bars,REFILL_TO)); };
 showBars();
 // ---- music: starts with the first tap (browsers need one), remembered on/off, quiet while a game is open ----
 const musicBtn=$("music"), showMusic=()=>musicBtn.setAttribute("aria-pressed",String(Music.on));

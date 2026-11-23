@@ -39,6 +39,8 @@ function spin() { if (phase === "bet" && !total()) return null; phase = "spin";
   const b = bets[seg]; if (b) { const w = byId[seg], k = boost && boost.world === seg ? boost.mult : 1, win = b * w.mult * k * ride; credits += win; res.wins.push({ world: seg, bet: b, win, boost: k }); res.paid = win; }
   history.unshift(seg); history = history.slice(0, 16); phase = "done"; return res; }
 // keep the shared wallet in step with this game's balance (not in Node tests)
+// closing the game mid-wormhole finishes the spin (wormholes repeat until it lands) and pays it
+if (typeof Wallet !== "undefined") Wallet.onLeave(() => { if (phase !== "spin" || !total()) return; let n = 0, r; do { r = spin(); } while (r && r.wormhole && n++ < 50); });
 if (typeof Wallet !== "undefined") Wallet.watch(() => credits);
 if (typeof module !== "undefined") module.exports = { WORLDS, SPECIAL, S, BOOSTS, CHIPS, MAXBET, LAYOUT, byId, newRound, placeBet, clearBets, rebet, spin, total, FORCE,
   get credits() { return credits; }, set credits(v) { credits = v; }, get bets() { return bets; }, get boost() { return boost; }, get ride() { return ride; }, get phase() { return phase; }, get history() { return history; } };
